@@ -1,0 +1,1 @@
+dotnet run -- --data-provider Sqlite --connection-string "Data Source=/Users/joshuang/Desktop/Programming/Ivy/artist-insight-tool/db.sqlite" --seed-database --yes-to-all

@@ -1,0 +1,1 @@
+/Users/joshuang/Library/Application Support/Ivy.Console/dotnet-tools/dotnet-ef/10.0.x/dotnet-ef migrations add InitialCreate -- --connection-string "Data Source=/Users/joshuang/Desktop/Programming/Ivy/artist-insight-tool/db.sqlite"
