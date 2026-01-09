@@ -30,8 +30,6 @@ public class RevenueEntryEditSheet(IState<bool> isOpen, RefreshToken refreshToke
         .ToSheet(isOpen, "Edit Revenue Entry");
   }
 
-
-
   private static AsyncSelectQueryDelegate<int?> QuerySources(ArtistInsightToolContextFactory factory)
   {
     return async query =>
