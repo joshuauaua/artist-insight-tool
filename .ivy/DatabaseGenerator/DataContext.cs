@@ -177,6 +177,9 @@ public class Album
     public Artist Artist { get; set; } = null!;
     public ICollection<Track> Tracks { get; set; } = null!;
     public ICollection<RevenueEntry> RevenueEntries { get; set; } = null!;
+    [Required]
+    [MaxLength(50)]
+    public string ReleaseType { get; set; } = "Album";
 }
 
 [Table("tracks")]

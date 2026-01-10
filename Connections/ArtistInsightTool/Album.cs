@@ -10,26 +10,28 @@ namespace ArtistInsightTool.Connections.ArtistInsightTool;
 [Index("ArtistId", Name = "IX_albums_ArtistId")]
 public partial class Album
 {
-    [Key]
-    public int Id { get; set; }
+  [Key]
+  public int Id { get; set; }
 
-    public int ArtistId { get; set; }
+  public int ArtistId { get; set; }
 
-    public string Title { get; set; } = null!;
+  public string Title { get; set; } = null!;
 
-    public DateTime? ReleaseDate { get; set; }
+  public string ReleaseType { get; set; } = "Album";
 
-    public DateTime CreatedAt { get; set; }
+  public DateTime? ReleaseDate { get; set; }
 
-    public DateTime UpdatedAt { get; set; }
+  public DateTime CreatedAt { get; set; }
 
-    [ForeignKey("ArtistId")]
-    [InverseProperty("Albums")]
-    public virtual Artist Artist { get; set; } = null!;
+  public DateTime UpdatedAt { get; set; }
 
-    [InverseProperty("Album")]
-    public virtual ICollection<RevenueEntry> RevenueEntries { get; set; } = new List<RevenueEntry>();
+  [ForeignKey("ArtistId")]
+  [InverseProperty("Albums")]
+  public virtual Artist Artist { get; set; } = null!;
 
-    [InverseProperty("Album")]
-    public virtual ICollection<Track> Tracks { get; set; } = new List<Track>();
+  [InverseProperty("Album")]
+  public virtual ICollection<RevenueEntry> RevenueEntries { get; set; } = new List<RevenueEntry>();
+
+  [InverseProperty("Album")]
+  public virtual ICollection<Track> Tracks { get; set; } = new List<Track>();
 }

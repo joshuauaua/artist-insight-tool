@@ -16,147 +16,169 @@ namespace ArtistInsightTool;
 
 public class DataSeeder : IDataSeeder
 {
-    private readonly DataContext _context;
+  private readonly DataContext _context;
 
-    public DataSeeder(DataContext context)
+  public DataSeeder(DataContext context)
+  {
+    _context = context;
+  }
+
+  public async System.Threading.Tasks.Task SeedAsync()
+  {
+    if (!await _context.Artists.AnyAsync())
     {
-        _context = context;
+      var newArtists = new List<Artist>
+            {
+                new Artist { Name = "The User", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow }
+            };
+      _context.Artists.AddRange(newArtists);
+      await _context.SaveChangesAsync();
     }
 
-    public async System.Threading.Tasks.Task SeedAsync()
+    var artists = await _context.Artists.ToArrayAsync();
+
+    if (!await _context.Albums.AnyAsync())
     {
-        if (!await _context.Artists.AnyAsync())
-        {
-            var artistFaker = new Faker<Artist>()
-                .RuleFor(a => a.Name, f => f.Person.FullName)
-                .RuleFor(a => a.CreatedAt, f => f.Date.Past(2))
-                .RuleFor(a => a.UpdatedAt, (f, a) => f.Date.Between(a.CreatedAt, DateTime.UtcNow));
+      var albumFaker = new Faker<Album>()
+          .RuleFor(a => a.Title, f => f.Lorem.Sentence(3))
+          .RuleFor(a => a.ReleaseDate, f => f.Date.Past(5))
+          .RuleFor(a => a.CreatedAt, f => f.Date.Past(2))
+          .RuleFor(a => a.UpdatedAt, (f, a) => f.Date.Between(a.CreatedAt, DateTime.UtcNow));
 
-            var newArtists = artistFaker.Generate(100);
-            _context.Artists.AddRange(newArtists);
-            await _context.SaveChangesAsync();
-        }
+      var newAlbums = new List<Album>();
+      foreach (var artist in artists)
+      {
+        // Create Albums (10-15 tracks)
+        var generatedAlbums = albumFaker
+            .RuleFor(a => a.ArtistId, _ => artist.Id)
+            .RuleFor(a => a.ReleaseType, _ => "Album")
+            .Generate(3);
 
-        var artists = await _context.Artists.ToArrayAsync();
+        // Create EPs (4-6 tracks)
+        var eps = albumFaker
+            .RuleFor(a => a.ArtistId, _ => artist.Id)
+            .RuleFor(a => a.ReleaseType, _ => "EP")
+            .Generate(5);
 
-        if (!await _context.Albums.AnyAsync())
-        {
-            var albumFaker = new Faker<Album>()
-                .RuleFor(a => a.Title, f => f.Lorem.Sentence(3))
-                .RuleFor(a => a.ReleaseDate, f => f.Date.Past(5))
-                .RuleFor(a => a.CreatedAt, f => f.Date.Past(2))
-                .RuleFor(a => a.UpdatedAt, (f, a) => f.Date.Between(a.CreatedAt, DateTime.UtcNow));
+        // Create Singles (1 track)
+        var singles = albumFaker
+            .RuleFor(a => a.ArtistId, _ => artist.Id)
+            .RuleFor(a => a.ReleaseType, _ => "Single")
+            .Generate(10); // Generating 10 singles as albums of type Single
 
-            var newAlbums = new List<Album>();
-            foreach (var artist in artists)
-            {
-                var albumsForArtist = albumFaker
-                    .RuleFor(a => a.ArtistId, _ => artist.Id)
-                    .Generate(new Faker().Random.Int(1, 5));
-                newAlbums.AddRange(albumsForArtist);
-            }
+        newAlbums.AddRange(albums);
+        newAlbums.AddRange(eps);
+        newAlbums.AddRange(singles);
+      }
 
-            _context.Albums.AddRange(newAlbums);
-            await _context.SaveChangesAsync();
-        }
-
-        var albums = await _context.Albums.ToArrayAsync();
-
-        if (!await _context.Tracks.AnyAsync())
-        {
-            var trackFaker = new Faker<Track>()
-                .RuleFor(t => t.Title, f => f.Lorem.Sentence(2))
-                .RuleFor(t => t.Duration, f => f.Random.Int(120, 360))
-                .RuleFor(t => t.CreatedAt, f => f.Date.Past(2))
-                .RuleFor(t => t.UpdatedAt, (f, t) => f.Date.Between(t.CreatedAt, DateTime.UtcNow));
-
-            var newTracks = new List<Track>();
-            foreach (var artist in artists)
-            {
-                var tracksForArtist = trackFaker
-                    .RuleFor(t => t.ArtistId, _ => artist.Id)
-                    .Generate(new Faker().Random.Int(5, 15));
-                foreach (var track in tracksForArtist)
-                {
-                    if (new Faker().Random.Bool(0.7f))
-                    {
-                        track.AlbumId = new Faker().PickRandom(albums.Where(a => a.ArtistId == artist.Id)).Id;
-                    }
-                }
-                newTracks.AddRange(tracksForArtist);
-            }
-
-            _context.Tracks.AddRange(newTracks);
-            await _context.SaveChangesAsync();
-        }
-
-        if (!await _context.Campaigns.AnyAsync())
-        {
-            var campaignFaker = new Faker<Campaign>()
-                .RuleFor(c => c.Name, f => f.Lorem.Sentence(3))
-                .RuleFor(c => c.StartDate, f => f.Date.Past(1))
-                .RuleFor(c => c.EndDate, (f, c) => f.Date.Between(c.StartDate ?? DateTime.UtcNow.AddMonths(-1), DateTime.UtcNow))
-                .RuleFor(c => c.CreatedAt, f => f.Date.Past(2))
-                .RuleFor(c => c.UpdatedAt, (f, c) => f.Date.Between(c.CreatedAt, DateTime.UtcNow));
-
-            var newCampaigns = new List<Campaign>();
-            foreach (var artist in artists)
-            {
-                var campaignsForArtist = campaignFaker
-                    .RuleFor(c => c.ArtistId, _ => artist.Id)
-                    .Generate(new Faker().Random.Int(1, 3));
-                newCampaigns.AddRange(campaignsForArtist);
-            }
-
-            _context.Campaigns.AddRange(newCampaigns);
-            await _context.SaveChangesAsync();
-        }
-
-        var campaigns = await _context.Campaigns.ToArrayAsync();
-        var revenueSources = await _context.RevenueSources.ToArrayAsync();
-
-        if (!await _context.RevenueEntries.AnyAsync())
-        {
-            var revenueEntryFaker = new Faker<RevenueEntry>()
-                .RuleFor(r => r.Amount, f => f.Random.Decimal(100, 10000))
-                .RuleFor(r => r.RevenueDate, f => f.Date.Between(DateTime.UtcNow.AddMonths(-6), DateTime.UtcNow))
-                .RuleFor(r => r.Description, f => f.Lorem.Sentence(5))
-                .RuleFor(r => r.CreatedAt, f => f.Date.Past(2))
-                .RuleFor(r => r.UpdatedAt, (f, r) => f.Date.Between(r.CreatedAt, DateTime.UtcNow));
-
-            var newRevenueEntries = new List<RevenueEntry>();
-            foreach (var artist in artists)
-            {
-                var revenueEntriesForArtist = revenueEntryFaker
-                    .RuleFor(r => r.ArtistId, _ => artist.Id)
-                    .RuleFor(r => r.SourceId, f => f.PickRandom(revenueSources).Id)
-                    .Generate(new Faker().Random.Int(10, 30));
-
-                foreach (var revenueEntry in revenueEntriesForArtist)
-                {
-                    if (new Faker().Random.Bool(0.5f))
-                    {
-                        revenueEntry.AlbumId = new Faker().PickRandom(albums.Where(a => a.ArtistId == artist.Id)).Id;
-                    }
-                    if (new Faker().Random.Bool(0.5f))
-                    {
-                        var tracks = await _context.Tracks.Where(t => t.ArtistId == artist.Id).ToArrayAsync();
-                        if (tracks.Any())
-                        {
-                            revenueEntry.TrackId = new Faker().PickRandom(tracks).Id;
-                        }
-                    }
-                    if (new Faker().Random.Bool(0.3f))
-                    {
-                        revenueEntry.CampaignId = new Faker().PickRandom(campaigns.Where(c => c.ArtistId == artist.Id)).Id;
-                    }
-                }
-
-                newRevenueEntries.AddRange(revenueEntriesForArtist);
-            }
-
-            _context.RevenueEntries.AddRange(newRevenueEntries);
-            await _context.SaveChangesAsync();
-        }
+      _context.Albums.AddRange(newAlbums);
+      await _context.SaveChangesAsync();
     }
+
+    var albums = await _context.Albums.ToArrayAsync();
+
+    if (!await _context.Tracks.AnyAsync())
+    {
+      var trackFaker = new Faker<Track>()
+          .RuleFor(t => t.Title, f => f.Lorem.Sentence(2))
+          .RuleFor(t => t.Duration, f => f.Random.Int(120, 360))
+          .RuleFor(t => t.CreatedAt, f => f.Date.Past(2))
+          .RuleFor(t => t.UpdatedAt, (f, t) => f.Date.Between(t.CreatedAt, DateTime.UtcNow));
+
+      var newTracks = new List<Track>();
+      foreach (var artist in artists)
+      {
+        var artistAlbums = albums.Where(a => a.ArtistId == artist.Id).ToList();
+
+        foreach (var album in artistAlbums)
+        {
+          int trackCount = album.ReleaseType switch
+          {
+            "Single" => 1,
+            "EP" => new Faker().Random.Int(4, 6),
+            _ => new Faker().Random.Int(10, 15)
+          };
+
+          var tracksForAlbum = trackFaker
+              .RuleFor(t => t.ArtistId, _ => artist.Id)
+              .RuleFor(t => t.AlbumId, _ => album.Id)
+              .Generate(trackCount);
+
+          newTracks.AddRange(tracksForAlbum);
+        }
+      }
+
+      _context.Tracks.AddRange(newTracks);
+      await _context.SaveChangesAsync();
+    }
+
+    if (!await _context.Campaigns.AnyAsync())
+    {
+      var campaignFaker = new Faker<Campaign>()
+          .RuleFor(c => c.Name, f => f.Lorem.Sentence(3))
+          .RuleFor(c => c.StartDate, f => f.Date.Past(1))
+          .RuleFor(c => c.EndDate, (f, c) => f.Date.Between(c.StartDate ?? DateTime.UtcNow.AddMonths(-1), DateTime.UtcNow))
+          .RuleFor(c => c.CreatedAt, f => f.Date.Past(2))
+          .RuleFor(c => c.UpdatedAt, (f, c) => f.Date.Between(c.CreatedAt, DateTime.UtcNow));
+
+      var newCampaigns = new List<Campaign>();
+      foreach (var artist in artists)
+      {
+        var campaignsForArtist = campaignFaker
+            .RuleFor(c => c.ArtistId, _ => artist.Id)
+            .Generate(new Faker().Random.Int(1, 3));
+        newCampaigns.AddRange(campaignsForArtist);
+      }
+
+      _context.Campaigns.AddRange(newCampaigns);
+      await _context.SaveChangesAsync();
+    }
+
+    var campaigns = await _context.Campaigns.ToArrayAsync();
+    var revenueSources = await _context.RevenueSources.ToArrayAsync();
+
+    if (!await _context.RevenueEntries.AnyAsync())
+    {
+      var revenueEntryFaker = new Faker<RevenueEntry>()
+          .RuleFor(r => r.Amount, f => f.Random.Decimal(100, 10000))
+          .RuleFor(r => r.RevenueDate, f => f.Date.Between(DateTime.UtcNow.AddMonths(-6), DateTime.UtcNow))
+          .RuleFor(r => r.Description, f => f.Lorem.Sentence(5))
+          .RuleFor(r => r.CreatedAt, f => f.Date.Past(2))
+          .RuleFor(r => r.UpdatedAt, (f, r) => f.Date.Between(r.CreatedAt, DateTime.UtcNow));
+
+      var newRevenueEntries = new List<RevenueEntry>();
+      foreach (var artist in artists)
+      {
+        var revenueEntriesForArtist = revenueEntryFaker
+            .RuleFor(r => r.ArtistId, _ => artist.Id)
+            .RuleFor(r => r.SourceId, f => f.PickRandom(revenueSources).Id)
+            .Generate(new Faker().Random.Int(10, 30));
+
+        foreach (var revenueEntry in revenueEntriesForArtist)
+        {
+          if (new Faker().Random.Bool(0.5f))
+          {
+            revenueEntry.AlbumId = new Faker().PickRandom(albums.Where(a => a.ArtistId == artist.Id)).Id;
+          }
+          if (new Faker().Random.Bool(0.5f))
+          {
+            var tracks = await _context.Tracks.Where(t => t.ArtistId == artist.Id).ToArrayAsync();
+            if (tracks.Any())
+            {
+              revenueEntry.TrackId = new Faker().PickRandom(tracks).Id;
+            }
+          }
+          if (new Faker().Random.Bool(0.3f))
+          {
+            revenueEntry.CampaignId = new Faker().PickRandom(campaigns.Where(c => c.ArtistId == artist.Id)).Id;
+          }
+        }
+
+        newRevenueEntries.AddRange(revenueEntriesForArtist);
+      }
+
+      _context.RevenueEntries.AddRange(newRevenueEntries);
+      await _context.SaveChangesAsync();
+    }
+  }
 }
