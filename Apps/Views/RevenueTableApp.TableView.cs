@@ -8,16 +8,24 @@ public class RevenueTableView : ViewBase
   {
     var factory = UseService<ArtistInsightToolContextFactory>();
     var refreshToken = this.UseRefreshToken();
-    var entries = UseState<RevenueEntryTableRecord[]>([]);
+    var allEntries = UseState<RevenueEntryTableRecord[]>([]);
+
+    var searchQuery = UseState("");
+    var sortField = UseState("Date");
+    var sortDirection = UseState("Desc");
+    // Filter states - could be more complex but let's start simple with Source filtering
+    var selectedSource = UseState<string?>(() => null);
 
     async Task<IDisposable?> LoadData()
     {
       await using var db = factory.CreateDbContext();
+      // Increase limit to enable better client-side search/filter
       var data = await db.RevenueEntries
          .Include(e => e.Track).ThenInclude(t => t.Album)
          .Include(e => e.Album)
+         .Include(e => e.Source)
          .OrderByDescending(e => e.RevenueDate)
-         .Take(50)
+         .Take(1000)
          .Select(e => new RevenueEntryTableRecord(
              e.Id,
              e.Source.DescriptionText,
@@ -27,13 +35,43 @@ public class RevenueTableView : ViewBase
              e.RevenueDate
          ))
          .ToArrayAsync();
-      entries.Set(data);
+      allEntries.Set(data);
       return null;
     }
 
     UseEffect(LoadData, [EffectTrigger.AfterInit(), refreshToken]);
 
-    var table = entries.Value.ToTable()
+    // Apply Filters and Search
+    var filteredEntries = allEntries.Value;
+
+    if (!string.IsNullOrWhiteSpace(searchQuery.Value))
+    {
+      var q = searchQuery.Value.ToLowerInvariant();
+      filteredEntries = filteredEntries.Where(e =>
+          e.SourceDescription.ToLowerInvariant().Contains(q) ||
+          e.ReleaseTitle.ToLowerInvariant().Contains(q) ||
+          e.Type.ToLowerInvariant().Contains(q)
+      ).ToArray();
+    }
+
+    if (selectedSource.Value != null)
+    {
+      filteredEntries = filteredEntries.Where(e => e.SourceDescription == selectedSource.Value).ToArray();
+    }
+
+    // Apply Sorting
+    filteredEntries = (sortField.Value, sortDirection.Value) switch
+    {
+      ("Date", "Desc") => filteredEntries.OrderByDescending(e => e.RevenueDate).ToArray(),
+      ("Date", "Asc") => filteredEntries.OrderBy(e => e.RevenueDate).ToArray(),
+      ("Amount", "Desc") => filteredEntries.OrderByDescending(e => e.Amount).ToArray(),
+      ("Amount", "Asc") => filteredEntries.OrderBy(e => e.Amount).ToArray(),
+      ("Source", "Asc") => filteredEntries.OrderBy(e => e.SourceDescription).ToArray(),
+      ("Source", "Desc") => filteredEntries.OrderByDescending(e => e.SourceDescription).ToArray(),
+      _ => filteredEntries
+    };
+
+    var table = filteredEntries.ToTable()
         .Width(Size.Full())
         .Clear()
         .Add(p => p.SourceDescription)
@@ -48,9 +86,35 @@ public class RevenueTableView : ViewBase
         .Header(p => p.RevenueDate, "Date")
         .Align(p => p.Amount, Align.Right)
         .Align(p => p.RevenueDate, Align.Center)
-        .Empty("No entries found");
+        .Empty("No entries match your search");
 
-    return new Card(table)
-        .Title("Revenue Table");
+    var searchBar = searchQuery.ToTextInput()
+        .Placeholder("Search streams...")
+        .Width(Size.Full());
+
+    // Simplified Filter Buttons
+    var filterRow = Layout.Horizontal()
+        .Gap(5)
+        .Add(new Button("All"))
+        .Add(new Button("Streams"))
+        .Add(new Button("Merch"));
+
+    // Actions button (Sort placeholder for now - or simple toggle)
+    var sortButton = new Button("Sort: " + sortField.Value);
+
+    var header = Layout.Horizontal()
+        .Align(Align.Center)
+        .Gap(20)
+        .Add("Revenue Streams")
+        .Add(sortButton);
+
+    return new Card(
+        Layout.Vertical()
+            .Gap(15)
+            .Add(header)
+            .Add(searchBar)
+            .Add(filterRow)
+            .Add(table)
+    ).Title(""); // Empty card title as we implement custom header
   }
 }
