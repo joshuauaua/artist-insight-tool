@@ -11,7 +11,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace ArtistInsightTool.Migrations
 {
     [DbContext(typeof(DataContext))]
-    [Migration("20260109133119_InitialCreate")]
+    [Migration("20260110123805_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -33,6 +33,11 @@ namespace ArtistInsightTool.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("ReleaseDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ReleaseType")
+                        .IsRequired()
+                        .HasMaxLength(50)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Title")
@@ -102,7 +107,7 @@ namespace ArtistInsightTool.Migrations
 
                     b.HasIndex("ArtistId");
 
-                    b.ToTable("campaigns", (string)null);
+                    b.ToTable("campaigns");
                 });
 
             modelBuilder.Entity("ArtistInsightTool.RevenueEntry", b =>
@@ -175,22 +180,22 @@ namespace ArtistInsightTool.Migrations
                         new
                         {
                             Id = 1,
-                            DescriptionText = "Concert"
+                            DescriptionText = "Merch"
                         },
                         new
                         {
                             Id = 2,
-                            DescriptionText = "Sync"
+                            DescriptionText = "Live Show"
                         },
                         new
                         {
                             Id = 3,
-                            DescriptionText = "Streams"
+                            DescriptionText = "Sync"
                         },
                         new
                         {
                             Id = 4,
-                            DescriptionText = "Merch"
+                            DescriptionText = "Streams"
                         },
                         new
                         {
@@ -250,7 +255,7 @@ namespace ArtistInsightTool.Migrations
                     b.HasOne("ArtistInsightTool.Artist", "Artist")
                         .WithMany("Campaigns")
                         .HasForeignKey("ArtistId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.Navigation("Artist");
@@ -271,8 +276,7 @@ namespace ArtistInsightTool.Migrations
 
                     b.HasOne("ArtistInsightTool.Campaign", "Campaign")
                         .WithMany("RevenueEntries")
-                        .HasForeignKey("CampaignId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .HasForeignKey("CampaignId");
 
                     b.HasOne("ArtistInsightTool.RevenueSource", "Source")
                         .WithMany()

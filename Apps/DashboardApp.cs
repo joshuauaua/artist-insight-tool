@@ -17,11 +17,11 @@ public class DashboardApp : ViewBase
 
     var metrics =
             Layout.Grid().Columns(4)
-| new TotalRevenueMetricView(fromDate, toDate).Key(fromDate, toDate) | new AverageTrackDurationMetricView(fromDate, toDate).Key(fromDate, toDate) | new NumberOfActiveCampaignsMetricView(fromDate, toDate).Key(fromDate, toDate) | new TotalTracksCreatedMetricView(fromDate, toDate).Key(fromDate, toDate) | new RevenuePerTrackMetricView(fromDate, toDate).Key(fromDate, toDate) | new TotalAlbumsReleasedMetricView(fromDate, toDate).Key(fromDate, toDate) | new RevenueGrowthRateMetricView(fromDate, toDate).Key(fromDate, toDate) | new TopRevenueSourceContributionMetricView(fromDate, toDate).Key(fromDate, toDate);
+| new TotalRevenueMetricView(fromDate, toDate).Key(fromDate, toDate) | new AverageTrackDurationMetricView(fromDate, toDate).Key(fromDate, toDate) | new TotalTracksCreatedMetricView(fromDate, toDate).Key(fromDate, toDate) | new RevenuePerTrackMetricView(fromDate, toDate).Key(fromDate, toDate) | new TotalAlbumsReleasedMetricView(fromDate, toDate).Key(fromDate, toDate) | new RevenueGrowthRateMetricView(fromDate, toDate).Key(fromDate, toDate) | new TopRevenueSourceContributionMetricView(fromDate, toDate).Key(fromDate, toDate);
 
     var charts =
             Layout.Grid().Columns(3)
-| new DailyRevenueTrendLineChartView(fromDate, toDate).Key(fromDate, toDate) | new RevenueBySourcePieChartView(fromDate, toDate).Key(fromDate, toDate) | new TopPerformingTracksLineChartView(fromDate, toDate).Key(fromDate, toDate) | new AlbumRevenueDistributionPieChartView(fromDate, toDate).Key(fromDate, toDate) | new CampaignRevenueImpactLineChartView(fromDate, toDate).Key(fromDate, toDate);
+| new DailyRevenueTrendLineChartView(fromDate, toDate).Key(fromDate, toDate) | new RevenueBySourcePieChartView(fromDate, toDate).Key(fromDate, toDate) | new TopPerformingTracksLineChartView(fromDate, toDate).Key(fromDate, toDate) | new AlbumRevenueDistributionPieChartView(fromDate, toDate).Key(fromDate, toDate);
 
     return Layout.Horizontal().Align(Align.Center) |
            new HeaderLayout(header, Layout.Vertical()

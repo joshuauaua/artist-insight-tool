@@ -50,7 +50,8 @@ namespace ArtistInsightTool.Migrations
                     Title = table.Column<string>(type: "TEXT", maxLength: 200, nullable: false),
                     ReleaseDate = table.Column<DateTime>(type: "TEXT", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    UpdatedAt = table.Column<DateTime>(type: "TEXT", nullable: false)
+                    UpdatedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
+                    ReleaseType = table.Column<string>(type: "TEXT", maxLength: 50, nullable: false)
                 },
                 constraints: table =>
                 {
@@ -84,7 +85,7 @@ namespace ArtistInsightTool.Migrations
                         column: x => x.ArtistId,
                         principalTable: "artists",
                         principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
+                        onDelete: ReferentialAction.Cascade);
                 });
 
             migrationBuilder.CreateTable(
@@ -153,8 +154,7 @@ namespace ArtistInsightTool.Migrations
                         name: "FK_revenue_entries_campaigns_CampaignId",
                         column: x => x.CampaignId,
                         principalTable: "campaigns",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
+                        principalColumn: "Id");
                     table.ForeignKey(
                         name: "FK_revenue_entries_revenue_sources_SourceId",
                         column: x => x.SourceId,
@@ -174,10 +174,10 @@ namespace ArtistInsightTool.Migrations
                 columns: new[] { "Id", "DescriptionText" },
                 values: new object[,]
                 {
-                    { 1, "Concert" },
-                    { 2, "Sync" },
-                    { 3, "Streams" },
-                    { 4, "Merch" },
+                    { 1, "Merch" },
+                    { 2, "Live Show" },
+                    { 3, "Sync" },
+                    { 4, "Streams" },
                     { 5, "Other" }
                 });
 

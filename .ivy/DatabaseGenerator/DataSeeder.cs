@@ -66,7 +66,7 @@ public class DataSeeder : IDataSeeder
             .RuleFor(a => a.ReleaseType, _ => "Single")
             .Generate(10); // Generating 10 singles as albums of type Single
 
-        newAlbums.AddRange(albums);
+        newAlbums.AddRange(generatedAlbums);
         newAlbums.AddRange(eps);
         newAlbums.AddRange(singles);
       }
@@ -112,29 +112,7 @@ public class DataSeeder : IDataSeeder
       await _context.SaveChangesAsync();
     }
 
-    if (!await _context.Campaigns.AnyAsync())
-    {
-      var campaignFaker = new Faker<Campaign>()
-          .RuleFor(c => c.Name, f => f.Lorem.Sentence(3))
-          .RuleFor(c => c.StartDate, f => f.Date.Past(1))
-          .RuleFor(c => c.EndDate, (f, c) => f.Date.Between(c.StartDate ?? DateTime.UtcNow.AddMonths(-1), DateTime.UtcNow))
-          .RuleFor(c => c.CreatedAt, f => f.Date.Past(2))
-          .RuleFor(c => c.UpdatedAt, (f, c) => f.Date.Between(c.CreatedAt, DateTime.UtcNow));
 
-      var newCampaigns = new List<Campaign>();
-      foreach (var artist in artists)
-      {
-        var campaignsForArtist = campaignFaker
-            .RuleFor(c => c.ArtistId, _ => artist.Id)
-            .Generate(new Faker().Random.Int(1, 3));
-        newCampaigns.AddRange(campaignsForArtist);
-      }
-
-      _context.Campaigns.AddRange(newCampaigns);
-      await _context.SaveChangesAsync();
-    }
-
-    var campaigns = await _context.Campaigns.ToArrayAsync();
     var revenueSources = await _context.RevenueSources.ToArrayAsync();
 
     if (!await _context.RevenueEntries.AnyAsync())
@@ -156,11 +134,8 @@ public class DataSeeder : IDataSeeder
 
         foreach (var revenueEntry in revenueEntriesForArtist)
         {
-          if (new Faker().Random.Bool(0.5f))
-          {
-            revenueEntry.AlbumId = new Faker().PickRandom(albums.Where(a => a.ArtistId == artist.Id)).Id;
-          }
-          if (new Faker().Random.Bool(0.5f))
+          // Revenue stream connected to either a Track (Single) or Album/EP
+          if (new Faker().Random.Bool(0.5f)) // 50% chance connected to Track
           {
             var tracks = await _context.Tracks.Where(t => t.ArtistId == artist.Id).ToArrayAsync();
             if (tracks.Any())
@@ -168,9 +143,13 @@ public class DataSeeder : IDataSeeder
               revenueEntry.TrackId = new Faker().PickRandom(tracks).Id;
             }
           }
-          if (new Faker().Random.Bool(0.3f))
+          else // Connected to Album or EP
           {
-            revenueEntry.CampaignId = new Faker().PickRandom(campaigns.Where(c => c.ArtistId == artist.Id)).Id;
+            var artistAlbums = albums.Where(a => a.ArtistId == artist.Id).ToArray();
+            if (artistAlbums.Any())
+            {
+              revenueEntry.AlbumId = new Faker().PickRandom(artistAlbums).Id;
+            }
           }
         }
 

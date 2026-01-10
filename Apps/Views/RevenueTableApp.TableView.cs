@@ -2,7 +2,7 @@ namespace ArtistInsightTool.Apps.Views;
 
 public class RevenueTableView : ViewBase
 {
-  private record RevenueEntryTableRecord(int Id, string ArtistName, string SourceDescription, decimal Amount, DateTime RevenueDate);
+  private record RevenueEntryTableRecord(int Id, string SourceDescription, string ReleaseTitle, string Type, decimal Amount, DateTime RevenueDate);
 
   public override object? Build()
   {
@@ -14,14 +14,15 @@ public class RevenueTableView : ViewBase
     {
       await using var db = factory.CreateDbContext();
       var data = await db.RevenueEntries
-         .Include(e => e.Artist)
-         .Include(e => e.Source)
+         .Include(e => e.Track).ThenInclude(t => t.Album)
+         .Include(e => e.Album)
          .OrderByDescending(e => e.RevenueDate)
          .Take(50)
          .Select(e => new RevenueEntryTableRecord(
              e.Id,
-             e.Artist.Name,
              e.Source.DescriptionText,
+             e.Track != null ? e.Track.Title : (e.Album != null ? e.Album.Title : "-"),
+             e.Track != null ? (e.Track.Album != null ? e.Track.Album.ReleaseType : "Single") : (e.Album != null ? e.Album.ReleaseType : "-"),
              e.Amount,
              e.RevenueDate
          ))
@@ -35,12 +36,14 @@ public class RevenueTableView : ViewBase
     var table = entries.Value.ToTable()
         .Width(Size.Full())
         .Clear()
-        .Add(p => p.ArtistName)
         .Add(p => p.SourceDescription)
+        .Add(p => p.ReleaseTitle)
+        .Add(p => p.Type)
         .Add(p => p.Amount)
         .Add(p => p.RevenueDate)
-        .Header(p => p.ArtistName, "Artist")
         .Header(p => p.SourceDescription, "Source")
+        .Header(p => p.ReleaseTitle, "Release")
+        .Header(p => p.Type, "Type")
         .Header(p => p.Amount, "Amount")
         .Header(p => p.RevenueDate, "Date")
         .Align(p => p.Amount, Align.Right)
