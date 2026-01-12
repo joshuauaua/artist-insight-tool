@@ -2,13 +2,14 @@ namespace ArtistInsightTool.Apps.Views;
 
 public class RevenueTableView : ViewBase
 {
-  private record RevenueEntryTableRecord(int Id, string SourceDescription, string ReleaseTitle, string Type, decimal Amount, DateTime RevenueDate);
+  private record RevenueTableItem(int Id, DateTime RevenueDate, string Name, string Type, string Campaign, decimal Amount, object Details);
 
   public override object? Build()
   {
     var factory = UseService<ArtistInsightToolContextFactory>();
+    var blades = UseService<IBladeController>();
     var refreshToken = this.UseRefreshToken();
-    var allEntries = UseState<RevenueEntryTableRecord[]>([]);
+    var allEntries = UseState<RevenueTableItem[]>([]);
 
     var searchQuery = UseState("");
     var sortField = UseState("Date");
@@ -20,22 +21,34 @@ public class RevenueTableView : ViewBase
     {
       await using var db = factory.CreateDbContext();
       // Increase limit to enable better client-side search/filter
-      var data = await db.RevenueEntries
+      var rawData = await db.RevenueEntries
          .Include(e => e.Track).ThenInclude(t => t.Album)
          .Include(e => e.Album)
          .Include(e => e.Source)
          .OrderByDescending(e => e.RevenueDate)
          .Take(1000)
-         .Select(e => new RevenueEntryTableRecord(
-             e.Id,
-             e.Source.DescriptionText,
-             e.Track != null ? e.Track.Title : (e.Album != null ? e.Album.Title : "-"),
-             e.Track != null ? (e.Track.Album != null ? e.Track.Album.ReleaseType : "Single") : (e.Album != null ? e.Album.ReleaseType : "-"),
-             e.Amount,
-             e.RevenueDate
-         ))
+         .Select(e => new
+         {
+           e.Id,
+           e.RevenueDate,
+           Name = e.Track != null ? e.Track.Title : (e.Album != null ? e.Album.Title : (e.Description ?? "-")),
+           Type = e.Source.DescriptionText,
+           Campaign = e.Track != null && e.Track.Album != null ? ($"{e.Track.Album.ReleaseType}: {e.Track.Album.Title}") : (e.Album != null ? ($"{e.Album.ReleaseType}: {e.Album.Title}") : "-"),
+           e.Amount
+         })
          .ToArrayAsync();
-      allEntries.Set(data);
+
+      var tableData = rawData.Select(r => new RevenueTableItem(
+          r.Id,
+          r.RevenueDate,
+          r.Name,
+          r.Type,
+          r.Campaign,
+          r.Amount,
+          new Button("Details", () => blades.Push(new RevenueDetailsBlade(r.Id)))
+      )).ToArray();
+
+      allEntries.Set(tableData);
       return null;
     }
 
@@ -48,15 +61,15 @@ public class RevenueTableView : ViewBase
     {
       var q = searchQuery.Value.ToLowerInvariant();
       filteredEntries = filteredEntries.Where(e =>
-          e.SourceDescription.ToLowerInvariant().Contains(q) ||
-          e.ReleaseTitle.ToLowerInvariant().Contains(q) ||
+          e.Name.ToLowerInvariant().Contains(q) ||
+          e.Campaign.ToLowerInvariant().Contains(q) ||
           e.Type.ToLowerInvariant().Contains(q)
       ).ToArray();
     }
 
     if (selectedSource.Value != null)
     {
-      filteredEntries = filteredEntries.Where(e => e.SourceDescription == selectedSource.Value).ToArray();
+      filteredEntries = filteredEntries.Where(e => e.Type == selectedSource.Value).ToArray();
     }
 
     // Apply Sorting
@@ -66,24 +79,30 @@ public class RevenueTableView : ViewBase
       ("Date", "Asc") => filteredEntries.OrderBy(e => e.RevenueDate).ToArray(),
       ("Amount", "Desc") => filteredEntries.OrderByDescending(e => e.Amount).ToArray(),
       ("Amount", "Asc") => filteredEntries.OrderBy(e => e.Amount).ToArray(),
-      ("Source", "Asc") => filteredEntries.OrderBy(e => e.SourceDescription).ToArray(),
-      ("Source", "Desc") => filteredEntries.OrderByDescending(e => e.SourceDescription).ToArray(),
+      ("Name", "Asc") => filteredEntries.OrderBy(e => e.Name).ToArray(),
+      ("Name", "Desc") => filteredEntries.OrderByDescending(e => e.Name).ToArray(),
+      ("Type", "Asc") => filteredEntries.OrderBy(e => e.Type).ToArray(),
+      ("Type", "Desc") => filteredEntries.OrderByDescending(e => e.Type).ToArray(),
+      ("Campaign", "Asc") => filteredEntries.OrderBy(e => e.Campaign).ToArray(),
+      ("Campaign", "Desc") => filteredEntries.OrderByDescending(e => e.Campaign).ToArray(),
       _ => filteredEntries
     };
 
     var table = filteredEntries.ToTable()
         .Width(Size.Full())
         .Clear()
-        .Add(p => p.SourceDescription)
-        .Add(p => p.ReleaseTitle)
-        .Add(p => p.Type)
-        .Add(p => p.Amount)
         .Add(p => p.RevenueDate)
-        .Header(p => p.SourceDescription, "Source")
-        .Header(p => p.ReleaseTitle, "Release")
-        .Header(p => p.Type, "Type")
-        .Header(p => p.Amount, "Amount")
+        .Add(p => p.Name)
+        .Add(p => p.Type)
+        .Add(p => p.Campaign)
+        .Add(p => p.Amount)
+        .Add(p => p.Details)
         .Header(p => p.RevenueDate, "Date")
+        .Header(p => p.Name, "Name")
+        .Header(p => p.Type, "Type")
+        .Header(p => p.Campaign, "Campaign")
+        .Header(p => p.Amount, "Amount")
+        .Header(p => p.Details, "")
         .Align(p => p.Amount, Align.Right)
         .Align(p => p.RevenueDate, Align.Center)
         .Empty("No entries match your search");
