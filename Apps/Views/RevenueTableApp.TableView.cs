@@ -4,7 +4,7 @@ namespace ArtistInsightTool.Apps.Views;
 
 public class RevenueTableView : ViewBase
 {
-  private record RevenueTableItem(int Id, DateTime RevenueDate, string Name, object NameDisplay, string Type, string Campaign, decimal Amount);
+  private record RevenueTableItem(int Id, DateTime RevenueDate, object DateDisplay, string Name, object NameDisplay, string Type, object TypeDisplay, string Campaign, object CampaignDisplay, decimal Amount, object AmountDisplay);
 
   public override object? Build()
   {
@@ -44,14 +44,18 @@ public class RevenueTableView : ViewBase
          .ToArrayAsync();
 
       var tableData = rawData.Select(r => new RevenueTableItem(
-          r.Id,
-          r.RevenueDate,
-          r.Name,
-          new Button(r.Name, () => selectedDetailsId.Set(r.Id)).Variant(ButtonVariant.Link),
-          r.Type,
-          r.Campaign,
-          r.Amount
-      )).ToArray();
+         r.Id,
+         r.RevenueDate,
+         Layout.Horizontal().Width(120).Align(Align.Center).Add(r.RevenueDate.ToShortDateString()),
+         r.Name,
+         new Button(r.Name, () => selectedDetailsId.Set(r.Id)).Variant(ButtonVariant.Link),
+         r.Type,
+         Layout.Horizontal().Width(120).Add(r.Type),
+         r.Campaign,
+         Layout.Horizontal().Width(200).Add(r.Campaign),
+         r.Amount,
+         Layout.Horizontal().Width(100).Align(Align.Right).Add(r.Amount.ToString("C"))
+     )).ToArray();
 
       allEntries.Set(tableData);
       return null;
@@ -104,18 +108,18 @@ public class RevenueTableView : ViewBase
     var table = filteredEntries.ToTable()
         .Width(Size.Full())
         .Clear()
-        .Add(p => p.RevenueDate)
+        .Add(p => p.DateDisplay)
         .Add(p => p.NameDisplay)
-        .Add(p => p.Type)
-        .Add(p => p.Campaign)
-        .Add(p => p.Amount)
-        .Header(p => p.RevenueDate, "Date")
+        .Add(p => p.TypeDisplay)
+        .Add(p => p.CampaignDisplay)
+        .Add(p => p.AmountDisplay)
+        .Header(p => p.DateDisplay, "Date")
         .Header(p => p.NameDisplay, "Name")
-        .Header(p => p.Type, "Type")
-        .Header(p => p.Campaign, "Campaign")
-        .Header(p => p.Amount, "Amount")
-        .Align(p => p.Amount, Align.Right)
-        .Align(p => p.RevenueDate, Align.Center)
+        .Header(p => p.TypeDisplay, "Type")
+        .Header(p => p.CampaignDisplay, "Campaign")
+        .Header(p => p.AmountDisplay, "Amount")
+        .Align(p => p.AmountDisplay, Align.Right)
+        .Align(p => p.DateDisplay, Align.Center)
         .Empty("No entries match your search");
 
     var searchBar = searchQuery.ToTextInput()
@@ -150,6 +154,7 @@ public class RevenueTableView : ViewBase
 
     return Layout.Vertical()
         .Gap(10)
+        .Padding(20)
         .Add(new Card(headerContent))
         .Add(new Card(table).Title(""));
   }
