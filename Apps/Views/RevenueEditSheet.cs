@@ -17,8 +17,6 @@ public class RevenueEditSheet(int id, Action onClose) : ViewBase
     // Form States
     var amountState = UseState("");
     var descriptionState = UseState("");
-    var amountState = UseState("");
-    var descriptionState = UseState("");
     var dateState = UseState(DateTime.Now);
     var dateStringState = UseState(""); // String state for input binding
 
@@ -35,8 +33,6 @@ public class RevenueEditSheet(int id, Action onClose) : ViewBase
       if (data != null)
       {
         entryState.Set(data);
-        amountState.Set(data.Amount.ToString(CultureInfo.InvariantCulture)); // Use invariant for editing
-        descriptionState.Set(data.Description ?? "");
         amountState.Set(data.Amount.ToString(CultureInfo.InvariantCulture)); // Use invariant for editing
         descriptionState.Set(data.Description ?? "");
         dateState.Set(data.RevenueDate);
@@ -84,8 +80,6 @@ public class RevenueEditSheet(int id, Action onClose) : ViewBase
                        entry.Amount = newAmount;
                        entry.Description = descriptionState.Value;
                        // Basic Date Parsing fallback
-                       entry.Description = descriptionState.Value;
-                       // Basic Date Parsing fallback
                        if (DateTime.TryParse(dateStringState.Value, out var newDate))
                        {
                          entry.RevenueDate = newDate;
@@ -113,10 +107,7 @@ public class RevenueEditSheet(int id, Action onClose) : ViewBase
                         .Add("Date (MM/dd/yyyy)")
                         // Using State<string> for manual text input to avoid issues
                         // Date editing via text
-                        .Add(Layout.Vertical().Gap(5)
-                           .Add("Date (MM/dd/yyyy)")
-                           .Add(dateStringState.ToTextInput())
-                       )
+                        .Add(dateStringState.ToTextInput())
                     )
                     .Add(Layout.Vertical().Gap(5)
                         .Add("Description")
