@@ -128,7 +128,10 @@ public class RevenueTableView : ViewBase
     var filterSelect = selectedSource.ToSelectInput(new List<Option<string>> {
         new("All", "All"),
         new("Streams", "Streams"),
-        new("Merch", "Merch")
+        new("Merch", "Merch"),
+        new("Live Show", "Live Show"),
+        new("Sync", "Sync"),
+        new("Others", "Others")
     });
 
     var headerContent = Layout.Vertical()
