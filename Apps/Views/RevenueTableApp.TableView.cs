@@ -131,15 +131,12 @@ public class RevenueTableView : ViewBase
         new("Merch", "Merch")
     });
 
-    var headerContent = Layout.Horizontal()
+    var headerContent = Layout.Vertical()
         .Width(Size.Full())
-        .Align(Align.Center)
-        .Gap(20)
-        // Give title a fixed or min width to prevent squashing by the Right container
-        .Add(Layout.Horizontal().Width(200).Add("Revenue Streams"))
+        .Gap(10)
+        .Add(Layout.Horizontal().Add("Revenue Streams")) // Title
         .Add(Layout.Horizontal()
             .Width(Size.Full())
-            .Align(Align.Right)
             .Gap(10)
             .Add(searchBar)
             .Add(filterSelect));
