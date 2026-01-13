@@ -152,7 +152,7 @@ public class RevenueTableView : ViewBase
 
 
     return Layout.Vertical()
-        .Gap(20)
+        .Gap(10)
         .Add(new Card(headerContent))
         .Add(new Card(table).Title(""));
   }
