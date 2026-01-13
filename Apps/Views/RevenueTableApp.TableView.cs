@@ -46,7 +46,7 @@ public class RevenueTableView : ViewBase
       var tableData = rawData.Select(r => new RevenueTableItem(
          r.Id,
          // Date (Start with a bit more width, ensure no wrapping)
-         Layout.Horizontal().Width(100).Align(Align.Center).Add(r.RevenueDate.ToShortDateString()),
+         Layout.Horizontal().Width(100).Add(r.RevenueDate.ToShortDateString()),
          // Name (Use Grow to fill space)
          Layout.Horizontal().Width(Size.Full()).Add(new Button(r.Name, () => selectedDetailsId.Set(r.Id)).Variant(ButtonVariant.Link)),
          // Type
@@ -54,7 +54,7 @@ public class RevenueTableView : ViewBase
          // Campaign
          Layout.Horizontal().Width(200).Add(r.Campaign),
          // Amount
-         Layout.Horizontal().Width(100).Align(Align.Right).Add(r.Amount.ToString("C")),
+         Layout.Horizontal().Width(100).Add(r.Amount.ToString("C")),
          r.RevenueDate,
          r.Name,
          r.Type,
