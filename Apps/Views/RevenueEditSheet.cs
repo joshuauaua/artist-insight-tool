@@ -53,50 +53,15 @@ public class RevenueEditSheet(int id, Action onClose) : ViewBase
     return Layout.Vertical()
         .Gap(20)
         .Padding(20)
-        .Add(Layout.Horizontal().Align(Align.Center) // removed Justify
-            .Add(new Button("← Back", _onClose).Variant(ButtonVariant.Link))
-            .Add(Layout.Horizontal().Width(Size.Full()).Align(Align.Right).Gap(10) // Pushed buttons to right with nested container
-                 .Add(new Button("Delete", async () =>
-                 {
-                   // Delete Logic
-                   await using var db = factory.CreateDbContext();
-                   var entry = await db.RevenueEntries.FindAsync(_id);
-                   if (entry != null)
-                   {
-                     db.RevenueEntries.Remove(entry);
-                     await db.SaveChangesAsync();
-                   }
-                   _onClose();
-                 }).Variant(ButtonVariant.Destructive))
-                 .Add(new Button("Save Changes", async () =>
-                 {
-                   // Save Logic
-                   if (decimal.TryParse(amountState.Value, out var newAmount))
-                   {
-                     await using var db = factory.CreateDbContext();
-                     var entry = await db.RevenueEntries.FindAsync(_id);
-                     if (entry != null)
-                     {
-                       entry.Amount = newAmount;
-                       entry.Description = descriptionState.Value;
-                       // Basic Date Parsing fallback
-                       if (DateTime.TryParse(dateStringState.Value, out var newDate))
-                       {
-                         entry.RevenueDate = newDate;
-                       }
-                       await db.SaveChangesAsync();
-                     }
-                     _onClose();
-                   }
-                 }))
-            )
+        .Add(Layout.Horizontal().Align(Align.Center)
+            .Add(new Button("← Back", _onClose).Variant(ButtonVariant.Primary))
         )
         .Add(new Card(
             Layout.Vertical().Gap(15)
                 .Add(Layout.Vertical().Gap(5)
-                    .Add("Entry Details") // Simple string instead of Label
-                    .Add($"{e.Source.DescriptionText} • {type}") // Removed Color
-                    .Add(name) // Removed Size/Weight
+                    .Add("Entry Details")
+                    .Add($"{e.Source.DescriptionText} • {type}")
+                    .Add(name)
                 )
                 .Add(Layout.Vertical().Gap(15)
                     .Add(Layout.Vertical().Gap(5)
@@ -105,8 +70,6 @@ public class RevenueEditSheet(int id, Action onClose) : ViewBase
                     )
                      .Add(Layout.Vertical().Gap(5)
                         .Add("Date (MM/dd/yyyy)")
-                        // Using State<string> for manual text input to avoid issues
-                        // Date editing via text
                         .Add(dateStringState.ToTextInput())
                     )
                     .Add(Layout.Vertical().Gap(5)
@@ -114,6 +77,38 @@ public class RevenueEditSheet(int id, Action onClose) : ViewBase
                         .Add(descriptionState.ToTextInput().Placeholder("Enter description..."))
                     )
                 )
-        ).Title("Edit Entry"));
+        ).Title("Edit Entry"))
+        .Add(Layout.Horizontal().Width(Size.Full()).Align(Align.Right).Gap(10)
+             .Add(new Button("Delete", async () =>
+             {
+               await using var db = factory.CreateDbContext();
+               var entry = await db.RevenueEntries.FindAsync(_id);
+               if (entry != null)
+               {
+                 db.RevenueEntries.Remove(entry);
+                 await db.SaveChangesAsync();
+               }
+               _onClose();
+             }).Variant(ButtonVariant.Destructive))
+             .Add(new Button("Save Changes", async () =>
+             {
+               if (decimal.TryParse(amountState.Value, out var newAmount))
+               {
+                 await using var db = factory.CreateDbContext();
+                 var entry = await db.RevenueEntries.FindAsync(_id);
+                 if (entry != null)
+                 {
+                   entry.Amount = newAmount;
+                   entry.Description = descriptionState.Value;
+                   if (DateTime.TryParse(dateStringState.Value, out var newDate))
+                   {
+                     entry.RevenueDate = newDate;
+                   }
+                   await db.SaveChangesAsync();
+                 }
+                 _onClose();
+               }
+             }))
+        );
   }
 }
