@@ -1,8 +1,10 @@
+using Ivy.Shared;
+
 namespace ArtistInsightTool.Apps.Views;
 
 public class RevenueTableView : ViewBase
 {
-  private record RevenueTableItem(int Id, DateTime RevenueDate, string Name, string Type, string Campaign, decimal Amount, object Details);
+  private record RevenueTableItem(int Id, DateTime RevenueDate, string Name, object NameDisplay, string Type, string Campaign, decimal Amount);
 
   public override object? Build()
   {
@@ -45,10 +47,10 @@ public class RevenueTableView : ViewBase
           r.Id,
           r.RevenueDate,
           r.Name,
+          new Button(r.Name, () => selectedDetailsId.Set(r.Id)).Variant(ButtonVariant.Link),
           r.Type,
           r.Campaign,
-          r.Amount,
-          new Button("Details", () => selectedDetailsId.Set(r.Id))
+          r.Amount
       )).ToArray();
 
       allEntries.Set(tableData);
@@ -106,24 +108,22 @@ public class RevenueTableView : ViewBase
         .Width(Size.Full())
         .Clear()
         .Add(p => p.RevenueDate)
-        .Add(p => p.Name)
+        .Add(p => p.NameDisplay)
         .Add(p => p.Type)
         .Add(p => p.Campaign)
         .Add(p => p.Amount)
-        .Add(p => p.Details)
         .Header(p => p.RevenueDate, "Date")
-        .Header(p => p.Name, "Name")
+        .Header(p => p.NameDisplay, "Name")
         .Header(p => p.Type, "Type")
         .Header(p => p.Campaign, "Campaign")
         .Header(p => p.Amount, "Amount")
-        .Header(p => p.Details, "")
         .Align(p => p.Amount, Align.Right)
         .Align(p => p.RevenueDate, Align.Center)
         .Empty("No entries match your search");
 
     var searchBar = searchQuery.ToTextInput()
         .Placeholder("Search streams...")
-        .Width(Size.Full());
+        .Width(300);
 
     var filterSelect = selectedSource.ToSelectInput(new List<Option<string>> {
         new("All", "All"),
@@ -131,25 +131,21 @@ public class RevenueTableView : ViewBase
         new("Merch", "Merch")
     });
 
-    // Attempting to push dropdown to the right using a nested layout that grows?
-    // Since we don't have explicit 'SpaceBetween', we try to rely on the layout engine.
-    // If Size.Full() consumes space, maybe putting the select in a right-aligned container works.
     var headerContent = Layout.Horizontal()
         .Width(Size.Full())
         .Align(Align.Center)
         .Gap(20)
         .Add("Revenue Streams")
-        // This hack attempts to push the next item to the right if the layout engine supports it
-        .Add(Layout.Horizontal().Width(Size.Full()).Align(Align.Right).Add(filterSelect));
+        .Add(Layout.Horizontal()
+            .Width(Size.Full())
+            .Align(Align.Right)
+            .Gap(10)
+            .Add(searchBar)
+            .Add(filterSelect));
 
     return Layout.Vertical()
         .Gap(20)
         .Add(new Card(headerContent))
-        .Add(new Card(
-            Layout.Vertical()
-                .Gap(15)
-                .Add(searchBar)
-                .Add(table)
-        ).Title(""));
+        .Add(new Card(table).Title(""));
   }
 }
