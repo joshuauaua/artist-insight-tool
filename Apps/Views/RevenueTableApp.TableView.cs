@@ -64,10 +64,7 @@ public class RevenueTableView : ViewBase
 
     if (selectedDetailsId.Value != null)
     {
-      // Simple back button wrapper for details
-      return Layout.Vertical().Gap(20)
-          .Add(new Button("← Back", () => selectedDetailsId.Set((int?)null)))
-          .Add(new RevenueDetailsBlade(selectedDetailsId.Value.Value));
+      return new RevenueEditSheet(selectedDetailsId.Value.Value, () => selectedDetailsId.Set((int?)null));
     }
 
     // Apply Filters and Search
