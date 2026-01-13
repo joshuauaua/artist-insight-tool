@@ -48,7 +48,7 @@ public class RevenueTableView : ViewBase
          // Date (Start with a bit more width, ensure no wrapping)
          Layout.Horizontal().Width(100).Align(Align.Center).Add(r.RevenueDate.ToShortDateString()),
          // Name (Use Grow to fill space)
-         Layout.Horizontal().Grow(1).Add(new Button(r.Name, () => selectedDetailsId.Set(r.Id)).Variant(ButtonVariant.Link)),
+         Layout.Horizontal().Width(Size.Full()).Add(new Button(r.Name, () => selectedDetailsId.Set(r.Id)).Variant(ButtonVariant.Link)),
          // Type
          Layout.Horizontal().Width(120).Add(r.Type),
          // Campaign
