@@ -4,7 +4,7 @@ namespace ArtistInsightTool.Apps.Views;
 
 public class RevenueTableView : ViewBase
 {
-  private record RevenueTableItem(int Id, DateTime RevenueDate, object DateDisplay, string Name, object NameDisplay, string Type, object TypeDisplay, string Campaign, object CampaignDisplay, decimal Amount, object AmountDisplay);
+  private record RevenueTableItem(int Id, object DateDisplay, object NameDisplay, object TypeDisplay, object CampaignDisplay, object AmountDisplay, DateTime RevenueDate, string Name, string Type, string Campaign, decimal Amount);
 
   public override object? Build()
   {
@@ -45,16 +45,21 @@ public class RevenueTableView : ViewBase
 
       var tableData = rawData.Select(r => new RevenueTableItem(
          r.Id,
-         r.RevenueDate,
-         Layout.Horizontal().Width(120).Align(Align.Center).Add(r.RevenueDate.ToShortDateString()),
-         r.Name,
-         new Button(r.Name, () => selectedDetailsId.Set(r.Id)).Variant(ButtonVariant.Link),
-         r.Type,
+         // Date (Start with a bit more width, ensure no wrapping)
+         Layout.Horizontal().Width(100).Align(Align.Center).Add(r.RevenueDate.ToShortDateString()),
+         // Name (Use Grow to fill space)
+         Layout.Horizontal().Grow(1).Add(new Button(r.Name, () => selectedDetailsId.Set(r.Id)).Variant(ButtonVariant.Link)),
+         // Type
          Layout.Horizontal().Width(120).Add(r.Type),
-         r.Campaign,
+         // Campaign
          Layout.Horizontal().Width(200).Add(r.Campaign),
-         r.Amount,
-         Layout.Horizontal().Width(100).Align(Align.Right).Add(r.Amount.ToString("C"))
+         // Amount
+         Layout.Horizontal().Width(100).Align(Align.Right).Add(r.Amount.ToString("C")),
+         r.RevenueDate,
+         r.Name,
+         r.Type,
+         r.Campaign,
+         r.Amount
      )).ToArray();
 
       allEntries.Set(tableData);
@@ -118,8 +123,6 @@ public class RevenueTableView : ViewBase
         .Header(p => p.TypeDisplay, "Type")
         .Header(p => p.CampaignDisplay, "Campaign")
         .Header(p => p.AmountDisplay, "Amount")
-        .Align(p => p.AmountDisplay, Align.Right)
-        .Align(p => p.DateDisplay, Align.Center)
         .Empty("No entries match your search");
 
     var searchBar = searchQuery.ToTextInput()
