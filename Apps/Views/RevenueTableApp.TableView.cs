@@ -7,15 +7,18 @@ public class RevenueTableView : ViewBase
   public override object? Build()
   {
     var factory = UseService<ArtistInsightToolContextFactory>();
-    var blades = UseService<IBladeController>();
+    // var blades = UseService<IBladeController>(); // Removed Blade Dependency
     var refreshToken = this.UseRefreshToken();
     var allEntries = UseState<RevenueTableItem[]>([]);
 
     var searchQuery = UseState("");
     var sortField = UseState("Date");
     var sortDirection = UseState("Desc");
-    // Filter states - could be more complex but let's start simple with Source filtering
-    var selectedSource = UseState<string?>(() => null);
+    // Filter states
+    var selectedSource = UseState("All");
+
+    // State for Details
+    var selectedDetailsId = UseState<int?>(() => null);
 
     async Task<IDisposable?> LoadData()
     {
@@ -45,7 +48,7 @@ public class RevenueTableView : ViewBase
           r.Type,
           r.Campaign,
           r.Amount,
-          new Button("Details", () => blades.Push(new RevenueDetailsBlade(r.Id)))
+          new Button("Details", () => selectedDetailsId.Set(r.Id))
       )).ToArray();
 
       allEntries.Set(tableData);
@@ -53,6 +56,17 @@ public class RevenueTableView : ViewBase
     }
 
     UseEffect(LoadData, [EffectTrigger.AfterInit(), refreshToken]);
+
+    // Handle "Sheet" Views
+
+
+    if (selectedDetailsId.Value != null)
+    {
+      // Simple back button wrapper for details
+      return Layout.Vertical().Gap(20)
+          .Add(new Button("← Back", () => selectedDetailsId.Set((int?)null)))
+          .Add(new RevenueDetailsBlade(selectedDetailsId.Value.Value));
+    }
 
     // Apply Filters and Search
     var filteredEntries = allEntries.Value;
@@ -67,7 +81,7 @@ public class RevenueTableView : ViewBase
       ).ToArray();
     }
 
-    if (selectedSource.Value != null)
+    if (selectedSource.Value != "All")
     {
       filteredEntries = filteredEntries.Where(e => e.Type == selectedSource.Value).ToArray();
     }
@@ -111,29 +125,31 @@ public class RevenueTableView : ViewBase
         .Placeholder("Search streams...")
         .Width(Size.Full());
 
-    // Simplified Filter Buttons
-    var filterRow = Layout.Horizontal()
-        .Gap(5)
-        .Add(new Button("All"))
-        .Add(new Button("Streams"))
-        .Add(new Button("Merch"));
+    var filterSelect = selectedSource.ToSelectInput(new List<Option<string>> {
+        new("All", "All"),
+        new("Streams", "Streams"),
+        new("Merch", "Merch")
+    });
 
-    // Actions button (Sort placeholder for now - or simple toggle)
-    var sortButton = new Button("Sort: " + sortField.Value);
-
-    var header = Layout.Horizontal()
+    // Attempting to push dropdown to the right using a nested layout that grows?
+    // Since we don't have explicit 'SpaceBetween', we try to rely on the layout engine.
+    // If Size.Full() consumes space, maybe putting the select in a right-aligned container works.
+    var headerContent = Layout.Horizontal()
+        .Width(Size.Full())
         .Align(Align.Center)
         .Gap(20)
         .Add("Revenue Streams")
-        .Add(sortButton);
+        // This hack attempts to push the next item to the right if the layout engine supports it
+        .Add(Layout.Horizontal().Width(Size.Full()).Align(Align.Right).Add(filterSelect));
 
-    return new Card(
-        Layout.Vertical()
-            .Gap(15)
-            .Add(header)
-            .Add(searchBar)
-            .Add(filterRow)
-            .Add(table)
-    ).Title(""); // Empty card title as we implement custom header
+    return Layout.Vertical()
+        .Gap(20)
+        .Add(new Card(headerContent))
+        .Add(new Card(
+            Layout.Vertical()
+                .Gap(15)
+                .Add(searchBar)
+                .Add(table)
+        ).Title(""));
   }
 }
