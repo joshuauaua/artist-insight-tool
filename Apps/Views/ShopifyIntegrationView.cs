@@ -37,14 +37,24 @@ public class ShopifyIntegrationView : ViewBase
         await db.SaveChangesAsync();
       }
 
+      // Need a valid ArtistId
+      var artist = await db.Artists.FirstOrDefaultAsync();
+      if (artist == null)
+      {
+        await Log("Error: No artists found in DB. Cannot create entry.");
+        return;
+      }
+
       var entry = new RevenueEntry
       {
         RevenueDate = DateTime.Now,
         Amount = amount,
         Description = $"Shopify Sale: {product}",
-        SourceId = source.Id
+        SourceId = source.Id,
+        ArtistId = artist.Id
       };
 
+      await Log($"Debug: Saving Entry. SourceId: {source.Id}, ArtistId: {artist.Id}");
       db.RevenueEntries.Add(entry);
       await db.SaveChangesAsync();
 

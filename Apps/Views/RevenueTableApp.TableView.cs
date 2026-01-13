@@ -135,13 +135,21 @@ public class RevenueTableView : ViewBase
         .Width(Size.Full())
         .Align(Align.Center)
         .Gap(20)
-        .Add("Revenue Streams")
+        // Give title a fixed or min width to prevent squashing by the Right container
+        .Add(Layout.Horizontal().Width(200).Add("Revenue Streams"))
         .Add(Layout.Horizontal()
             .Width(Size.Full())
             .Align(Align.Right)
             .Gap(10)
             .Add(searchBar)
             .Add(filterSelect));
+    // Removed Size.Full() from the inner container, so it hugs content.
+    // But then it will be left aligned next to title.
+    // We want it right aligned.
+    // If Justify.SpaceBetween works...
+    // Let's try putting them in a stack?
+    // Or assume Size.Full() works if we give the first item a size?
+
 
     return Layout.Vertical()
         .Gap(20)
