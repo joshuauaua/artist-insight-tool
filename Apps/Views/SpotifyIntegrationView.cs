@@ -1,5 +1,6 @@
 using Ivy.Shared;
 using ArtistInsightTool.Connections.ArtistInsightTool;
+using ArtistInsightTool.Apps.Views.Spotify;
 
 namespace ArtistInsightTool.Apps.Views;
 
@@ -9,6 +10,7 @@ public class SpotifyIntegrationView : ViewBase
   {
     var isConnected = UseState(false);
     var logs = UseState<List<string>>([]);
+    var streamData = UseState<List<SpotifyStreamData>>([]);
     var factory = UseService<ArtistInsightToolContextFactory>();
 
     Func<string, Task> Log = async (msg) =>
@@ -62,7 +64,19 @@ public class SpotifyIntegrationView : ViewBase
 
         db.RevenueEntries.Add(entry);
         syncedCount++;
-        await Log($"Synced {streamCount:N0} streams for {track.Title} (+${revenue:F2})");
+        await Log($"Synced {streamData.Value.Count + syncedCount}: {streamCount:N0} streams for {track.Title} (+${revenue:F2})");
+
+        // Add to local table state
+        string[] countries = { "USA", "UK", "Germany", "Japan", "Brazil", "Australia" };
+        var country = countries[random.Next(countries.Length)];
+
+        streamData.Set(s => [.. s, new SpotifyStreamData(
+            track.Title,
+            streamCount,
+            revenue,
+            country,
+            DateTime.Now
+        )]);
       }
 
       await db.SaveChangesAsync();
@@ -108,12 +122,14 @@ public class SpotifyIntegrationView : ViewBase
                 .Add("Actions")
                 .Add(new Button("Sync Stream Data Now", async () => await SyncStreams()))
         ).Title("Data Synchronization"))
-        .Add(new Card(
-            Layout.Vertical().Gap(10)
-                .Add("Sync Log")
                 .Add(Layout.Vertical().Gap(5)
                     .Add(logs.Value.Select(l => l.ToString()).ToArray())
                 )
+        ))
+        .Add(new Card(
+            Layout.Vertical().Gap(10)
+                .Add("Recent Stream Batches")
+                .Add(SpotifyDataTable.Create(streamData.Value))
         ));
   }
 }
