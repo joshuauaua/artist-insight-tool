@@ -11,9 +11,10 @@ public class JsonImportView : ViewBase
     var logs = UseState<List<string>>([]);
     var factory = UseService<ArtistInsightToolContextFactory>();
 
-    Func<string, Task> Log = async (msg) =>
+    Func<string, Task> Log = (msg) =>
     {
       logs.Set(l => [.. l, $"{DateTime.Now:HH:mm:ss}: {msg}"]);
+      return Task.CompletedTask;
     };
 
     Func<Task> ImportJson = async () =>

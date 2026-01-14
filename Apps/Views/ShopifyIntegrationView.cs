@@ -13,9 +13,10 @@ public class ShopifyIntegrationView : ViewBase
     var sales = UseState<List<ShopifySale>>([]);
     var factory = UseService<ArtistInsightToolContextFactory>();
 
-    Func<string, Task> Log = async (msg) =>
+    Func<string, Task> Log = (msg) =>
     {
       logs.Set(l => [.. l, $"{DateTime.Now:HH:mm:ss}: {msg}"]);
+      return Task.CompletedTask;
     };
 
     Func<Task> SimulateSale = async () =>
