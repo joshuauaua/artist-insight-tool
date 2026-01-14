@@ -1,83 +1,14 @@
 using Ivy.Shared;
 using MiniExcelLibs;
 using System.IO;
+using ArtistInsightTool.Connections.ArtistInsightTool;
+using Microsoft.EntityFrameworkCore;
 
 namespace MiniExcelExample;
 
-// --- Domain Models ---
-
-public class Student
-{
-  public Guid ID { get; set; }
-  public string Name { get; set; } = "";
-  public string Email { get; set; } = "";
-  public string Course { get; set; } = "";
-  public string Grade { get; set; } = "";
-  public int Age { get; set; }
-  public DateTime JoinedAt { get; set; } = DateTime.UtcNow;
-}
-
-// --- Services ---
-
-public static class StudentService
-{
-  private static List<Student> _students = new()
-    {
-        new Student { ID = Guid.NewGuid(), Name = "Alice Johnson", Email = "alice@example.com", Course = "Computer Science", Grade = "A", Age = 20 },
-        new Student { ID = Guid.NewGuid(), Name = "Bob Smith", Email = "bob@example.com", Course = "Mathematics", Grade = "B+", Age = 22 },
-        new Student { ID = Guid.NewGuid(), Name = "Charlie Brown", Email = "charlie@example.com", Course = "Physics", Grade = "A-", Age = 21 }
-    };
-
-  public static event Action? DataChanged;
-
-  public static List<Student> GetStudents()
-  {
-    return _students.ToList();
-  }
-
-  public static void AddStudent(Student student)
-  {
-    if (student.ID == Guid.Empty) student.ID = Guid.NewGuid();
-    _students.Add(student);
-    DataChanged?.Invoke();
-  }
-
-  public static void UpdateStudents(List<Student> students)
-  {
-    _students = students;
-    DataChanged?.Invoke();
-  }
-
-  public static void UpdateStudent(Student student)
-  {
-    var existing = _students.FirstOrDefault(s => s.ID == student.ID);
-    if (existing != null)
-    {
-      existing.Name = student.Name;
-      existing.Email = student.Email;
-      existing.Course = student.Course;
-      existing.Grade = student.Grade;
-      existing.Age = student.Age;
-      DataChanged?.Invoke();
-    }
-  }
-
-  public static void DeleteStudent(Guid id)
-  {
-    var item = _students.FirstOrDefault(s => s.ID == id);
-    if (item != null)
-    {
-      _students.Remove(item);
-      DataChanged?.Invoke();
-    }
-  }
-}
-
 // --- Helpers ---
 
-public record ListItem(string Title, string Subtitle, Action<Event<ListItem>> OnClick, object Tag);
-
-// Renamed to avoid conflicts
+// Helper for cleaning up events
 public class EffectDisposable(Action action) : IDisposable
 {
   public void Dispose() => action();
@@ -97,86 +28,88 @@ public static class BladeHelper
 
 // --- Apps ---
 
-[App(icon: Icons.Sheet, title: "MiniExcel - Edit", path: ["Examples", "MiniExcel - Edit"])]
+[App(icon: Icons.Sheet, title: "MiniExcel - Revenue Edit", path: ["Examples", "MiniExcel - Revenue Edit"])]
 public class MiniExcelEditApp : ViewBase
 {
   public override object? Build()
   {
-    return this.UseBlades(() => new StudentsListBlade(), "Students");
+    return this.UseBlades(() => new RevenueListBlade(), "Revenue");
   }
 }
 
-public class StudentsListBlade : ViewBase
+public class RevenueListBlade : ViewBase
 {
   public override object? Build()
   {
     var blades = this.UseContext<IBladeController>();
+    var factory = this.UseService<ArtistInsightToolContextFactory>();
     var refreshToken = this.UseRefreshToken();
     var searchTerm = this.UseState("");
-    var students = this.UseState(() => StudentService.GetStudents());
+    var revenueEntries = this.UseState<List<RevenueEntry>>([]);
 
     this.UseEffect(async () =>
     {
-      students.Set(StudentService.GetStudents());
+      await using var db = factory.CreateDbContext();
+      var data = await db.RevenueEntries
+              .Include(r => r.Artist)
+              .Include(r => r.Source)
+              .OrderByDescending(r => r.RevenueDate)
+              .ToListAsync();
+
+      revenueEntries.Set(data);
       return (IDisposable?)null;
     }, [refreshToken.ToTrigger()]);
 
-    this.UseEffect(async () =>
-    {
-      void OnDataChanged()
-      {
-        students.Set(StudentService.GetStudents());
-        refreshToken.Refresh();
-      }
-      StudentService.DataChanged += OnDataChanged;
-      return (IDisposable?)new EffectDisposable(() => StudentService.DataChanged -= OnDataChanged);
-    }, []);
-
-
-    var filteredStudents = string.IsNullOrWhiteSpace(searchTerm.Value)
-        ? students.Value
-        : students.Value.Where(s =>
-            s.Name.Contains(searchTerm.Value, StringComparison.OrdinalIgnoreCase) ||
-            s.Email.Contains(searchTerm.Value, StringComparison.OrdinalIgnoreCase) ||
-            s.Course.Contains(searchTerm.Value, StringComparison.OrdinalIgnoreCase) ||
-            s.Grade.ToString().Contains(searchTerm.Value, StringComparison.OrdinalIgnoreCase) ||
-            s.Age.ToString().Contains(searchTerm.Value)
+    var filteredEntries = string.IsNullOrWhiteSpace(searchTerm.Value)
+        ? revenueEntries.Value
+        : revenueEntries.Value.Where(s =>
+            (s.Description?.Contains(searchTerm.Value, StringComparison.OrdinalIgnoreCase) ?? false) ||
+            s.Artist.Name.Contains(searchTerm.Value, StringComparison.OrdinalIgnoreCase) ||
+            s.Source.DescriptionText.Contains(searchTerm.Value, StringComparison.OrdinalIgnoreCase)
         ).ToList();
 
     var addButton = Icons.Plus
         .ToButton()
         .Variant(ButtonVariant.Primary)
-        .ToTrigger((isOpen) => new StudentCreateDialog(isOpen, refreshToken, students));
+        .ToTrigger((isOpen) => new RevenueCreateDialog(isOpen, refreshToken));
 
     // Use a container for the list content
     var content = Layout.Vertical().Gap(5);
 
-    if (filteredStudents.Count > 0)
+    if (filteredEntries.Count > 0)
     {
-      foreach (var s in filteredStudents)
+      foreach (var r in filteredEntries)
       {
         // Explicitly wrapping in Card, relying on GlobalUsings for Card
         var card = new Card(
             Layout.Vertical().Padding(10)
-            .Add(Text.Markdown($"**{s.Name}**"))
-            .Add(Text.Small($"{s.Course} • Grade: {s.Grade}"))
-        ).HandleClick(e => blades.Push(this, new StudentDetailBlade(s.ID, () => refreshToken.Refresh()), s.Name));
+            .Add(Layout.Horizontal().Gap(5)
+                .Add(Text.Markdown($"**{r.Artist.Name}**"))
+                .Add(Text.Small("•"))
+                .Add(Text.Small(r.RevenueDate.ToShortDateString()))
+            )
+            .Add(Layout.Horizontal()
+                .Add(Text.Small($"{r.Source.DescriptionText}"))
+                .Add(new Spacer())
+                .Add(Text.Markdown($"**${r.Amount:N2}**"))
+            )
+        ).HandleClick(e => blades.Push(this, new RevenueDetailBlade(r.Id, () => refreshToken.Refresh()), $"Entry #{r.Id}"));
 
         content.Add(card);
       }
     }
-    else if (students.Value.Count > 0)
+    else if (revenueEntries.Value.Count > 0)
     {
-      content.Add(Layout.Center().Add(Text.Small($"No students found matching '{searchTerm.Value}'")));
+      content.Add(Layout.Center().Add(Text.Small($"No entries found matching '{searchTerm.Value}'")));
     }
     else
     {
-      content.Add(Layout.Center().Add(Text.Small("No students. Add the first record.")));
+      content.Add(Layout.Center().Add(Text.Small("No revenue entries. Add the first record.")));
     }
 
     return BladeHelper.WithHeader(
         Layout.Horizontal().Gap(10)
-            .Add(searchTerm.ToTextInput().Placeholder("Search students...").Width(Size.Grow()))
+            .Add(searchTerm.ToTextInput().Placeholder("Search revenue...").Width(Size.Grow()))
             .Add(addButton)
         ,
         content
@@ -184,78 +117,78 @@ public class StudentsListBlade : ViewBase
   }
 }
 
-public class StudentDetailBlade(Guid studentId, Action? onRefresh = null) : ViewBase
+public class RevenueDetailBlade(int entryId, Action? onRefresh = null) : ViewBase
 {
   public override object? Build()
   {
     var blades = this.UseContext<IBladeController>();
+    var factory = this.UseService<ArtistInsightToolContextFactory>();
     var refreshToken = this.UseRefreshToken();
     var (alertView, showAlert) = this.UseAlert();
 
-    var initialStudent = StudentService.GetStudents().FirstOrDefault(s => s.ID == studentId);
+    var entryState = this.UseState<RevenueEntry?>(() => null);
 
-    if (initialStudent == null)
+    async Task LoadEntry()
     {
-      return null;
-    }
-
-    var student = this.UseState(initialStudent);
-
-    Student? GetCurrentStudent() => StudentService.GetStudents().FirstOrDefault(s => s.ID == studentId);
-
-    void RefreshStudentData()
-    {
-      var updatedStudent = GetCurrentStudent();
-      if (updatedStudent != null)
-      {
-        student.Set(updatedStudent);
-      }
+      await using var db = factory.CreateDbContext();
+      var entry = await db.RevenueEntries
+         .Include(r => r.Artist)
+         .Include(r => r.Source)
+         .FirstOrDefaultAsync(r => r.Id == entryId);
+      entryState.Set(entry);
     }
 
     this.UseEffect(async () =>
     {
-      RefreshStudentData();
+      await LoadEntry();
       return (IDisposable?)null;
     }, [refreshToken.ToTrigger()]);
 
-    var studentValue = student.Value;
+    var entry = entryState.Value;
+    if (entry == null) return Layout.Center().Add(Text.Small("Loading..."));
 
     var editButton = new Button("Edit")
         .Icon(Icons.Pencil)
         .Variant(ButtonVariant.Outline)
-        .ToTrigger((isOpen) => new StudentEditSheet(isOpen, studentId, refreshToken, () =>
+        .ToTrigger((isOpen) => new RevenueEditSheet(isOpen, entryId, refreshToken, () =>
         {
-          RefreshStudentData();
+          refreshToken.Refresh();
           onRefresh?.Invoke();
         }));
 
     var onDelete = new Action(() =>
     {
-      showAlert($"Are you sure you want to delete {studentValue.Name}?", result =>
+      showAlert($"Are you sure you want to delete this {entry.Amount:C} entry?", async result =>
           {
-          if (result.IsOk())
-          {
-            StudentService.DeleteStudent(studentId);
-            refreshToken.Refresh();
-            onRefresh?.Invoke();
-            blades.Pop(refresh: true);
-          }
-        }, "Delete Student", AlertButtonSet.OkCancel);
+            if (result.IsOk())
+            {
+              await using var db = factory.CreateDbContext();
+              var toDelete = await db.RevenueEntries.FindAsync(entryId);
+              if (toDelete != null)
+              {
+                db.RevenueEntries.Remove(toDelete);
+                await db.SaveChangesAsync();
+              }
+
+              onRefresh?.Invoke();
+              blades.Pop(refresh: true);
+            }
+          }, "Delete Entry", AlertButtonSet.OkCancel);
     });
 
     return new Fragment(
         BladeHelper.WithHeader(
-            Text.H4(studentValue.Name)
+            Text.H4($"{entry.Artist.Name} - {entry.Amount:C}")
             ,
             Layout.Vertical().Gap(10)
                 .Add(new Card(
                     Layout.Vertical().Gap(10)
                     .Add(new
                     {
-                      Email = studentValue.Email,
-                      Age = studentValue.Age,
-                      Course = studentValue.Course,
-                      Grade = studentValue.Grade
+                      Date = entry.RevenueDate.ToShortDateString(),
+                      Source = entry.Source.DescriptionText,
+                      Description = entry.Description,
+                      Integration = entry.Integration
                     }.ToDetails())
                     .Add(Layout.Horizontal().Gap(5)
                         .Add(editButton)
@@ -273,47 +206,60 @@ public class StudentDetailBlade(Guid studentId, Action? onRefresh = null) : View
 }
 
 
-public class StudentCreateDialog(IState<bool> isOpen, RefreshToken refreshToken, IState<List<Student>> students) : ViewBase
+public class RevenueCreateDialog(IState<bool> isOpen, RefreshToken refreshToken) : ViewBase
 {
   public override object? Build()
   {
-    var name = UseState("");
-    var email = UseState("");
-    var course = UseState("");
-    var grade = UseState("");
-    var age = UseState(18);
-    var ageStr = UseState("18");
+    var factory = this.UseService<ArtistInsightToolContextFactory>();
+    var artists = this.UseState<List<Artist>>([]);
+    var sources = this.UseState<List<RevenueSource>>([]);
 
-    var onSave = new Action(() =>
-    {
-      var newStudent = new Student
-      {
-        Name = name.Value,
-        Email = email.Value,
-        Course = course.Value,
-        Grade = grade.Value,
-        Age = age.Value
-      };
-      StudentService.AddStudent(newStudent);
-      students.Set(StudentService.GetStudents());
-      refreshToken.Refresh();
-      isOpen.Set(false);
-    });
-
-    // Sync age string -> int
+    // Load reference data
     this.UseEffect(async () =>
     {
-      if (int.TryParse(ageStr.Value, out var val)) age.Set(val);
+      await using var db = factory.CreateDbContext();
+      artists.Set(await db.Artists.OrderBy(a => a.Name).ToListAsync());
+      sources.Set(await db.RevenueSources.OrderBy(s => s.DescriptionText).ToListAsync());
       return (IDisposable?)null;
-    }, [ageStr]);
+    }, []);
+
+    var amountStr = UseState("0.00");
+    var description = UseState("");
+    var date = UseState(DateTime.UtcNow);
+    var artistId = UseState<int?>(() => null);
+    var sourceId = UseState<int?>(() => null);
+
+    var onSave = new Action(async () =>
+    {
+      if (decimal.TryParse(amountStr.Value, out var amount) && artistId.Value.HasValue && sourceId.Value.HasValue)
+      {
+        await using var db = factory.CreateDbContext();
+        var newEntry = new RevenueEntry
+        {
+          Amount = amount,
+          Description = description.Value,
+          RevenueDate = date.Value,
+          ArtistId = artistId.Value.Value,
+          SourceId = sourceId.Value.Value,
+          CreatedAt = DateTime.UtcNow,
+          UpdatedAt = DateTime.UtcNow
+        };
+        db.RevenueEntries.Add(newEntry);
+        await db.SaveChangesAsync();
+
+        refreshToken.Refresh();
+        isOpen.Set(false);
+      }
+    });
 
     return Layout.Vertical().Gap(15).Width(400)
-            .Add(Text.H3("Add Student"))
-            .Add(Layout.Vertical().Gap(5).Add("Name").Add(name.ToTextInput()))
-            .Add(Layout.Vertical().Gap(5).Add("Email").Add(email.ToTextInput()))
-            .Add(Layout.Vertical().Gap(5).Add("Course").Add(course.ToTextInput()))
-            .Add(Layout.Vertical().Gap(5).Add("Grade").Add(grade.ToTextInput()))
-            .Add(Layout.Vertical().Gap(5).Add("Age").Add(ageStr.ToTextInput()))
+            .Add(Text.H3("Add Revenue"))
+            .Add(Layout.Vertical().Gap(5).Add("Artist").Add(artistId.ToSelectInput(artists.Value.Select(a => new Option<int?>(a.Name, a.Id)).ToList())))
+            .Add(Layout.Vertical().Gap(5).Add("Source").Add(sourceId.ToSelectInput(sources.Value.Select(s => new Option<int?>(s.DescriptionText, s.Id)).ToList())))
+             .Add(Layout.Vertical().Gap(5).Add("Amount").Add(amountStr.ToTextInput()))
+            .Add(Layout.Vertical().Gap(5).Add("Date").Add(date.ToDateInput()))
+            .Add(Layout.Vertical().Gap(5).Add("Description").Add(description.ToTextInput()))
+
             .Add(Layout.Horizontal().Gap(10).Align(Align.Right)
                 .Add(new Button("Cancel").Variant(ButtonVariant.Outline).HandleClick(_ => isOpen.Set(false)))
                 .Add(new Button("Save").Variant(ButtonVariant.Primary).HandleClick(_ => onSave()))
@@ -321,48 +267,75 @@ public class StudentCreateDialog(IState<bool> isOpen, RefreshToken refreshToken,
   }
 }
 
-public class StudentEditSheet(IState<bool> isOpen, Guid studentId, RefreshToken refreshToken, Action onSaveCallback) : ViewBase
+public class RevenueEditSheet(IState<bool> isOpen, int entryId, RefreshToken refreshToken, Action onSaveCallback) : ViewBase
 {
   public override object? Build()
   {
-    var student = StudentService.GetStudents().FirstOrDefault(s => s.ID == studentId);
-    if (student == null) return null;
+    var factory = this.UseService<ArtistInsightToolContextFactory>();
+    var artists = this.UseState<List<Artist>>([]);
+    var sources = this.UseState<List<RevenueSource>>([]);
 
-    var name = UseState(student.Name);
-    var email = UseState(student.Email);
-    var course = UseState(student.Course);
-    var grade = UseState(student.Grade);
-    var age = UseState(student.Age);
-    var ageStr = UseState(student.Age.ToString());
+    var amountStr = UseState("0.00");
+    var description = UseState("");
+    var date = UseState(DateTime.UtcNow);
+    var artistId = UseState<int?>(() => null);
+    var sourceId = UseState<int?>(() => null);
 
-    var onSave = new Action(() =>
-    {
-      student.Name = name.Value;
-      student.Email = email.Value;
-      student.Course = course.Value;
-      student.Grade = grade.Value;
-      student.Age = age.Value;
+    var needsLoad = UseState(true);
 
-      StudentService.UpdateStudent(student);
-      refreshToken.Refresh();
-      onSaveCallback?.Invoke();
-      isOpen.Set(false);
-    });
-
-    // Sync age string -> int
     this.UseEffect(async () =>
     {
-      if (int.TryParse(ageStr.Value, out var val)) age.Set(val);
+      await using var db = factory.CreateDbContext();
+      artists.Set(await db.Artists.OrderBy(a => a.Name).ToListAsync());
+      sources.Set(await db.RevenueSources.OrderBy(s => s.DescriptionText).ToListAsync());
+
+      if (needsLoad.Value)
+      {
+        var entry = await db.RevenueEntries.FindAsync(entryId);
+        if (entry != null)
+        {
+          amountStr.Set(entry.Amount.ToString("F2"));
+          description.Set(entry.Description ?? "");
+          date.Set(entry.RevenueDate);
+          artistId.Set(entry.ArtistId);
+          sourceId.Set(entry.SourceId);
+        }
+        needsLoad.Set(false);
+      }
       return (IDisposable?)null;
-    }, [ageStr]);
+    }, []);
+
+
+    var onSave = new Action(async () =>
+    {
+      if (decimal.TryParse(amountStr.Value, out var amount) && artistId.Value.HasValue && sourceId.Value.HasValue)
+      {
+        await using var db = factory.CreateDbContext();
+        var entry = await db.RevenueEntries.FindAsync(entryId);
+        if (entry != null)
+        {
+          entry.Amount = amount;
+          entry.Description = description.Value;
+          entry.RevenueDate = date.Value;
+          entry.ArtistId = artistId.Value.Value;
+          entry.SourceId = sourceId.Value.Value;
+          entry.UpdatedAt = DateTime.UtcNow;
+
+          await db.SaveChangesAsync();
+          refreshToken.Refresh();
+          onSaveCallback?.Invoke();
+          isOpen.Set(false);
+        }
+      }
+    });
 
     return Layout.Vertical().Gap(15).Padding(20).Width(400)
-            .Add(Text.H3("Edit Student"))
-            .Add(Layout.Vertical().Gap(5).Add("Name").Add(name.ToTextInput()))
-            .Add(Layout.Vertical().Gap(5).Add("Email").Add(email.ToTextInput()))
-            .Add(Layout.Vertical().Gap(5).Add("Course").Add(course.ToTextInput()))
-            .Add(Layout.Vertical().Gap(5).Add("Grade").Add(grade.ToTextInput()))
-            .Add(Layout.Vertical().Gap(5).Add("Age").Add(ageStr.ToTextInput()))
+            .Add(Text.H3("Edit Revenue"))
+            .Add(Layout.Vertical().Gap(5).Add("Artist").Add(artistId.ToSelectInput(artists.Value.Select(a => new Option<int?>(a.Name, a.Id)).ToList())))
+            .Add(Layout.Vertical().Gap(5).Add("Source").Add(sourceId.ToSelectInput(sources.Value.Select(s => new Option<int?>(s.DescriptionText, s.Id)).ToList())))
+             .Add(Layout.Vertical().Gap(5).Add("Amount").Add(amountStr.ToTextInput()))
+            .Add(Layout.Vertical().Gap(5).Add("Date").Add(date.ToDateInput()))
+            .Add(Layout.Vertical().Gap(5).Add("Description").Add(description.ToTextInput()))
              .Add(Layout.Horizontal().Gap(10)
                 .Add(new Button("Save").Variant(ButtonVariant.Primary).HandleClick(_ => onSave()).Width(Size.Full()))
             );
@@ -370,37 +343,51 @@ public class StudentEditSheet(IState<bool> isOpen, Guid studentId, RefreshToken 
 }
 
 
-[App(icon: Icons.Sheet, title: "MiniExcel - View", path: ["Examples", "MiniExcel - View"])]
+[App(icon: Icons.Sheet, title: "MiniExcel - Revenue View", path: ["Examples", "MiniExcel - Revenue View"])]
 public class MiniExcelViewApp : ViewBase
 {
+  public class RevenueExportItem
+  {
+    public int Id { get; set; }
+    public DateTime Date { get; set; }
+    public decimal Amount { get; set; }
+    public string Artist { get; set; } = "";
+    public string Source { get; set; } = "";
+    public string Description { get; set; } = "";
+  }
+
   public override object? Build()
   {
+    var factory = this.UseService<ArtistInsightToolContextFactory>();
     var refreshToken = this.UseRefreshToken();
 
-    var students = this.UseState(() => StudentService.GetStudents());
+    var revenueEntries = this.UseState<List<RevenueExportItem>>([]);
 
     this.UseEffect(async () =>
     {
-      students.Set(StudentService.GetStudents());
+      await using var db = factory.CreateDbContext();
+      // Project directly for export friendliness
+      var data = await db.RevenueEntries
+              .Select(r => new RevenueExportItem
+              {
+                Id = r.Id,
+                Date = r.RevenueDate,
+                Amount = r.Amount,
+                Artist = r.Artist.Name,
+                Source = r.Source.DescriptionText,
+                Description = r.Description ?? ""
+              })
+              .OrderByDescending(r => r.Date)
+              .ToListAsync();
+
+      revenueEntries.Set(data);
       return (IDisposable?)null;
     }, [refreshToken.ToTrigger()]);
 
-    this.UseEffect(async () =>
-    {
-      void OnDataChanged()
-      {
-        students.Set(StudentService.GetStudents());
-        refreshToken.Refresh();
-      }
-
-      StudentService.DataChanged += OnDataChanged;
-      return (IDisposable?)new EffectDisposable(() => StudentService.DataChanged -= OnDataChanged);
-    }, []);
-
-    return BuildTableViewPage(students, refreshToken);
+    return BuildTableViewPage(revenueEntries, refreshToken, factory);
   }
 
-  private object BuildTableViewPage(IState<List<Student>> students, RefreshToken refreshToken)
+  private object BuildTableViewPage(IState<List<RevenueExportItem>> entries, RefreshToken refreshToken, ArtistInsightToolContextFactory factory)
   {
     var client = UseService<IClientProvider>();
     var uploadState = this.UseState<FileUpload<byte[]>?>();
@@ -413,11 +400,11 @@ public class MiniExcelViewApp : ViewBase
         async () =>
         {
           await using var ms = new MemoryStream();
-          MiniExcel.SaveAs(ms, students.Value);
+          MiniExcel.SaveAs(ms, entries.Value);
           return ms.ToArray();
         },
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        $"students-{DateTime.UtcNow:yyyy-MM-dd-HHmmss}.xlsx"
+        $"revenue-{DateTime.UtcNow:yyyy-MM-dd}.xlsx"
     );
 
     this.UseEffect(async () =>
@@ -426,36 +413,69 @@ public class MiniExcelViewApp : ViewBase
       {
         try
         {
+          await using var db = factory.CreateDbContext();
           using var ms = new MemoryStream(bytes);
-          var imported = MiniExcel.Query<Student>(ms).ToList();
+          var imported = MiniExcel.Query<RevenueExportItem>(ms).ToList();
 
-          var currentStudents = StudentService.GetStudents();
-          var studentsById = currentStudents.ToDictionary(s => s.ID);
-          foreach (var importedStudent in imported)
+          var artists = await db.Artists.ToDictionaryAsync(a => a.Name);
+          var sources = await db.RevenueSources.ToDictionaryAsync(s => s.DescriptionText);
+
+          int count = 0;
+          foreach (var item in imported)
           {
-            if (importedStudent.ID != Guid.Empty && studentsById.TryGetValue(importedStudent.ID, out var existing))
+            // Resolve Artist
+            if (!artists.ContainsKey(item.Artist))
             {
-              existing.Name = importedStudent.Name;
-              existing.Email = importedStudent.Email;
-              existing.Age = importedStudent.Age;
-              existing.Course = importedStudent.Course;
-              existing.Grade = importedStudent.Grade;
+              var newArtist = new Artist { Name = item.Artist, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
+              db.Artists.Add(newArtist); // Add triggers ID gen on save? No, context tracks it.
+              artists[item.Artist] = newArtist; // Cache it
+            }
+
+            // Resolve Source (Must exist or default?? For now, create if missing to be safe)
+            if (!sources.ContainsKey(item.Source))
+            {
+              // This might be dangerous if random sources appear, but ok for demo
+              var newSource = new RevenueSource
+              {
+                Id = sources.Count > 0 ? sources.Values.Max(s => s.Id) + 1 : 1, // Manual ID gen if not identity (RevenueSource Id is value generated never in previous view)
+                DescriptionText = item.Source
+              };
+              db.RevenueSources.Add(newSource);
+              sources[item.Source] = newSource;
+            }
+
+            // Upsert Logic
+            var existing = await db.RevenueEntries.FindAsync(item.Id);
+            if (existing != null)
+            {
+              existing.Amount = item.Amount;
+              existing.RevenueDate = item.Date;
+              existing.Description = item.Description;
+              existing.Artist = artists[item.Artist];
+              existing.Source = sources[item.Source];
+              existing.UpdatedAt = DateTime.UtcNow;
             }
             else
             {
-              if (importedStudent.ID == Guid.Empty)
+              var newEntry = new RevenueEntry
               {
-                importedStudent.ID = Guid.NewGuid();
-              }
-              currentStudents.Add(importedStudent);
-              studentsById[importedStudent.ID] = importedStudent;
+                Amount = item.Amount,
+                RevenueDate = item.Date,
+                Description = item.Description,
+                Artist = artists[item.Artist],
+                Source = sources[item.Source],
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+              };
+              db.RevenueEntries.Add(newEntry);
             }
+            count++;
           }
 
-          StudentService.UpdateStudents(currentStudents);
-          students.Set(StudentService.GetStudents());
+          await db.SaveChangesAsync();
+
           refreshToken.Refresh();
-          client.Toast($"Imported {imported.Count} students");
+          client.Toast($"Imported {count} entries");
         }
         catch (Exception ex)
         {
@@ -481,24 +501,23 @@ public class MiniExcelViewApp : ViewBase
     return Layout.Horizontal().Gap(20)
         .Add(new Card(
             Layout.Vertical().Gap(10)
-            .Add(Text.H3("Data Management"))
-            .Add(Text.Small("Upload and download Excel files with students data"))
+            .Add(Text.H3("Revenue Data"))
+            .Add(Text.Small("Upload/Download Excel"))
             .Add(actionMode.ToSelectInput(new List<string> { "Export", "Import" }.Select(s => new Option<string>(s, s)).ToList()))
             .Add(actionWidget)
             .Add(new Spacer().Height(Size.Units(5)))
-            .Add(Text.Small("This demo uses MiniExcel to manage students data."))
-            .Add(Text.Markdown("Built with [Ivy Framework](https://github.com/Ivy-Interactive/Ivy-Framework) and [MiniExcel](https://github.com/mini-software/MiniExcel)"))
+            .Add(Text.Small($"Total: {entries.Value.Count} records"))
         ).Width(Size.Fraction(0.4f)))
         .Add(new Card(
             Layout.Vertical()
-            .Add(Text.H3("Data Overview"))
-            .Add(Text.Small($"Search, filter and view all students data. Total records: {students.Value.Count}"))
-            .Add(students.Value.Count > 0
-                ? students.Value.AsQueryable().ToDataTable()
-                    .Hidden(s => s.ID)
+            .Add(Text.H3("Overview"))
+            .Add(entries.Value.Count > 0
+                ? entries.Value.AsQueryable().ToDataTable()
+                    .Hidden(s => s.Id)
                     .Width(Size.Full())
                     .Height(Size.Units(140))
-                    .Key($"students-{students.Value.Count}-{students.Value.Sum(s => s.GetHashCode())}")
+                    // Key to force refresh on count change
+                    .Key($"rev-{entries.Value.Count}")
                 : Layout.Center()
                     .Add(Text.Small("No data to display"))
             )
