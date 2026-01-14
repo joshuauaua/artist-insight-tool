@@ -53,7 +53,8 @@ public class ShopifyIntegrationView : ViewBase
         Amount = amount,
         Description = $"Shopify Sale: {product}",
         SourceId = source.Id,
-        ArtistId = artist.Id
+        ArtistId = artist.Id,
+        Integration = "Shopify"
       };
 
       await Log($"Debug: Saving Entry. SourceId: {source.Id}, ArtistId: {artist.Id}");

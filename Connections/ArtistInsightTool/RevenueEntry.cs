@@ -21,6 +21,9 @@ public partial class RevenueEntry
 
   public int SourceId { get; set; }
 
+  [MaxLength(50)]
+  public string? Integration { get; set; }
+
   [Column(TypeName = "decimal(18,2)")]
   public decimal Amount { get; set; }
 

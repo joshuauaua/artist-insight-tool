@@ -59,7 +59,8 @@ public class SpotifyIntegrationView : ViewBase
           Description = $"{streamCount:N0} Streams for '{track.Title}'",
           SourceId = source.Id,
           ArtistId = track.ArtistId,
-          TrackId = track.Id
+          TrackId = track.Id,
+          Integration = "Spotify"
         };
 
         db.RevenueEntries.Add(entry);
@@ -122,6 +123,9 @@ public class SpotifyIntegrationView : ViewBase
                 .Add("Actions")
                 .Add(new Button("Sync Stream Data Now", async () => await SyncStreams()))
         ).Title("Data Synchronization"))
+        .Add(new Card(
+            Layout.Vertical().Gap(10)
+                .Add("Sync Log")
                 .Add(Layout.Vertical().Gap(5)
                     .Add(logs.Value.Select(l => l.ToString()).ToArray())
                 )

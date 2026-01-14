@@ -4,7 +4,7 @@ namespace ArtistInsightTool.Apps.Views;
 
 public class RevenueTableView : ViewBase
 {
-  private record RevenueTableItem(int Id, object DateDisplay, object NameDisplay, object TypeDisplay, object CampaignDisplay, object AmountDisplay, DateTime RevenueDate, string Name, string Type, string Campaign, decimal Amount);
+  private record RevenueTableItem(int Id, object DateDisplay, object NameDisplay, object TypeDisplay, object SourceDisplay, object CampaignDisplay, object AmountDisplay, DateTime RevenueDate, string Name, string Type, string Source, string Campaign, decimal Amount);
 
   public override object? Build()
   {
@@ -39,7 +39,8 @@ public class RevenueTableView : ViewBase
            Name = e.Track != null ? e.Track.Title : (e.Album != null ? e.Album.Title : (e.Description ?? "-")),
            Type = e.Source.DescriptionText,
            Campaign = e.Track != null && e.Track.Album != null ? ($"{e.Track.Album.ReleaseType}: {e.Track.Album.Title}") : (e.Album != null ? ($"{e.Album.ReleaseType}: {e.Album.Title}") : "-"),
-           e.Amount
+           e.Amount,
+           Source = e.Integration ?? "Manual"
          })
          .ToArrayAsync();
 
@@ -51,6 +52,8 @@ public class RevenueTableView : ViewBase
          Layout.Horizontal().Width(Size.Full()).Add(new Button(r.Name, () => selectedDetailsId.Set(r.Id)).Variant(ButtonVariant.Link)),
          // Type
          Layout.Horizontal().Width(120).Add(r.Type),
+         // Source
+         Layout.Horizontal().Width(100).Add(r.Source),
          // Campaign
          Layout.Horizontal().Width(200).Add(r.Campaign),
          // Amount
@@ -58,6 +61,7 @@ public class RevenueTableView : ViewBase
          r.RevenueDate,
          r.Name,
          r.Type,
+         r.Source,
          r.Campaign,
          r.Amount
      )).ToArray();
@@ -116,11 +120,13 @@ public class RevenueTableView : ViewBase
         .Add(p => p.DateDisplay)
         .Add(p => p.NameDisplay)
         .Add(p => p.TypeDisplay)
+        .Add(p => p.SourceDisplay)
         .Add(p => p.CampaignDisplay)
         .Add(p => p.AmountDisplay)
         .Header(p => p.DateDisplay, "Date")
         .Header(p => p.NameDisplay, "Name")
         .Header(p => p.TypeDisplay, "Type")
+        .Header(p => p.SourceDisplay, "Source")
         .Header(p => p.CampaignDisplay, "Campaign")
         .Header(p => p.AmountDisplay, "Amount")
         .Empty("No entries match your search");

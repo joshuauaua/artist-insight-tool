@@ -3,6 +3,7 @@ using System.Globalization;
 using System.IO;
 using CsvHelper;
 using CsvHelper.Configuration;
+using CsvHelper.Configuration.Attributes;
 using System.ComponentModel.DataAnnotations;
 using System.Collections.Generic;
 using System;
@@ -13,19 +14,23 @@ namespace ArtistInsightTool.Apps;
 [App(icon: Icons.Table, title: "CSV Helper", path: ["Integrations", "CSV Helper"])]
 public class CsvHelperApp : ViewBase
 {
-  public class ProductModel
+  public class AssetModel
   {
     public Guid Id { get; set; }
 
     [Required]
+    [Name("Product Name", "Name", "Title")]
     public string Name { get; set; } = string.Empty;
 
+    [Name("Description", "Desc", "Details")]
     public string Description { get; set; } = string.Empty;
 
     [Required]
+    [Name("Cost", "Price", "Amount", "Value")]
     public decimal Price { get; set; }
 
     [Required]
+    [Name("Category", "Type", "Group")]
     public string Category { get; set; } = string.Empty;
 
     public DateTime CreatedAt { get; set; }
@@ -35,15 +40,10 @@ public class CsvHelperApp : ViewBase
   {
     var client = UseService<IClientProvider>();
 
-    // State for products list
-    var products = UseState(() => new List<ProductModel>
-        {
-            new() { Id = Guid.NewGuid(), Name = "Wireless Mouse", Description = "Ergonomic 2.4 GHz mouse with silent click", Price = 19.99m, Category = "Accessories", CreatedAt = DateTime.UtcNow },
-            new() { Id = Guid.NewGuid(), Name = "Mechanical Keyboard", Description = "RGB backlit mechanical keyboard with blue switches", Price = 79.50m, Category = "Accessories", CreatedAt = DateTime.UtcNow },
-            new() { Id = Guid.NewGuid(), Name = "27\" 4K Monitor", Description = "Ultra-HD IPS display with HDR support", Price = 299.99m, Category = "Displays", CreatedAt = DateTime.UtcNow },
-            new() { Id = Guid.NewGuid(), Name = "USB-C Hub", Description = "7-in-1 hub with HDMI, USB 3.0 and card reader", Price = 34.95m, Category = "Peripherals", CreatedAt = DateTime.UtcNow },
-            new() { Id = Guid.NewGuid(), Name = "Noise-Cancelling Headphones", Description = "Over-ear Bluetooth headphones with ANC", Price = 149.00m, Category = "Audio", CreatedAt = DateTime.UtcNow },
-        });
+    // State for assets list
+    var assets = UseState(() => new List<AssetModel>
+    {
+    });
 
     // Export CSV download
     var downloadUrl = this.UseDownload(
@@ -53,7 +53,7 @@ public class CsvHelperApp : ViewBase
           await using var writer = new StreamWriter(ms, leaveOpen: true);
           await using var csv = new CsvWriter(writer, new CsvConfiguration(CultureInfo.InvariantCulture));
 
-          await csv.WriteRecordsAsync(products.Value);
+          await csv.WriteRecordsAsync(assets.Value);
           await writer.FlushAsync();
           ms.Position = 0;
 
@@ -70,7 +70,7 @@ public class CsvHelperApp : ViewBase
         .MaxFileSize(10 * 1024 * 1024);
 
     // State for dialog open/close
-    var product = UseState(() => new ProductModel());
+    var asset = UseState(() => new AssetModel());
     var isDialogOpen = UseState(false);
 
     // When a file is uploaded, parse and import
@@ -84,7 +84,7 @@ public class CsvHelperApp : ViewBase
           using var reader = new StreamReader(stream);
           using var csv = new CsvReader(reader, new CsvConfiguration(CultureInfo.InvariantCulture));
 
-          var records = csv.GetRecords<ProductModel>().ToList();
+          var records = csv.GetRecords<AssetModel>().ToList();
 
           foreach (var record in records)
           {
@@ -92,8 +92,8 @@ public class CsvHelperApp : ViewBase
             record.CreatedAt = DateTime.UtcNow;
           }
 
-          products.Value = products.Value.Concat(records).ToList();
-          client.Toast($"Imported {records.Count} products from CSV");
+          assets.Value = assets.Value.Concat(records).ToList();
+          client.Toast($"Imported {records.Count} assets from CSV");
         }
         catch (Exception ex)
         {
@@ -102,43 +102,43 @@ public class CsvHelperApp : ViewBase
       }
     }, [uploadState]);
 
-    // Handle product submission
+    // Handle asset submission
     UseEffect(() =>
     {
       // Check if form was submitted (non-empty required fields)
-      if (!string.IsNullOrEmpty(product.Value.Name) &&
-              product.Value.Price > 0 &&
-              !string.IsNullOrEmpty(product.Value.Category))
+      if (!string.IsNullOrEmpty(asset.Value.Name) &&
+              asset.Value.Price > 0 &&
+              !string.IsNullOrEmpty(asset.Value.Category))
       {
-        product.Value.Id = Guid.NewGuid();
-        product.Value.CreatedAt = DateTime.UtcNow;
-        products.Value = products.Value.Append(product.Value).ToList();
-        client.Toast($"Product '{product.Value.Name}' added successfully");
-        product.Set(new ProductModel());
+        asset.Value.Id = Guid.NewGuid();
+        asset.Value.CreatedAt = DateTime.UtcNow;
+        assets.Value = assets.Value.Append(asset.Value).ToList();
+        client.Toast($"Asset '{asset.Value.Name}' added successfully");
+        asset.Set(new AssetModel());
         isDialogOpen.Set(false);
       }
-    }, [product]);
+    }, [asset]);
 
     // Delete action
-    var deleteProduct = new Action<Guid>((id) =>
+    var deleteAsset = new Action<Guid>((id) =>
     {
-      var p = products.Value.FirstOrDefault(x => x.Id == id);
+      var p = assets.Value.FirstOrDefault(x => x.Id == id);
       if (p != null)
       {
-        products.Value = products.Value.Where(x => x.Id != id).ToList();
-        client.Toast($"Product '{p.Name}' deleted");
+        assets.Value = assets.Value.Where(x => x.Id != id).ToList();
+        client.Toast($"Asset '{p.Name}' deleted");
       }
     });
 
     // Build the table with delete button
-    var table = products.Value.Select(p => new
+    var table = assets.Value.Select(p => new
     {
       p.Name,
       p.Description,
       p.Price,
       p.Category,
       p.CreatedAt,
-      Delete = Icons.Trash.ToButton(_ => deleteProduct(p.Id)).Small()
+      Delete = Icons.Trash.ToButton(_ => deleteAsset(p.Id)).Small()
     }).ToTable().Width(Size.Full());
 
     // File input is generated from upload state/context
@@ -147,10 +147,10 @@ public class CsvHelperApp : ViewBase
     var leftCard = new Card(
         Layout.Vertical().Gap(6)
         .Add(Text.H3("Controls"))
-        .Add(Text.Small($"Total: {products.Value.Count} products"))
+        .Add(Text.Small($"Total: {assets.Value.Count} assets"))
 
-        // Add Product button - opens dialog
-        .Add(new Button("Add Product")
+        // Add Asset button - opens dialog
+        .Add(new Button("Add Asset")
             .Icon(Icons.Plus)
             .Primary() // Removed .Primary() as it might not be valid, checked Button API in previous turns, it uses Variant. But let's stick to user code and fix if lint errors.
                        // Looking at previous code, .Variant(ButtonVariant.Outline) is used. .Primary() might not exist. 
@@ -161,19 +161,19 @@ public class CsvHelperApp : ViewBase
             .Width(Size.Full())
             .HandleClick(_ => isDialogOpen.Set(true)))
 
-        .Add(product.ToForm()
+        .Add(asset.ToForm()
             .Remove(m => m.Id)
             .Remove(m => m.CreatedAt)
             .Required(m => m.Name, m => m.Price, m => m.Category)
-            .Label(m => m.Name, "Product Name")
+            .Label(m => m.Name, "Asset Name")
             .Label(m => m.Description, "Description")
             .Label(m => m.Price, "Price")
             .Label(m => m.Category, "Category")
-            .Builder(m => m.Name, s => s.ToTextInput().Placeholder("Enter product name..."))
+            .Builder(m => m.Name, s => s.ToTextInput().Placeholder("Enter asset name..."))
             .Builder(m => m.Description, s => s.ToTextInput().Placeholder("Enter description..."))
             .Builder(m => m.Price, s => s.ToNumberInput().Placeholder("Enter price...").Min(0))
             .Builder(m => m.Category, s => s.ToTextInput().Placeholder("Enter category..."))
-            .ToDialog(isDialogOpen, "Create New Product", "Please provide product information",
+            .ToDialog(isDialogOpen, "Create New Asset", "Please provide asset information",
                      width: Size.Fraction(0.5f)))
 
         // Export CSV button
@@ -187,13 +187,10 @@ public class CsvHelperApp : ViewBase
 
         // Import CSV file input
         .Add(uploadState.ToFileInput(uploadContext).Placeholder("Choose File"))
-        .Add(new Spacer())
-        .Add(Text.Small("This demo uses CsvHelper library for reading and writing CSV files with custom class objects."))
-        .Add(Text.Markdown("Built with [Ivy Framework](https://github.com/Ivy-Interactive/Ivy-Framework) and [CsvHelper](https://github.com/JoshClose/CsvHelper)"))
     ).Title("Management").Height(Size.Fit().Min(Size.Full()));
 
     // Right card - Table
-    var rightCard = new Card(table).Title("Products").Height(Size.Fit().Min(Size.Full()));
+    var rightCard = new Card(table).Title("Assets").Height(Size.Fit().Min(Size.Full()));
 
     // Two-column layout
     return Layout.Horizontal().Gap(8)
