@@ -16,6 +16,11 @@ public partial class ImportTemplate
   [Required]
   public string HeadersJson { get; set; } = "[]";
 
+  public List<string> GetHeaders()
+  {
+    return System.Text.Json.JsonSerializer.Deserialize<List<string>>(HeadersJson) ?? [];
+  }
+
   public DateTime CreatedAt { get; set; }
 
   public DateTime UpdatedAt { get; set; }
