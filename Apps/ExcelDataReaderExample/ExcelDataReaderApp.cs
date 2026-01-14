@@ -1,8 +1,11 @@
 using System.Data;
 using System.IO;
 using System.Collections.Generic;
+using System.Text.Json;
 using ExcelDataReader;
 using Ivy.Shared;
+using ArtistInsightTool.Connections.ArtistInsightTool;
+using Microsoft.EntityFrameworkCore;
 
 namespace ExcelDataReaderExample;
 
@@ -33,11 +36,21 @@ public class ExcelDataReaderApp : ViewBase
 
   public override object? Build()
   {
+    // Ensure encodings support
+    System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
+
+    var factory = UseService<ArtistInsightToolContextFactory>();
+    var client = UseService<IClientProvider>();
+
     var filePath = UseState<string?>(() => null);
     var fileAnalysis = UseState<FileAnalysis?>(() => null);
     var isAnalyzing = UseState(false);
-    var selectedSheetIndex = UseState(0);
-    var client = UseService<IClientProvider>();
+
+    // Template Logic States
+    var templates = UseState<List<ImportTemplate>>([]);
+    var matchedTemplate = UseState<ImportTemplate?>(() => null);
+    var isNewTemplate = UseState(false);
+    var showSaveSheet = UseState(false);
 
     // Upload state for files
     var uploadState = UseState<FileUpload<byte[]>?>();
@@ -46,6 +59,14 @@ public class ExcelDataReaderApp : ViewBase
         .MaxFileSize(50 * 1024 * 1024);
 
     var fileName = uploadState.Value?.FileName;
+
+    // Load templates
+    UseEffect(async () =>
+    {
+      await using var db = factory.CreateDbContext();
+      templates.Set(await db.ImportTemplates.ToListAsync());
+      return (IDisposable?)null;
+    }, []);
 
     // When a file is uploaded, save it to temp file
     UseEffect(() =>
@@ -89,7 +110,7 @@ public class ExcelDataReaderApp : ViewBase
       }
     }, [uploadState]);
 
-    // Clear analysis and filePath when file is removed from input
+    // Clear analysis and filePath when file is removed
     UseEffect(() =>
     {
       if (uploadState.Value == null && filePath.Value != null)
@@ -98,18 +119,44 @@ public class ExcelDataReaderApp : ViewBase
       }
     }, uploadState);
 
-    // Automatically analyze file when filePath is set
+    // Analyze file and check templates
     UseEffect(() =>
     {
       if (filePath.Value != null && !isAnalyzing.Value)
       {
         isAnalyzing.Set(true);
+        matchedTemplate.Set((ImportTemplate?)null);
+        isNewTemplate.Set(false);
+
         Task.Run(() =>
             {
               try
               {
                 var result = AnalyzeFile(filePath.Value);
                 fileAnalysis.Set(result);
+
+                // Template Matching Logic (Based on first sheet)
+                if (result.Sheets.Count > 0)
+                {
+                  var firstSheetHeaders = result.Sheets[0].Headers;
+                  var jsonHeaders = JsonSerializer.Serialize(firstSheetHeaders);
+
+                  // Find match
+                  var match = templates.Value.FirstOrDefault(t => t.HeadersJson == jsonHeaders);
+                  if (match != null)
+                  {
+                    matchedTemplate.Set(match);
+                  }
+                  else
+                  {
+                    // Simple check: Check if headers match any known set regardless of order? 
+                    // For now, assume exact order matters as per user's "headers identified".
+                    // Or maybe set comparison?
+                    // Let's do exact match first.
+                    isNewTemplate.Set(true);
+                  }
+                }
+
                 client.Toast($"File analyzed successfully! Found {result.TotalSheets} sheets.", "Success");
               }
               catch (Exception ex)
@@ -126,25 +173,71 @@ public class ExcelDataReaderApp : ViewBase
       else if (filePath.Value == null)
       {
         fileAnalysis.Set((FileAnalysis?)null);
-        selectedSheetIndex.Set(0);
+        matchedTemplate.Set((ImportTemplate?)null);
+        isNewTemplate.Set(false);
       }
-    }, filePath);
+    }, [filePath]); // removed templates from dep to avoid re-analysis on save
+
+    // Handle Sheet
+    if (showSaveSheet.Value && fileAnalysis.Value?.Sheets.Count > 0)
+    {
+      var headers = fileAnalysis.Value.Sheets[0].Headers;
+      return new SaveTemplateSheet(headers, () =>
+      {
+        showSaveSheet.Set(false);
+        // Reload templates
+        Task.Run(async () =>
+        {
+          await using var db = factory.CreateDbContext();
+          var freshTemplates = await db.ImportTemplates.ToListAsync();
+          templates.Set(freshTemplates);
+
+          // Re-check current file?
+          var jsonHeaders = JsonSerializer.Serialize(headers);
+          var match = freshTemplates.FirstOrDefault(t => t.HeadersJson == jsonHeaders);
+          if (match != null)
+          {
+            matchedTemplate.Set(match);
+            isNewTemplate.Set(false);
+          }
+        });
+      }, () => showSaveSheet.Set(false));
+    }
 
     return Layout.Horizontal(
-        // Left Card - Functionality and File Input
+        // Left Card - Functionality
         new Card(
             Layout.Vertical(
                 Text.H3("Excel File Analyzer"),
-                Text.Muted("Upload Excel (.xlsx, .xls) or CSV files to analyze their structure, sheets, and data organization."),
+                Text.Muted("Upload Excel (.xlsx, .xls) or CSV files."),
                 uploadState.ToFileInput(uploadContext)
                     .Placeholder("Select Excel/CSV file")
                     .Width(Size.Full()),
 
                 new Spacer(),
-                Text.Small("This demo uses the ExcelDataReader NuGet package to read Excel and CSV files."),
-                Text.Markdown("Built with [Ivy Framework](https://github.com/Ivy-Interactive/Ivy-Framework) and [ExcelDataReader](https://github.com/ExcelDataReader/ExcelDataReader)"),
 
-                // Analysis indicator
+                // Template Status Section
+                fileAnalysis.Value != null ?
+                    Layout.Vertical().Gap(10).Padding(10)
+                    .Add(Text.Small("Template Status"))
+                    .Add(
+                        matchedTemplate.Value != null
+                         ? Layout.Vertical().Gap(5)
+                            .Add(Text.Markdown("✅ **Match Found**"))
+                            .Add(Text.Small($"Template: {matchedTemplate.Value.Name}"))
+                         : (isNewTemplate.Value
+                            ? Layout.Vertical().Gap(5)
+                                .Add(Text.Markdown("✨ **New Data Structure**"))
+                                .Add(Text.Small("This structure has not been seen before."))
+                                .Add(new Button("Save as Template", () => showSaveSheet.Set(true)).Variant(ButtonVariant.Primary))
+                            : Text.Small("Analyzing..."))
+                    )
+                    : null,
+
+
+                new Spacer(),
+                Text.Small("Uses ExcelDataReader package."),
+
                 isAnalyzing.Value ?
                     Layout.Horizontal(
                         Text.Label("Analyzing file...")
@@ -157,73 +250,39 @@ public class ExcelDataReaderApp : ViewBase
             fileAnalysis.Value != null ? (
                 Layout.Vertical(
                     Text.H3("File Analysis Results"),
-                    Text.Muted("Detailed analysis of your Excel/CSV file structure, including sheets, headers, and statistics."),
+                    // ... stats table ...
                     Layout.Vertical(
                         new Markdown($"""                                
                                 | Property | Value |
                                 |----------|-------|
                                 | **File name** | `{fileName}` |
-                                | **File type** | `{fileAnalysis.Value.FileType}` |
-                                | **File size** | `{FormatFileSize(fileAnalysis.Value.FileSize)}` |
-                                | **Number of sheets** | `{fileAnalysis.Value.TotalSheets}` |
-                                | **Total rows** | `{fileAnalysis.Value.Sheets.Sum(s => s.RowCount)}` |
-                                | **Maximum columns** | `{fileAnalysis.Value.Sheets.Max(s => s.FieldCount)}` |
-                                | **Total merged cells** | `{fileAnalysis.Value.Sheets.Sum(s => s.MergeCellsCount)}` |
-                                | **Average rows per sheet** | `{fileAnalysis.Value.Sheets.Average(s => s.RowCount):F1}` |
-                                | **Average columns** | `{fileAnalysis.Value.Sheets.Average(s => s.FieldCount):F1}` |
+                                | **Type** | `{fileAnalysis.Value.FileType}` |
+                                | **Size** | `{FormatFileSize(fileAnalysis.Value.FileSize)}` |
+                                | **Format** | `{(matchedTemplate.Value != null ? matchedTemplate.Value.Name : "Unknown")}` |
                                 """)
                     ),
 
                     // Sheet list
                     Layout.Vertical(
                         fileAnalysis.Value.Sheets.Select((sheet, index) =>
-
                                 new Expandable(
                                     Text.Label($"Sheet {index + 1}: {sheet.Name}"),
                                     new Markdown($"""
                                             | Property | Value |
                                             |----------|-------|
-                                            | **Name** | `{sheet.Name}` |
                                             | **Columns** | `{sheet.FieldCount}` |
                                             | **Rows** | `{sheet.RowCount}` |
-                                            | **Merged Cells** | `{sheet.MergeCellsCount}` |
                                             | **Headers** | {string.Join(", ", sheet.Headers.Select(header => $"`{header}`"))} |
-                                            
                                             """)
                                 )
-
                         ).ToArray()
                     )
                 )
-            ) : (
-                    Layout.Vertical(
-                        Text.H3("What This Program Does"),
-                        Layout.Vertical(
-                            Text.Muted("• Analyzes Excel and CSV file structure"),
-                            Text.Muted("• Shows sheet information and headers"),
-                            Text.Muted("• Displays file statistics and metadata"),
-                            Text.Muted("• Provides detailed data organization insights")
-                        ).Padding(8),
-
-                        Layout.Vertical(
-                            Text.Muted("Quick Start:"),
-                            Text.Muted("1. Upload file → 2. View results automatically")
-                        ).Padding(8),
-
-                        Layout.Vertical(
-                            Text.Muted("Supported Files:"),
-                            Text.Muted("• Excel files (.xlsx, .xls)"),
-                            Text.Muted("• CSV files (.csv)")
-                        ).Padding(8)
-                    )
-            )
+            ) : Layout.Center().Add(Text.Muted("Upload a file to see results"))
         ).Width(Size.Fraction(0.6f)).Height(Size.Fit().Min(Size.Full()))
     ).Gap(16);
   }
 
-  /// <summary>
-  /// Analyzes file and returns detailed information about its structure
-  /// </summary>
   private FileAnalysis AnalyzeFile(string filePath)
   {
     var fileInfo = new FileInfo(filePath);
@@ -234,113 +293,120 @@ public class ExcelDataReaderApp : ViewBase
       FileSize = fileInfo.Length
     };
 
-    try
+    using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+    using var reader = fileInfo.Extension.ToLowerInvariant() == ".csv"
+        ? ExcelReaderFactory.CreateCsvReader(stream)
+        : ExcelReaderFactory.CreateReader(stream);
+
+    do
     {
-      if (!File.Exists(filePath))
+      var sheetName = reader.Name ?? "Unknown";
+      var headers = new List<string>();
+      var rowCount = 0;
+      var fieldCount = 0;
+
+      // Read first row for headers
+      if (reader.Read())
       {
-        throw new FileNotFoundException($"File not found: {filePath}");
+        rowCount++;
+        fieldCount = reader.FieldCount;
+        for (int i = 0; i < reader.FieldCount; i++)
+        {
+          var header = reader.GetValue(i)?.ToString() ?? $"Column_{i}";
+          headers.Add(header);
+        }
       }
 
-      using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-      using var reader = fileInfo.Extension.ToLowerInvariant() == ".csv"
-          ? ExcelReaderFactory.CreateCsvReader(stream)
-          : ExcelReaderFactory.CreateReader(stream);
-
-      if (reader == null)
+      // Scan remaining
+      while (reader.Read())
       {
-        throw new InvalidOperationException("Failed to create reader for the file");
+        rowCount++;
+        if (reader.FieldCount > fieldCount) fieldCount = reader.FieldCount;
       }
 
-      // Collect information about all sheets
-      do
+      var sheetAnalysis = new SheetAnalysis
       {
-        var sheetAnalysis = new SheetAnalysis
-        {
-          Name = reader.Name ?? "Unknown",
-          CodeName = reader.CodeName ?? "",
-          FieldCount = reader.FieldCount,
-          RowCount = reader.RowCount,
-          MergeCellsCount = reader.MergeCells?.Length ?? 0
-        };
+        Name = sheetName,
+        FieldCount = fieldCount,
+        RowCount = rowCount,
+        Headers = headers,
+        MergeCellsCount = reader.MergeCells?.Length ?? 0
+      };
 
-        // Collect headers (first row)
-        if (reader.Read())
-        {
-          for (int i = 0; i < reader.FieldCount; i++)
-          {
-            var header = reader.GetValue(i)?.ToString() ?? $"Column_{i}";
-            sheetAnalysis.Headers.Add(header);
-          }
-        }
+      // Fix for CSV
+      if (fileInfo.Extension.ToLowerInvariant() == ".csv")
+      {
+        sheetAnalysis.MergeCellsCount = 0;
+      }
 
-        // Collect additional sheet information
-        sheetAnalysis.Properties["ResultsCount"] = reader.ResultsCount;
-        sheetAnalysis.Properties["FieldCount"] = reader.FieldCount;
-        sheetAnalysis.Properties["RowCount"] = reader.RowCount;
-        sheetAnalysis.Properties["MergeCellsCount"] = reader.MergeCells?.Length ?? 0;
+      analysis.Sheets.Add(sheetAnalysis);
 
-        // Try to get additional properties
-        try
-        {
-          if (reader.HeaderFooter != null)
-          {
-            sheetAnalysis.Properties["HasHeaderFooter"] = true;
-          }
-        }
-        catch { }
+    } while (reader.NextResult());
 
-        try
-        {
-          if (reader.MergeCells != null && reader.MergeCells.Length > 0)
-          {
-            sheetAnalysis.Properties["MergeCellsCount"] = reader.MergeCells.Length;
-            sheetAnalysis.MergeCellsCount = reader.MergeCells.Length;
-          }
-        }
-        catch (Exception ex)
-        {
-          // Log error but continue processing
-          Console.WriteLine($"Error processing merge cells: {ex.Message}");
-        }
-
-        // For CSV files, set MergeCellsCount to 0 since CSV doesn't support merged cells
-        if (fileInfo.Extension.ToLowerInvariant() == ".csv")
-        {
-          sheetAnalysis.MergeCellsCount = 0;
-          sheetAnalysis.Properties["MergeCellsCount"] = 0;
-          sheetAnalysis.Properties["IsCSV"] = true;
-        }
-
-        analysis.Sheets.Add(sheetAnalysis);
-
-        // Move to next sheet
-      } while (reader.NextResult());
-
-      analysis.TotalSheets = analysis.Sheets.Count;
-      analysis.Metadata["AnalysisDate"] = DateTime.Now;
-      analysis.Metadata["ReaderVersion"] = "ExcelDataReader";
-
-      return analysis;
-    }
-    catch (Exception ex)
-    {
-      throw new Exception($"File analysis error: {ex.Message}", ex);
-    }
+    analysis.TotalSheets = analysis.Sheets.Count;
+    return analysis;
   }
 
-  /// <summary>
-  /// Formats file size in readable format
-  /// </summary>
   private string FormatFileSize(long bytes)
   {
+    var len = (double)bytes;
     string[] sizes = { "B", "KB", "MB", "GB" };
-    double len = bytes;
     int order = 0;
-    while (len >= 1024 && order < sizes.Length - 1)
-    {
-      order++;
-      len = len / 1024;
-    }
+    while (len >= 1024 && order < sizes.Length - 1) { order++; len /= 1024; }
     return $"{len:0.##} {sizes[order]}";
+  }
+}
+
+public class SaveTemplateSheet(List<string> headers, Action onSave, Action onCancel) : ViewBase
+{
+  public override object? Build()
+  {
+    var factory = UseService<ArtistInsightToolContextFactory>();
+    var client = UseService<IClientProvider>();
+
+    var nameState = UseState("");
+
+    return Layout.Vertical().Gap(20).Padding(20).Width(400)
+        .Add(Text.H3("Save Import Template"))
+        .Add(Text.Muted("This data structure is new. Give it a name to recognize it in the future."))
+
+        .Add(Layout.Vertical().Gap(5)
+            .Add(Text.Small("Headers Detected"))
+            .Add(Layout.Vertical().Padding(10)
+                .Add(Text.Small(string.Join(", ", headers)))
+            )
+        )
+
+        .Add(Layout.Vertical().Gap(5)
+            .Add(Text.Small("Template Name"))
+            .Add(nameState.ToTextInput().Placeholder("e.g. Spotify Distribution Report"))
+        )
+
+        .Add(Layout.Horizontal().Gap(10).Align(Align.Right)
+            .Add(new Button("Cancel", onCancel).Variant(ButtonVariant.Outline))
+            .Add(new Button("Save Template", async () =>
+            {
+              if (string.IsNullOrWhiteSpace(nameState.Value))
+              {
+                client.Toast("Please enter a name", "Warning");
+                return;
+              }
+
+              await using var db = factory.CreateDbContext();
+              var newTemplate = new ImportTemplate
+              {
+                Name = nameState.Value,
+                HeadersJson = JsonSerializer.Serialize(headers),
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+              };
+
+              db.ImportTemplates.Add(newTemplate);
+              await db.SaveChangesAsync();
+
+              client.Toast("Template saved successfully!", "Success");
+              onSave();
+            }).Variant(ButtonVariant.Primary))
+        );
   }
 }
