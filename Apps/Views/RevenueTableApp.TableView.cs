@@ -46,17 +46,23 @@ public class RevenueTableView : ViewBase
 
       var tableData = rawData.Select(r => new RevenueTableItem(
          r.Id,
-         // Date (Start with a bit more width, ensure no wrapping)
-         Layout.Horizontal().Width(100).Add(r.RevenueDate.ToShortDateString()),
-         // Name (Use Grow to fill space)
-         Layout.Horizontal().Width(Size.Full()).Add(new Button(r.Name, () => selectedDetailsId.Set(r.Id)).Variant(ButtonVariant.Link)),
-         // Type
-         Layout.Horizontal().Width(120).Add(r.Type),
-         // Source
-         Layout.Horizontal().Width(100).Add(r.Source),
+         // Date (Moved to later position in table, evenly spaced)
+         Layout.Horizontal().Width(Size.Fraction(1)).Add(r.RevenueDate.ToShortDateString()),
+         // Name (First column, wider)
+         Layout.Horizontal()
+             .Width(Size.Fraction(3))
+             .Align(Align.Left)
+             .Gap(0)
+             .Add(new Button(r.Name, () => selectedDetailsId.Set(r.Id))
+                 .Variant(ButtonVariant.Link)
+             ),
+         // Type (Evenly spaced)
+         Layout.Horizontal().Width(Size.Fraction(1)).Add(r.Type),
+         // Source (Evenly spaced)
+         Layout.Horizontal().Width(Size.Fraction(1)).Add(r.Source),
 
-         // Amount
-         Layout.Horizontal().Width(100).Add(r.Amount.ToString("C")),
+         // Amount (Right aligned, evenly spaced)
+         Layout.Horizontal().Width(Size.Fraction(1)).Align(Align.Right).Add(r.Amount.ToString("C")),
          r.RevenueDate,
          r.Name,
          r.Type,
@@ -115,17 +121,15 @@ public class RevenueTableView : ViewBase
     var table = filteredEntries.ToTable()
         .Width(Size.Full())
         .Clear()
-        .Add(p => p.DateDisplay)
         .Add(p => p.NameDisplay)
         .Add(p => p.TypeDisplay)
         .Add(p => p.SourceDisplay)
-
+        .Add(p => p.DateDisplay)
         .Add(p => p.AmountDisplay)
-        .Header(p => p.DateDisplay, "Date")
-        .Header(p => p.NameDisplay, "Name")
+        .Header(p => p.NameDisplay, "  Name")
         .Header(p => p.TypeDisplay, "Type")
         .Header(p => p.SourceDisplay, "Source")
-
+        .Header(p => p.DateDisplay, "Date")
         .Header(p => p.AmountDisplay, "Amount")
         .Empty("No entries match your search");
 
