@@ -25,6 +25,8 @@ public partial class ArtistInsightToolContext : DbContext
 
   public virtual DbSet<Track> Tracks { get; set; }
 
+  public virtual DbSet<ImportTemplate> ImportTemplates { get; set; }
+
   protected override void OnModelCreating(ModelBuilder modelBuilder)
   {
     modelBuilder.Entity<Album>(entity =>
