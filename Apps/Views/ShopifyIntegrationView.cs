@@ -1,5 +1,6 @@
 using Ivy.Shared;
 using ArtistInsightTool.Connections.ArtistInsightTool;
+using ArtistInsightTool.Apps.Views.Shopify;
 
 namespace ArtistInsightTool.Apps;
 
@@ -9,6 +10,7 @@ public class ShopifyIntegrationView : ViewBase
   {
     var isConnected = UseState(false);
     var logs = UseState<List<string>>([]);
+    var sales = UseState<List<ShopifySale>>([]);
     var factory = UseService<ArtistInsightToolContextFactory>();
 
     Func<string, Task> Log = async (msg) =>
@@ -58,7 +60,16 @@ public class ShopifyIntegrationView : ViewBase
       db.RevenueEntries.Add(entry);
       await db.SaveChangesAsync();
 
-      await Log("Sale registered in Revenue Table");
+      sales.Set(s => [.. s, new ShopifySale(
+          Guid.NewGuid().ToString().Substring(0, 8).ToUpper(),
+          DateTime.Now,
+          "Customer " + new Random().Next(1000, 9999),
+          product,
+          amount,
+          "Paid"
+      )]);
+
+      await Log("Sale registered in Revenue Table & Shopify Table");
     };
 
 
@@ -105,8 +116,13 @@ public class ShopifyIntegrationView : ViewBase
             Layout.Vertical().Gap(10)
                 .Add("Activity Log")
                 .Add(Layout.Vertical().Gap(5)
-                    .Add(logs.Value.Select(l => l.ToString()).ToArray()) // Just display strings. Text is static? ViewBase usually handles strings.
+                    .Add(logs.Value.Select(l => l.ToString()).ToArray())
                 )
+        ))
+        .Add(new Card(
+            Layout.Vertical().Gap(10)
+                .Add("Recent Sales")
+                .Add(ShopifyDataTable.Create(sales.Value))
         ));
   }
 }
