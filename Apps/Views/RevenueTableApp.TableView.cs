@@ -4,7 +4,7 @@ namespace ArtistInsightTool.Apps.Views;
 
 public class RevenueTableView : ViewBase
 {
-  private record RevenueTableItem(int Id, object DateDisplay, object NameDisplay, object TypeDisplay, object SourceDisplay, object CampaignDisplay, object AmountDisplay, DateTime RevenueDate, string Name, string Type, string Source, string Campaign, decimal Amount);
+  private record RevenueTableItem(int Id, object DateDisplay, object NameDisplay, object TypeDisplay, object SourceDisplay, object AmountDisplay, DateTime RevenueDate, string Name, string Type, string Source, decimal Amount);
 
   public override object? Build()
   {
@@ -38,7 +38,7 @@ public class RevenueTableView : ViewBase
            e.RevenueDate,
            Name = e.Track != null ? e.Track.Title : (e.Album != null ? e.Album.Title : (e.Description ?? "-")),
            Type = e.Source.DescriptionText,
-           Campaign = e.Track != null && e.Track.Album != null ? ($"{e.Track.Album.ReleaseType}: {e.Track.Album.Title}") : (e.Album != null ? ($"{e.Album.ReleaseType}: {e.Album.Title}") : "-"),
+
            e.Amount,
            Source = e.Integration ?? "Manual"
          })
@@ -54,15 +54,14 @@ public class RevenueTableView : ViewBase
          Layout.Horizontal().Width(120).Add(r.Type),
          // Source
          Layout.Horizontal().Width(100).Add(r.Source),
-         // Campaign
-         Layout.Horizontal().Width(200).Add(r.Campaign),
+
          // Amount
          Layout.Horizontal().Width(100).Add(r.Amount.ToString("C")),
          r.RevenueDate,
          r.Name,
          r.Type,
          r.Source,
-         r.Campaign,
+
          r.Amount
      )).ToArray();
 
@@ -88,7 +87,7 @@ public class RevenueTableView : ViewBase
       var q = searchQuery.Value.ToLowerInvariant();
       filteredEntries = filteredEntries.Where(e =>
           e.Name.ToLowerInvariant().Contains(q) ||
-          e.Campaign.ToLowerInvariant().Contains(q) ||
+
           e.Type.ToLowerInvariant().Contains(q)
       ).ToArray();
     }
@@ -109,8 +108,7 @@ public class RevenueTableView : ViewBase
       ("Name", "Desc") => filteredEntries.OrderByDescending(e => e.Name).ToArray(),
       ("Type", "Asc") => filteredEntries.OrderBy(e => e.Type).ToArray(),
       ("Type", "Desc") => filteredEntries.OrderByDescending(e => e.Type).ToArray(),
-      ("Campaign", "Asc") => filteredEntries.OrderBy(e => e.Campaign).ToArray(),
-      ("Campaign", "Desc") => filteredEntries.OrderByDescending(e => e.Campaign).ToArray(),
+
       _ => filteredEntries
     };
 
@@ -121,13 +119,13 @@ public class RevenueTableView : ViewBase
         .Add(p => p.NameDisplay)
         .Add(p => p.TypeDisplay)
         .Add(p => p.SourceDisplay)
-        .Add(p => p.CampaignDisplay)
+
         .Add(p => p.AmountDisplay)
         .Header(p => p.DateDisplay, "Date")
         .Header(p => p.NameDisplay, "Name")
         .Header(p => p.TypeDisplay, "Type")
         .Header(p => p.SourceDisplay, "Source")
-        .Header(p => p.CampaignDisplay, "Campaign")
+
         .Header(p => p.AmountDisplay, "Amount")
         .Empty("No entries match your search");
 
