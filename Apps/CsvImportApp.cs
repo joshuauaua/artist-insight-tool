@@ -1,79 +1,39 @@
 using Ivy.Shared;
-using System.Globalization;
 using System.IO;
-using CsvHelper;
-using CsvHelper.Configuration;
-using CsvHelper.Configuration.Attributes;
-using System.ComponentModel.DataAnnotations;
+using ExcelDataReader;
+using System.Data;
 using System.Collections.Generic;
-using System;
 using System.Linq;
+using System.Text;
+using System.Globalization;
+using System.Linq.Expressions;
 
 namespace ArtistInsightTool.Apps;
 
-[App(icon: Icons.Table, title: "CSV Helper", path: ["Integrations", "CSV Helper"])]
+[App(icon: Icons.Table, title: "Excel Import", path: ["Integrations", "Excel Import"])]
 public class CsvHelperApp : ViewBase
 {
-  public class AssetModel
+  public CsvHelperApp()
   {
-    public Guid Id { get; set; }
-
-    [Required]
-    [Name("Product Name", "Name", "Title")]
-    public string Name { get; set; } = string.Empty;
-
-    [Name("Description", "Desc", "Details")]
-    public string Description { get; set; } = string.Empty;
-
-    [Required]
-    [Name("Cost", "Price", "Amount", "Value")]
-    public decimal Price { get; set; }
-
-    [Required]
-    [Name("Category", "Type", "Group")]
-    public string Category { get; set; } = string.Empty;
-
-    public DateTime CreatedAt { get; set; }
+    // Required for ExcelDataReader to support older formats and certain encodings
+    System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
   }
 
   public override object? Build()
   {
     var client = UseService<IClientProvider>();
 
-    // State for assets list
-    var assets = UseState(() => new List<AssetModel>
-    {
-    });
+    // State for dynamic data
+    var headers = UseState<List<string>>([]);
+    var rows = UseState<List<Dictionary<string, object>>>([]);
 
-    // Export CSV download
-    var downloadUrl = this.UseDownload(
-        async () =>
-        {
-          await using var ms = new MemoryStream();
-          await using var writer = new StreamWriter(ms, leaveOpen: true);
-          await using var csv = new CsvWriter(writer, new CsvConfiguration(CultureInfo.InvariantCulture));
-
-          await csv.WriteRecordsAsync(assets.Value);
-          await writer.FlushAsync();
-          ms.Position = 0;
-
-          return ms.ToArray();
-        },
-        "text/csv",
-        $"products-{DateTime.UtcNow:yyyy-MM-dd}.csv"
-    );
-
-    // Import CSV using documented upload flow
+    // Import
     var uploadState = UseState<FileUpload<byte[]>?>();
     var uploadContext = this.UseUpload(MemoryStreamUploadHandler.Create(uploadState))
-        .Accept(".csv")
-        .MaxFileSize(10 * 1024 * 1024);
+        .Accept(".csv, .xlsx, .xls")
+        .MaxFileSize(20 * 1024 * 1024);
 
-    // State for dialog open/close
-    var asset = UseState(() => new AssetModel());
-    var isDialogOpen = UseState(false);
-
-    // When a file is uploaded, parse and import
+    // Process Upload
     UseEffect(() =>
     {
       if (uploadState.Value?.Content is byte[] bytes && bytes.Length > 0)
@@ -81,120 +41,164 @@ public class CsvHelperApp : ViewBase
         try
         {
           using var stream = new MemoryStream(bytes);
-          using var reader = new StreamReader(stream);
-          using var csv = new CsvReader(reader, new CsvConfiguration(CultureInfo.InvariantCulture));
+          // Auto-detect format (Excel or CSV)
+          using var reader = ExcelReaderFactory.CreateReader(stream);
 
-          var records = csv.GetRecords<AssetModel>().ToList();
-
-          foreach (var record in records)
+          var result = reader.AsDataSet(new ExcelDataSetConfiguration()
           {
-            record.Id = Guid.NewGuid();
-            record.CreatedAt = DateTime.UtcNow;
-          }
+            ConfigureDataTable = (_) => new ExcelDataTableConfiguration()
+            {
+              UseHeaderRow = true
+            }
+          });
 
-          assets.Value = assets.Value.Concat(records).ToList();
-          client.Toast($"Imported {records.Count} assets from CSV");
+          if (result.Tables.Count > 0)
+          {
+            var dataTable = result.Tables[0];
+
+            // Extract Headers
+            var newHeaders = new List<string>();
+            foreach (DataColumn col in dataTable.Columns)
+            {
+              newHeaders.Add(col.ColumnName);
+            }
+
+            // Extract Rows
+            var newRows = new List<Dictionary<string, object>>();
+            foreach (DataRow dr in dataTable.Rows)
+            {
+              var dict = new Dictionary<string, object>();
+              foreach (DataColumn col in dataTable.Columns)
+              {
+                dict[col.ColumnName] = dr[col];
+              }
+              newRows.Add(dict);
+            }
+
+            // Use .Value assignment to avoid ambiguity
+            headers.Value = newHeaders;
+            rows.Value = newRows;
+            client.Toast($"Imported {newRows.Count} rows with {newHeaders.Count} columns.");
+          }
         }
         catch (Exception ex)
         {
-          client.Toast($"Failed to import CSV: {ex.Message}");
+          client.Toast($"Import failed: {ex.Message}");
         }
       }
     }, [uploadState]);
 
-    // Handle asset submission
-    UseEffect(() =>
+    // Clear Data Action
+    var clearData = new Action(() =>
     {
-      // Check if form was submitted (non-empty required fields)
-      if (!string.IsNullOrEmpty(asset.Value.Name) &&
-              asset.Value.Price > 0 &&
-              !string.IsNullOrEmpty(asset.Value.Category))
-      {
-        asset.Value.Id = Guid.NewGuid();
-        asset.Value.CreatedAt = DateTime.UtcNow;
-        assets.Value = assets.Value.Append(asset.Value).ToList();
-        client.Toast($"Asset '{asset.Value.Name}' added successfully");
-        asset.Set(new AssetModel());
-        isDialogOpen.Set(false);
-      }
-    }, [asset]);
-
-    // Delete action
-    var deleteAsset = new Action<Guid>((id) =>
-    {
-      var p = assets.Value.FirstOrDefault(x => x.Id == id);
-      if (p != null)
-      {
-        assets.Value = assets.Value.Where(x => x.Id != id).ToList();
-        client.Toast($"Asset '{p.Name}' deleted");
-      }
+      headers.Value = [];
+      rows.Value = [];
+      uploadState.Value = null;
     });
 
-    // Build the table with delete button
-    var table = assets.Value.Select(p => new
+    // Dynamic Markdown Preview Construction
+    // Falling back to Markdown as Table/DataTable widgets require POCOs/Expressions
+    var previewText = "Upload a file to view data";
+
+    if (headers.Value.Count > 0)
     {
-      p.Name,
-      p.Description,
-      p.Price,
-      p.Category,
-      p.CreatedAt,
-      Delete = Icons.Trash.ToButton(_ => deleteAsset(p.Id)).Small()
-    }).ToTable().Width(Size.Full());
+      var sb = new StringBuilder();
 
-    // File input is generated from upload state/context
+      // Markdown Table Header
+      sb.Append("| ");
+      sb.Append(string.Join(" | ", headers.Value));
+      sb.AppendLine(" |");
 
-    // Left card - Controls
-    var leftCard = new Card(
-        Layout.Vertical().Gap(6)
-        .Add(Text.H3("Controls"))
-        .Add(Text.Small($"Total: {assets.Value.Count} assets"))
+      // Markdown Table Separator
+      sb.Append("| ");
+      sb.Append(string.Join(" | ", headers.Value.Select(_ => "---")));
+      sb.AppendLine(" |");
 
-        // Add Asset button - opens dialog
-        .Add(new Button("Add Asset")
-            .Icon(Icons.Plus)
-            .Primary() // Removed .Primary() as it might not be valid, checked Button API in previous turns, it uses Variant. But let's stick to user code and fix if lint errors.
-                       // Looking at previous code, .Variant(ButtonVariant.Outline) is used. .Primary() might not exist. 
-                       // Let's check shared Button API or just assume user knows. 
-                       // Actually, I should probably check if .Primary works or use .Variant(ButtonVariant.Primary) if that exists.
-                       // In RevenueTableView: .Variant(ButtonVariant.Link)
-                       // Let's assume .Primary() is an extension or valid. If not lint will catch it.
-            .Width(Size.Full())
-            .HandleClick(_ => isDialogOpen.Set(true)))
+      // Rows (Limit 50 for performance)
+      var limit = 50;
+      foreach (var row in rows.Value.Take(limit))
+      {
+        sb.Append("| ");
+        foreach (var h in headers.Value)
+        {
+          var val = row.ContainsKey(h) ? row[h]?.ToString() ?? "" : "";
 
-        .Add(asset.ToForm()
-            .Remove(m => m.Id)
-            .Remove(m => m.CreatedAt)
-            .Required(m => m.Name, m => m.Price, m => m.Category)
-            .Label(m => m.Name, "Asset Name")
-            .Label(m => m.Description, "Description")
-            .Label(m => m.Price, "Price")
-            .Label(m => m.Category, "Category")
-            .Builder(m => m.Name, s => s.ToTextInput().Placeholder("Enter asset name..."))
-            .Builder(m => m.Description, s => s.ToTextInput().Placeholder("Enter description..."))
-            .Builder(m => m.Price, s => s.ToNumberInput().Placeholder("Enter price...").Min(0))
-            .Builder(m => m.Category, s => s.ToTextInput().Placeholder("Enter category..."))
-            .ToDialog(isDialogOpen, "Create New Asset", "Please provide asset information",
-                     width: Size.Fraction(0.5f)))
+          // Sanitize for Markdown Table: escape pipes, remove newlines
+          val = val.Replace("|", "\\|").Replace("\n", " ").Replace("\r", "");
 
-        // Export CSV button
-        .Add(new Button("Export CSV")
-            .Icon(Icons.Download)
-            .Url(downloadUrl.Value)
-            .Width(Size.Full()))
+          sb.Append(val);
+          sb.Append(" | ");
+        }
+        sb.AppendLine();
+      }
+
+      if (rows.Value.Count > limit)
+      {
+        sb.AppendLine($"\n\n_... showing first {limit} of {rows.Value.Count} rows. Export to see all data._");
+      }
+
+      previewText = sb.ToString();
+    }
+
+    // CSV Export (Dynamic)
+    var downloadUrl = this.UseDownload(
+        async () =>
+        {
+          await using var ms = new MemoryStream();
+          await using var writer = new StreamWriter(ms, leaveOpen: true);
+
+          // Write Headers
+          await writer.WriteLineAsync(string.Join(",", headers.Value.Select(h => $"\"{h}\"")));
+
+          // Write Rows
+          foreach (var row in rows.Value)
+          {
+            var values = headers.Value.Select(h =>
+                {
+                  var val = row.ContainsKey(h) ? row[h]?.ToString() ?? "" : "";
+                  // Simple CSV escaping
+                  return $"\"{val.Replace("\"", "\"\"")}\"";
+                });
+            await writer.WriteLineAsync(string.Join(",", values));
+          }
+
+          await writer.FlushAsync();
+          ms.Position = 0;
+          return ms.ToArray();
+        },
+        "text/csv",
+        $"export-{DateTime.UtcNow:yyyy-MM-dd}.csv"
+    );
+
+    // UI Layout
+
+    var controls = new Card(
+        Layout.Vertical().Gap(10)
+        .Add(Text.H3("File Import"))
+        .Add(Text.Small("Supports .csv, .xlsx, .xls"))
+
+        // File Input
+        .Add(uploadState.ToFileInput(uploadContext).Placeholder("Select File"))
 
         .Add(new Separator())
-        .Add(Text.Small("Import CSV File:"))
 
-        // Import CSV file input
-        .Add(uploadState.ToFileInput(uploadContext).Placeholder("Choose File"))
-    ).Title("Management").Height(Size.Fit().Min(Size.Full()));
+        // Info
+        .Add(Layout.Horizontal()
+            .Add(Text.Small($"Columns: {headers.Value.Count}"))
+            .Add(new Spacer())
+            .Add(Text.Small($"Rows: {rows.Value.Count}"))
+        )
 
-    // Right card - Table
-    var rightCard = new Card(table).Title("Assets").Height(Size.Fit().Min(Size.Full()));
+        // Actions
+        .Add(Layout.Horizontal().Gap(5)
+            .Add(new Button("Clear").Variant(ButtonVariant.Outline).HandleClick(_ => clearData()).Width(Size.Fraction(0.5f)))
+            .Add(new Button("Export CSV").Icon(Icons.Download).Url(downloadUrl.Value).Width(Size.Fraction(0.5f)))
+        )
+    ).Title("Import Control");
 
-    // Two-column layout
-    return Layout.Horizontal().Gap(8)
-        .Add(leftCard.Width(Size.Fraction(0.4f)))
-        .Add(rightCard.Width(Size.Fraction(0.6f)));
+    // Render Markdown Preview inside the card
+    return Layout.Vertical().Gap(10).Padding(10)
+        .Add(controls)
+        .Add(new Card(Text.Markdown(previewText)).Title("Data Preview").Height(Size.Fit().Min(400)));
   }
 }
