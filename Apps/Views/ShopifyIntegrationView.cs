@@ -13,9 +13,10 @@ public class ShopifyIntegrationView : ViewBase
     var sales = UseState<List<ShopifySale>>([]);
     var factory = UseService<ArtistInsightToolContextFactory>();
 
-    Func<string, Task> Log = async (msg) =>
+    Func<string, Task> Log = (msg) =>
     {
       logs.Set(l => [.. l, $"{DateTime.Now:HH:mm:ss}: {msg}"]);
+      return Task.CompletedTask;
     };
 
     Func<Task> SimulateSale = async () =>
@@ -30,11 +31,11 @@ public class ShopifyIntegrationView : ViewBase
 
       await using var db = factory.CreateDbContext();
 
-      // Find or create "Shopify" source
-      var source = await db.RevenueSources.FirstOrDefaultAsync(s => s.DescriptionText == "Shopify");
+      // Find or create "Merch" source
+      var source = await db.RevenueSources.FirstOrDefaultAsync(s => s.DescriptionText == "Merch");
       if (source == null)
       {
-        source = new RevenueSource { DescriptionText = "Shopify" };
+        source = new RevenueSource { DescriptionText = "Merch" };
         db.RevenueSources.Add(source);
         await db.SaveChangesAsync();
       }

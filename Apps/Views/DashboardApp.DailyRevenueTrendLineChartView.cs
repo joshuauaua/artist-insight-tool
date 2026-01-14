@@ -6,50 +6,50 @@ namespace ArtistInsightTool.Apps.Views;
 
 public class DailyRevenueTrendLineChartView(DateTime startDate, DateTime endDate) : ViewBase
 {
-    public override object Build()
+  public override object Build()
+  {
+    var factory = UseService<ArtistInsightToolContextFactory>();
+    var chart = UseState<object?>((object?)null);
+    var exception = UseState<Exception?>((Exception?)null);
+
+    this.UseEffect(async () =>
     {
-        var factory = UseService<ArtistInsightToolContextFactory>();
-        var chart = UseState<object?>((object?)null);
-        var exception = UseState<Exception?>((Exception?)null);
+      try
+      {
+        var db = factory.CreateDbContext();
+        var data = await db.RevenueEntries
+                .Where(e => e.RevenueDate >= startDate && e.RevenueDate <= endDate)
+                .GroupBy(e => e.RevenueDate.Date)
+                .Select(g => new
+                {
+                  Date = g.Key.ToString("d MMM"),
+                  TotalRevenue = g.Sum((RevenueEntry e) => (double)e.Amount)
+                })
+                .ToListAsync();
 
-        this.UseEffect(async () =>
-        {
-            try
-            {
-                var db = factory.CreateDbContext();
-                var data = await db.RevenueEntries
-                    .Where(e => e.RevenueDate >= startDate && e.RevenueDate <= endDate)
-                    .GroupBy(e => e.RevenueDate.Date)
-                    .Select(g => new
-                    {
-                        Date = g.Key.ToString("d MMM"),
-                        TotalRevenue = g.Sum(e => (double)e.Amount)
-                    })
-                    .ToListAsync();
+        chart.Set(data.ToLineChart(
+                e => e.Date,
+                [e => e.Sum(f => f.TotalRevenue)],
+                LineChartStyles.Dashboard));
+      }
+      catch (Exception ex)
+      {
+        exception.Set(ex);
+      }
+    }, []);
 
-                chart.Set(data.ToLineChart(
-                    e => e.Date,
-                    [e => e.Sum(f => f.TotalRevenue)],
-                    LineChartStyles.Dashboard));
-            }
-            catch (Exception ex)
-            {
-                exception.Set(ex);
-            }
-        }, []);
+    var card = new Card().Title("Daily Revenue Trend").Height(Size.Units(80));
 
-        var card = new Card().Title("Daily Revenue Trend").Height(Size.Units(80));
-
-        if (exception.Value != null)
-        {
-            return card | new ErrorTeaserView(exception.Value);
-        }
-
-        if (chart.Value == null)
-        {
-            return card | new Skeleton();
-        }
-
-        return card | chart.Value;
+    if (exception.Value != null)
+    {
+      return card | new ErrorTeaserView(exception.Value);
     }
+
+    if (chart.Value == null)
+    {
+      return card | new Skeleton();
+    }
+
+    return card | chart.Value;
+  }
 }
