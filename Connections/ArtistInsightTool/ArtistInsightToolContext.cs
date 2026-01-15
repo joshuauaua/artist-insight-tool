@@ -15,6 +15,8 @@ public partial class ArtistInsightToolContext : DbContext
 
   public virtual DbSet<Artist> Artists { get; set; }
 
+  public virtual DbSet<Asset> Assets { get; set; }
+
 
 
   public virtual DbSet<EfmigrationsLock> EfmigrationsLocks { get; set; }
