@@ -181,22 +181,24 @@ public class RevenueEditSheet(int id, Action onClose) : ViewBase
         .Add(sheets.Count > 0
             ? Layout.Vertical().Gap(5)
                 .Add(Text.Label("Annexed Data"))
-                .Add(Layout.Vertical().Gap(0) // Removed .Class
-                                              // Header
-                    .Add(Layout.Horizontal().Padding(10).Gap(10) // Removed .Background
-                        .Add(Text.Muted("Name").Width(Size.Fraction(3))) // Removed .Weight
-                        .Add(Text.Muted("Template").Width(Size.Fraction(2))) // Removed .Weight
+                .Add(Layout.Vertical().Gap(0)
+
+                    // Header
+                    .Add(Layout.Horizontal().Padding(10, 2).Gap(10)
+                        .Add(Text.Muted("Name").Width(Size.Fraction(3)))
+                        .Add(Text.Muted("Template").Width(Size.Fraction(2)))
                     )
+
                     // Rows
                     .Add(Layout.Vertical()
                         .Add(sheets.Select((s, i) =>
-                            Layout.Horizontal().Padding(10).Gap(10).Align(Align.Center) // Removed .Class
-                                .Add(new Button(string.IsNullOrEmpty(s.Title) ? s.FileName : s.Title, () => viewingSheetIndex.Set(i))
-                                    .Variant(ButtonVariant.Link)
-                                    // Removed .Padding(0)
-                                    .Width(Size.Fraction(3))
+                            Layout.Horizontal().Padding(10, 2).Gap(10).Align(Align.Center)
+                                .Add(Layout.Horizontal().Width(Size.Fraction(3))
+                                    .Add(new Button(string.IsNullOrEmpty(s.Title) ? s.FileName : s.Title, () => viewingSheetIndex.Set(i))
+                                        .Variant(ButtonVariant.Link)
+                                    )
                                 )
-                                .Add(Text.Muted(s.TemplateName ?? "-").Width(Size.Fraction(2))) // Changed Text.Body to Text.Muted
+                                .Add(Text.Muted(s.TemplateName ?? "-").Width(Size.Fraction(2)))
                         ).ToArray())
                     )
                 )

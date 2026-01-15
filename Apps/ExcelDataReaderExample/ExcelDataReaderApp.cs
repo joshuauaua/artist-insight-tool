@@ -219,7 +219,7 @@ public class ExcelDataReaderApp : ViewBase
                    .Add(Text.H3("Excel Analyzer"))
                    .Add(Text.Muted("Upload analyzed financial data files."))
                )
-               .Add(uploadState.ToFileInput(uploadContext).Placeholder("Select File").Width(400))
+               .Add(uploadState.ToFileInput(uploadContext).Placeholder("Select File").Width(200))
                .Add(isAnalyzing.Value ? Text.Label("Processing...") : null),
 
            showDialog ? new Dialog(

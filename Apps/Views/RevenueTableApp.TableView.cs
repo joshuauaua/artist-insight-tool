@@ -137,6 +137,7 @@ public class RevenueTableView : ViewBase
        .Width(Size.Full())
        .Height(Size.Fit()) // Ensure it calculates height based on content
        .Gap(10)
+       .Padding(20)
        .Add(Layout.Horizontal()
             .Width(Size.Full())
             .Height(Size.Fit())
@@ -189,12 +190,11 @@ public class RevenueTableView : ViewBase
         Layout.Vertical()
             .Height(Size.Full())
             .Gap(10)
-            .Padding(20)
             .Add(headerContent)
             // Container for table to enforce bottom spacing
             .Add(Layout.Vertical()
                 .Height(Size.Fraction(1))
-                .Padding(0, 0, 0, 50)
+                .Padding(20, 0, 20, 50)
                 .Add(table)
             ),
 
