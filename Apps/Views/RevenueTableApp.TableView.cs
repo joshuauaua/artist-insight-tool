@@ -105,7 +105,7 @@ public class RevenueTableView : ViewBase
       filteredEntries = filteredEntries.Where(e => e.Type == selectedSource.Value).ToArray();
     }
 
-    // Apply Sorting
+    // Apply Sorting (handled by DataTableView mostly, but initial sort useful)
     filteredEntries = (sortField.Value, sortDirection.Value) switch
     {
       ("Date", "Desc") => filteredEntries.OrderByDescending(e => e.RevenueDate).ToArray(),
@@ -120,24 +120,9 @@ public class RevenueTableView : ViewBase
       _ => filteredEntries
     };
 
-    var table = filteredEntries.ToTable()
-        .Width(Size.Full())
-        .Clear()
-        .Add(p => p.NameDisplay)
-        .Add(p => p.TypeDisplay)
-        .Add(p => p.SourceDisplay)
-        .Add(p => p.DateDisplay)
-        .Add(p => p.AmountDisplay)
-        .Header(p => p.NameDisplay, "  Name")
-        .Header(p => p.TypeDisplay, "Type")
-        .Header(p => p.SourceDisplay, "Source")
-        .Header(p => p.DateDisplay, "Date")
-        .Header(p => p.AmountDisplay, "Amount")
-        .Empty("No entries match your search");
-
     var searchBar = searchQuery.ToTextInput()
-        .Placeholder("Search streams...")
-        .Width(300);
+       .Placeholder("Search streams...")
+       .Width(300);
 
     var filterSelect = selectedSource.ToSelectInput(new List<Option<string>> {
         new("All", "All"),
@@ -149,28 +134,69 @@ public class RevenueTableView : ViewBase
     });
 
     var headerContent = Layout.Vertical()
-        .Width(Size.Full())
-        .Gap(10)
-        .Add(Layout.Horizontal().Align(Align.Center).Width(Size.Full())
-            .Add("Revenue Streams") // Title
-             .Add(new Spacer())
-             .Add(new Button("Create Entry", () => showCreateSheet.Set(true))
-                .Icon(Icons.Plus)
-                .Variant(ButtonVariant.Primary)
-             )
-        )
-        .Add(Layout.Horizontal()
+       .Width(Size.Full())
+       .Height(Size.Fit()) // Ensure it calculates height based on content
+       .Gap(10)
+       .Add(Layout.Horizontal()
             .Width(Size.Full())
-            .Gap(10)
-            .Add(searchBar)
-            .Add(filterSelect));
+            .Height(Size.Fit())
+            .Align(Align.Center)
+            .Add("Revenue Streams")
+            .Add(new Spacer().Width(Size.Fraction(1))) // Force spacer to take remaining width
+            .Add(new Button("Create Entry", () => showCreateSheet.Set(true))
+               .Icon(Icons.Plus)
+               .Variant(ButtonVariant.Primary)
+            )
+       )
+       .Add(Layout.Horizontal()
+           .Width(Size.Full())
+           .Height(Size.Fit()) // Ensure input row has height
+           .Gap(10)
+           .Add(searchBar)
+           .Add(filterSelect));
+
+    // Projection for ToTable
+    var tableData = filteredEntries.Select(r => new
+    {
+      IdButton = new Button($"E{r.Id:D3}", () => selectedDetailsId.Set(r.Id))
+            .Variant(ButtonVariant.Ghost),
+      Date = r.RevenueDate.ToShortDateString(),
+      Name = r.Name,
+      Type = r.Type,
+      Source = r.Source,
+      Amount = r.Amount.ToString("C")
+    }).ToArray();
+
+    // Use ToTable() pattern
+    var table = tableData.ToTable()
+         .Width(Size.Full())
+         .Add(x => x.IdButton)
+         .Add(x => x.Date)
+         .Add(x => x.Name)
+         .Add(x => x.Type)
+         .Add(x => x.Source)
+         .Add(x => x.Amount)
+         .Header(x => x.IdButton, "ID")
+         .Header(x => x.Date, "Date")
+         .Header(x => x.Name, "Name")
+         .Header(x => x.Type, "Type")
+         .Header(x => x.Source, "Source")
+         .Header(x => x.Amount, "Amount");
+    // Note: Column width might not be supported via .Width(x=>...) in this API, 
+    // but checking if ToTable returns Table widget which usually auto-sizes.
 
     return new Fragment(
         Layout.Vertical()
+            .Height(Size.Full())
             .Gap(10)
             .Padding(20)
-            .Add(new Card(headerContent))
-            .Add(new Card(table).Title("")),
+            .Add(headerContent)
+            // Container for table to enforce bottom spacing
+            .Add(Layout.Vertical()
+                .Height(Size.Fraction(1))
+                .Padding(0, 0, 0, 50)
+                .Add(table)
+            ),
 
         selectedDetailsId.Value != null ? new Dialog(
             _ => selectedDetailsId.Set((int?)null),
