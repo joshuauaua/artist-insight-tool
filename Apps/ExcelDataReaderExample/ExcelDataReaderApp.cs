@@ -189,8 +189,20 @@ public class ExcelDataReaderApp : ViewBase
 
     object RenderHome()
     {
-      // Show dialog if analysis is ready AND (we are at Home OR explicitly creating a template)
-      var showDialog = fileAnalysis.Value != null && (activeMode.Value == AnalyzerMode.Home || activeMode.Value == AnalyzerMode.TemplateCreation);
+      // Show dialog if analysis is ready AND (we are at Home or entered a sub-mode)
+      var showDialog = fileAnalysis.Value != null &&
+          (activeMode.Value == AnalyzerMode.Home ||
+           activeMode.Value == AnalyzerMode.TemplateCreation ||
+           activeMode.Value == AnalyzerMode.Analysis ||
+           activeMode.Value == AnalyzerMode.Annex);
+
+      string GetDialogTitle() => activeMode.Value switch
+      {
+        AnalyzerMode.TemplateCreation => "Create Import Template",
+        AnalyzerMode.Analysis => "File Analysis",
+        AnalyzerMode.Annex => "Annex Data",
+        _ => matchedTemplate.Value != null ? "Match Found" : "File Analyzed"
+      };
 
       return new Fragment(
            Layout.Center()
@@ -209,15 +221,25 @@ public class ExcelDataReaderApp : ViewBase
            showDialog ? new Dialog(
               _ =>
               {
-                fileAnalysis.Set((FileAnalysis?)null); // Clear on close
-                filePath.Set((string?)null); // clear file path to allow re-upload
-                uploadState.Set((FileUpload<byte[]>?)null);
+                // If closing from a sub-mode, just go back to Home (reset dialog content)
+                if (activeMode.Value != AnalyzerMode.Home)
+                {
+                  activeMode.Set(AnalyzerMode.Home);
+                }
+                else
+                {
+                  // Otherwise full close
+                  fileAnalysis.Set((FileAnalysis?)null);
+                  filePath.Set((string?)null);
+                  uploadState.Set((FileUpload<byte[]>?)null);
+                }
               },
-              new DialogHeader(activeMode.Value == AnalyzerMode.TemplateCreation ? "Create Import Template" : (matchedTemplate.Value != null ? "Match Found" : "File Analyzed")),
+              new DialogHeader(GetDialogTitle()),
               new DialogBody(
-                   activeMode.Value == AnalyzerMode.TemplateCreation
-                   ? RenderTemplateCreationContent()
-                   : Layout.Vertical().Gap(20).Align(Align.Center)
+                   activeMode.Value == AnalyzerMode.TemplateCreation ? RenderTemplateCreationContent() :
+                   activeMode.Value == AnalyzerMode.Analysis ? RenderAnalysisContent() :
+                   activeMode.Value == AnalyzerMode.Annex ? RenderAnnexContent() :
+                   Layout.Vertical().Gap(20).Align(Align.Center)
                        | (matchedTemplate.Value != null
                           ? Layout.Vertical().Gap(15).Align(Align.Center).Width(Size.Full())
                               | Layout.Horizontal().Gap(5).Align(Align.Center)
@@ -250,43 +272,38 @@ public class ExcelDataReaderApp : ViewBase
                          )
               ),
               new DialogFooter()
-           ) : null
-      );
+            ) : null
+        );
     }
 
-    object RenderAnalysisResults()
+    object RenderAnalysisContent()
     {
-      if (fileAnalysis.Value == null) return RenderHome();
+      if (fileAnalysis.Value == null) return Text.Muted("No analysis available.");
       var fa = fileAnalysis.Value;
 
-      return Layout.Vertical().Gap(16).Padding(20)
-          | Layout.Horizontal().Gap(10).Align(Align.Center)
-              | new Button("Back", () => activeMode.Set(AnalyzerMode.Home)).Variant(ButtonVariant.Ghost).Icon(Icons.ArrowLeft)
-              | Text.H3("File Analysis")
-          | new Card(
-              Layout.Vertical().Gap(10)
-              | new Markdown($"""                                
-                                | Property | Value |
-                                |----------|-------|
-                                | **File name** | `{fa.FileName}` |
-                                | **Type** | `{fa.FileType}` |
-                                | **Size** | `{FormatFileSize(fa.FileSize)}` |
-                                """)
-              | Layout.Vertical(
-                  fa.Sheets.Select((sheet, index) =>
-                          new Expandable(
-                              Text.Label($"Sheet {index + 1}: {sheet.Name}"),
-                              new Markdown($"""
-                                            | Property | Value |
-                                            |----------|-------|
-                                            | **Columns** | `{sheet.FieldCount}` |
-                                            | **Rows** | `{sheet.RowCount}` |
-                                            | **Headers** | {string.Join(", ", sheet.Headers.Select(header => $"`{header}`"))} |
-                                            """)
-                          )
-                  ).ToArray()
-              )
-          );
+      return Layout.Vertical().Gap(10).Width(Size.Full())
+           | new Button("Back", () => activeMode.Set(AnalyzerMode.Home)).Variant(ButtonVariant.Link).Icon(Icons.ArrowLeft).Align(Align.Start)
+           | new Markdown($"""                                
+                             | Property | Value |
+                             |----------|-------|
+                             | **File name** | `{fa.FileName}` |
+                             | **Type** | `{fa.FileType}` |
+                             | **Size** | `{FormatFileSize(fa.FileSize)}` |
+                             """)
+           | Layout.Vertical(
+               fa.Sheets.Select((sheet, index) =>
+                       new Expandable(
+                           Text.Label($"Sheet {index + 1}: {sheet.Name}"),
+                           new Markdown($"""
+                                         | Property | Value |
+                                         |----------|-------|
+                                         | **Columns** | `{sheet.FieldCount}` |
+                                         | **Rows** | `{sheet.RowCount}` |
+                                         | **Headers** | {string.Join(", ", sheet.Headers.Select(header => $"`{header}`"))} |
+                                         """)
+                       )
+               ).ToArray()
+           );
     }
 
     object RenderTemplateCreationContent()
@@ -333,40 +350,36 @@ public class ExcelDataReaderApp : ViewBase
 
 
 
-    object RenderAnnexForm()
+    object RenderAnnexContent()
     {
       var options = annexEntries.Value.Select(e =>
          new Option<int?>($"{e.Description ?? "No Name"} - {e.RevenueDate:MM/dd/yyyy} - {e.Source.DescriptionText} - {e.Amount:C}", e.Id)
       ).ToList();
 
-      return Layout.Center()
-         | new Card(
-             Layout.Vertical().Gap(20).Padding(20)
-             | Layout.Horizontal().Gap(10).Align(Align.Center)
-                 | new Button("Back", () => activeMode.Set(AnalyzerMode.Home)).Variant(ButtonVariant.Ghost).Icon(Icons.ArrowLeft)
-                 | Text.H3("Annex Data")
-             | Text.Muted("Attach the current file content to an existing Revenue Entry.")
-             | Layout.Vertical().Gap(5)
-                 | "Target Entry"
-                 | annexSelectedId.ToSelectInput(options).Placeholder("Search entry...")
-             | new Button("Attach Data", async () =>
-             {
-               if (annexSelectedId.Value == null) { client.Toast("Select an entry", "Warning"); return; }
-               var data = parsedData.Value;
-               if (data.Count == 0) data = ParseCurrentFile();
+      return Layout.Vertical().Gap(20).Width(Size.Full())
+           | new Button("Back", () => activeMode.Set(AnalyzerMode.Home)).Variant(ButtonVariant.Link).Icon(Icons.ArrowLeft).Align(Align.Start)
+           | Text.Muted("Attach the current file content to an existing Revenue Entry.")
+           | Layout.Vertical().Gap(5)
+               | "Target Entry"
+               | annexSelectedId.ToSelectInput(options).Placeholder("Search entry...")
+           | new Button("Attach Data", async () =>
+           {
+             if (annexSelectedId.Value == null) { client.Toast("Select an entry", "Warning"); return; }
+             var data = parsedData.Value;
+             if (data.Count == 0) data = ParseCurrentFile();
 
-               await using var db = factory.CreateDbContext();
-               var entry = await db.RevenueEntries.FindAsync(annexSelectedId.Value);
-               if (entry != null)
-               {
-                 entry.JsonData = JsonSerializer.Serialize(data);
-                 await db.SaveChangesAsync();
-                 client.Toast($"Annexed to {entry.Description}", "Success");
-                 activeMode.Set(AnalyzerMode.Home);
-               }
-             }).Variant(ButtonVariant.Primary).Disabled(annexSelectedId.Value == null)
-         ).Width(600);
+             await using var db = factory.CreateDbContext();
+             var entry = await db.RevenueEntries.FindAsync(annexSelectedId.Value);
+             if (entry != null)
+             {
+               entry.JsonData = JsonSerializer.Serialize(data);
+               await db.SaveChangesAsync();
+               client.Toast($"Annexed to {entry.Description}", "Success");
+               activeMode.Set(AnalyzerMode.Home);
+             }
+           }).Variant(ButtonVariant.Primary).Disabled(annexSelectedId.Value == null);
     }
+
 
     object RenderDataTableView()
     {
@@ -425,9 +438,9 @@ public class ExcelDataReaderApp : ViewBase
     return activeMode.Value switch
     {
       AnalyzerMode.Home => RenderHome(),
-      AnalyzerMode.Analysis => RenderAnalysisResults(),
-      AnalyzerMode.TemplateCreation => RenderHome(),
-      AnalyzerMode.Annex => RenderAnnexForm(),
+      AnalyzerMode.Analysis => RenderHome(), // Now handled in Dialog
+      AnalyzerMode.TemplateCreation => RenderHome(), // Handled in Dialog
+      AnalyzerMode.Annex => RenderHome(), // Handled in Dialog
       AnalyzerMode.DataView => RenderDataTableView(),
       _ => RenderHome()
     };
