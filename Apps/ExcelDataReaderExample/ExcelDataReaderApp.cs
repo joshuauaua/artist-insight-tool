@@ -189,8 +189,8 @@ public class ExcelDataReaderApp : ViewBase
 
     object RenderHome()
     {
-      // Only show dialog if we have analysis and NOT explicitly creating a new template (which has its own view)
-      var showDialog = fileAnalysis.Value != null && activeMode.Value == AnalyzerMode.Home;
+      // Show dialog if analysis is ready AND (we are at Home OR explicitly creating a template)
+      var showDialog = fileAnalysis.Value != null && (activeMode.Value == AnalyzerMode.Home || activeMode.Value == AnalyzerMode.TemplateCreation);
 
       return new Fragment(
            Layout.Center()
@@ -213,50 +213,43 @@ public class ExcelDataReaderApp : ViewBase
                 filePath.Set((string?)null); // clear file path to allow re-upload
                 uploadState.Set((FileUpload<byte[]>?)null);
               },
-              new DialogHeader(matchedTemplate.Value != null ? "Match Found" : "File Analyzed"),
+              new DialogHeader(activeMode.Value == AnalyzerMode.TemplateCreation ? "Create Import Template" : (matchedTemplate.Value != null ? "Match Found" : "File Analyzed")),
               new DialogBody(
-                   Layout.Vertical().Gap(15)
-                   | Text.Markdown($"File: `{fileAnalysis.Value!.FileName}`")
-                   | (matchedTemplate.Value != null
-                      ? Layout.Vertical().Gap(10)
-                          | Layout.Horizontal().Gap(5).Align(Align.Center)
-                              | new Icon(Icons.Check).Size(16)
-                              | Text.Small($"Matched Template: {matchedTemplate.Value.Name}")
-                          | Layout.Horizontal().Gap(10)
-                              | new Button("View Analysis Results")
-                                  .Variant(ButtonVariant.Outline)
-                                  .Icon(Icons.Info)
-                                  .HandleClick(() => activeMode.Set(AnalyzerMode.Analysis))
-                              | new Button("View Contents")
-                                  .Variant(ButtonVariant.Primary)
-                                  .Icon(Icons.Eye)
-                                  .HandleClick(() =>
-                                  {
-                                    parsedData.Set(ParseCurrentFile());
-                                    activeMode.Set(AnalyzerMode.DataView);
-                                  })
-                              | new Button("Annex to Entry")
-                                  .Variant(ButtonVariant.Secondary)
-                                  .Icon(Icons.Link)
-                                  .HandleClick(() =>
-                                  {
-                                    parsedData.Set(ParseCurrentFile());
-                                    activeMode.Set(AnalyzerMode.Annex);
-                                  })
-                      : Layout.Vertical().Gap(10)
-                          | Text.Markdown("✨ **New Structure Detected**")
-                          | Text.Muted("This file structure is not recognized. Create a new template to import it.")
-                          | new Button("Create Template", () => activeMode.Set(AnalyzerMode.TemplateCreation)).Variant(ButtonVariant.Primary)
-                     )
+                   activeMode.Value == AnalyzerMode.TemplateCreation
+                   ? RenderTemplateCreationContent()
+                   : Layout.Vertical().Gap(20).Align(Align.Center)
+                       | (matchedTemplate.Value != null
+                          ? Layout.Vertical().Gap(15).Align(Align.Center).Width(Size.Full())
+                              | Layout.Horizontal().Gap(5).Align(Align.Center)
+                                  | new Icon(Icons.Check).Size(16)
+                                  | Text.Small($"Matched Template: {matchedTemplate.Value.Name}")
+                              | (new DropDownMenu(
+                                    DropDownMenu.DefaultSelectHandler(),
+                                    new Button("Actions").Icon(Icons.ChevronDown).Width(Size.Full())
+                                )
+                                  | MenuItem.Default("View Analysis Results").Icon(Icons.Info)
+                                      .HandleSelect(() => activeMode.Set(AnalyzerMode.Analysis))
+                                  | MenuItem.Default("View Contents").Icon(Icons.Eye)
+                                      .HandleSelect(() =>
+                                      {
+                                        parsedData.Set(ParseCurrentFile());
+                                        activeMode.Set(AnalyzerMode.DataView);
+                                      })
+                                  | MenuItem.Default("Annex to Entry").Icon(Icons.Link)
+                                      .HandleSelect(() =>
+                                      {
+                                        parsedData.Set(ParseCurrentFile());
+                                        activeMode.Set(AnalyzerMode.Annex);
+                                      }))
+                          : Layout.Vertical().Gap(15).Align(Align.Center)
+                              | Text.Markdown("✨ **New Structure Detected**")
+                              | Text.Muted("This file structure is not recognized. Create a new template to import it.")
+                              | new Button("Create Template", () => activeMode.Set(AnalyzerMode.TemplateCreation))
+                                    .Variant(ButtonVariant.Primary)
+                                    .Width(Size.Full())
+                         )
               ),
-              new DialogFooter(
-                   new Button("Close", _ =>
-                   {
-                     fileAnalysis.Set((FileAnalysis?)null);
-                     filePath.Set((string?)null);
-                     uploadState.Set((FileUpload<byte[]>?)null);
-                   }).Variant(ButtonVariant.Ghost)
-               )
+              new DialogFooter()
            ) : null
       );
     }
@@ -296,52 +289,49 @@ public class ExcelDataReaderApp : ViewBase
           );
     }
 
-    object RenderTemplateCreation()
+    object RenderTemplateCreationContent()
     {
-      if (fileAnalysis.Value?.Sheets.Count == 0) return RenderHome();
+      if (fileAnalysis.Value?.Sheets.Count == 0) return Text.Muted("No sheets found.");
       var headers = fileAnalysis.Value!.Sheets[0].Headers;
 
-      return Layout.Center()
-         | new Card(
-             Layout.Vertical().Gap(20).Padding(20)
-             | Layout.Horizontal().Gap(10).Align(Align.Center)
-                 | new Button("Back", () => activeMode.Set(AnalyzerMode.Home)).Variant(ButtonVariant.Ghost).Icon(Icons.ArrowLeft)
-                 | Text.H3("Create Import Template")
-             | Text.Muted("Define a name for this data structure.")
-             | Layout.Vertical().Gap(5)
-                 | Text.Small("Detected Headers")
-                 | Text.Markdown($"`{string.Join(", ", headers)}`")
-             | Layout.Vertical().Gap(5)
-                 | "Template Name"
-                 | newTemplateName.ToTextInput().Placeholder("e.g. Spotify Report")
-             | new Button("Save Template", async () =>
-             {
-               if (string.IsNullOrWhiteSpace(newTemplateName.Value)) { client.Toast("Name required", "Warning"); return; }
+      return Layout.Vertical().Gap(10).Width(Size.Full())
+          | Text.Muted("Define a name for this data structure.")
+          | Layout.Vertical().Gap(5)
+              | Text.Label("Detected Headers")
+              | Text.Muted(string.Join(", ", headers))
+          | Layout.Vertical().Gap(5)
+              | Text.Label("Template Name")
+              | newTemplateName.ToTextInput().Placeholder("e.g. Spotify Report")
+          | new Button("Save Template", async () =>
+          {
+            if (string.IsNullOrWhiteSpace(newTemplateName.Value)) { client.Toast("Name required", "Warning"); return; }
 
-               await using var db = factory.CreateDbContext();
-               var newT = new ImportTemplate
-               {
-                 Name = newTemplateName.Value,
-                 HeadersJson = JsonSerializer.Serialize(headers),
-                 CreatedAt = DateTime.UtcNow,
-                 UpdatedAt = DateTime.UtcNow
-               };
-               db.ImportTemplates.Add(newT);
-               await db.SaveChangesAsync();
+            await using var db = factory.CreateDbContext();
+            var newT = new ImportTemplate
+            {
+              Name = newTemplateName.Value,
+              HeadersJson = JsonSerializer.Serialize(headers),
+              CreatedAt = DateTime.UtcNow,
+              UpdatedAt = DateTime.UtcNow
+            };
+            db.ImportTemplates.Add(newT);
+            await db.SaveChangesAsync();
 
-               var fresh = await db.ImportTemplates.ToListAsync();
-               templates.Set(fresh);
+            var fresh = await db.ImportTemplates.ToListAsync();
+            templates.Set(fresh);
 
-               var jsonHeaders = JsonSerializer.Serialize(headers);
-               var match = fresh.FirstOrDefault(t => t.HeadersJson == jsonHeaders);
-               if (match != null) matchedTemplate.Set(match);
+            var jsonHeaders = JsonSerializer.Serialize(headers);
+            var match = fresh.FirstOrDefault(t => t.HeadersJson == jsonHeaders);
+            if (match != null) matchedTemplate.Set(match);
 
-               isNewTemplate.Set(false);
-               activeMode.Set(AnalyzerMode.Home);
-               client.Toast("Template Created", "Success");
-             }).Variant(ButtonVariant.Primary)
-         ).Width(600);
+            isNewTemplate.Set(false);
+            activeMode.Set(AnalyzerMode.Home);
+            client.Toast("Template Created", "Success");
+          }).Variant(ButtonVariant.Primary).Width(Size.Full());
     }
+
+
+
 
     object RenderAnnexForm()
     {
@@ -436,7 +426,7 @@ public class ExcelDataReaderApp : ViewBase
     {
       AnalyzerMode.Home => RenderHome(),
       AnalyzerMode.Analysis => RenderAnalysisResults(),
-      AnalyzerMode.TemplateCreation => RenderTemplateCreation(),
+      AnalyzerMode.TemplateCreation => RenderHome(),
       AnalyzerMode.Annex => RenderAnnexForm(),
       AnalyzerMode.DataView => RenderDataTableView(),
       _ => RenderHome()
