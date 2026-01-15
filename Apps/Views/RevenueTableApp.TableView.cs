@@ -85,6 +85,13 @@ public class RevenueTableView : ViewBase
       return new RevenueEditSheet(selectedDetailsId.Value.Value, () => selectedDetailsId.Set((int?)null));
     }
 
+    // State for Create Sheet
+    var showCreateSheet = UseState(false);
+    if (showCreateSheet.Value)
+    {
+      return new RevenueCreateSheet(() => showCreateSheet.Set(false));
+    }
+
     // Apply Filters and Search
     var filteredEntries = allEntries.Value;
 
@@ -149,7 +156,14 @@ public class RevenueTableView : ViewBase
     var headerContent = Layout.Vertical()
         .Width(Size.Full())
         .Gap(10)
-        .Add(Layout.Horizontal().Add("Revenue Streams")) // Title
+        .Add(Layout.Horizontal().Align(Align.Center).Width(Size.Full())
+            .Add("Revenue Streams") // Title
+             .Add(new Spacer())
+             .Add(new Button("Create Entry", () => showCreateSheet.Set(true))
+                .Icon(Icons.Plus)
+                .Variant(ButtonVariant.Primary)
+             )
+        )
         .Add(Layout.Horizontal()
             .Width(Size.Full())
             .Gap(10)

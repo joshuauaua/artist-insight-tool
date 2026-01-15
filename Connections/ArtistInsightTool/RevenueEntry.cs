@@ -31,6 +31,8 @@ public partial class RevenueEntry
 
   public string? Description { get; set; }
 
+  public string? JsonData { get; set; }
+
   public int? TrackId { get; set; }
 
   public int? AlbumId { get; set; }
