@@ -148,8 +148,9 @@ public class ExcelDataReaderApp : ViewBase
             else isNewTemplate.Set(true);
           }
 
-          if (isNewTemplate.Value) activeMode.Set(AnalyzerMode.TemplateCreation);
-          else client.Toast($"Analyzed: {result.TotalSheets} sheets found.", "Success");
+          // Auto-redirect removed. Dialog handles next steps.
+          // if (isNewTemplate.Value) activeMode.Set(AnalyzerMode.TemplateCreation); 
+          // else client.Toast($"Analyzed: {result.TotalSheets} sheets found.", "Success");
         }
         isAnalyzing.Set(false);
       }
@@ -188,21 +189,40 @@ public class ExcelDataReaderApp : ViewBase
 
     object RenderHome()
     {
-      return Layout.Center()
-          | new Card(
-              Layout.Vertical().Gap(15).Align(Align.Center)
-              | Text.H3("Excel Analyzer")
-              | Text.Muted("Upload analyzed financial data files.")
-              | uploadState.ToFileInput(uploadContext).Placeholder("Select File").Width(Size.Full())
-              | new Spacer()
-              | (fileAnalysis.Value != null ?
-                  Layout.Vertical().Gap(10).Padding(10)
-                  | Text.Small("Status")
-                  | (matchedTemplate.Value != null
-                      ? Layout.Vertical().Gap(5)
-                          | Text.Markdown("✅ **Match Found**")
-                          | Text.Small($"Template: {matchedTemplate.Value.Name}")
-                          | Layout.Vertical().Gap(10).Padding(10, 0, 0, 0)
+      // Only show dialog if we have analysis and NOT explicitly creating a new template (which has its own view)
+      var showDialog = fileAnalysis.Value != null && activeMode.Value == AnalyzerMode.Home;
+
+      return new Fragment(
+           Layout.Center()
+           | Layout.Vertical()
+               .Gap(20)
+               .Padding(50)
+               .Align(Align.Center)
+               .Add(new Icon(Icons.Sheet).Size(48))
+               .Add(Layout.Vertical().Gap(5).Align(Align.Center)
+                   .Add(Text.H3("Excel Analyzer"))
+                   .Add(Text.Muted("Upload analyzed financial data files."))
+               )
+               .Add(uploadState.ToFileInput(uploadContext).Placeholder("Select File").Width(400))
+               .Add(isAnalyzing.Value ? Text.Label("Processing...") : null),
+
+           showDialog ? new Dialog(
+              _ =>
+              {
+                fileAnalysis.Set((FileAnalysis?)null); // Clear on close
+                filePath.Set((string?)null); // clear file path to allow re-upload
+                uploadState.Set((FileUpload<byte[]>?)null);
+              },
+              new DialogHeader(matchedTemplate.Value != null ? "Match Found" : "File Analyzed"),
+              new DialogBody(
+                   Layout.Vertical().Gap(15)
+                   | Text.Markdown($"File: `{fileAnalysis.Value!.FileName}`")
+                   | (matchedTemplate.Value != null
+                      ? Layout.Vertical().Gap(10)
+                          | Layout.Horizontal().Gap(5).Align(Align.Center)
+                              | new Icon(Icons.Check).Size(16)
+                              | Text.Small($"Matched Template: {matchedTemplate.Value.Name}")
+                          | Layout.Horizontal().Gap(10)
                               | new Button("View Analysis Results")
                                   .Variant(ButtonVariant.Outline)
                                   .Icon(Icons.Info)
@@ -223,14 +243,22 @@ public class ExcelDataReaderApp : ViewBase
                                     parsedData.Set(ParseCurrentFile());
                                     activeMode.Set(AnalyzerMode.Annex);
                                   })
-                      : (isNewTemplate.Value
-                          ? Layout.Vertical().Gap(5)
-                              | Text.Markdown("✨ **New Structure**")
-                              | new Button("Create Template", () => activeMode.Set(AnalyzerMode.TemplateCreation)).Variant(ButtonVariant.Primary)
-                          : Text.Small("Analyzing...")))
-                  : null)
-              | (isAnalyzing.Value ? Text.Label("Processing...") : null)
-          ).Width(500);
+                      : Layout.Vertical().Gap(10)
+                          | Text.Markdown("✨ **New Structure Detected**")
+                          | Text.Muted("This file structure is not recognized. Create a new template to import it.")
+                          | new Button("Create Template", () => activeMode.Set(AnalyzerMode.TemplateCreation)).Variant(ButtonVariant.Primary)
+                     )
+              ),
+              new DialogFooter(
+                   new Button("Close", _ =>
+                   {
+                     fileAnalysis.Set((FileAnalysis?)null);
+                     filePath.Set((string?)null);
+                     uploadState.Set((FileUpload<byte[]>?)null);
+                   }).Variant(ButtonVariant.Ghost)
+               )
+           ) : null
+      );
     }
 
     object RenderAnalysisResults()
