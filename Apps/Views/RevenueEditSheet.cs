@@ -144,19 +144,19 @@ public class RevenueEditSheet(int id, Action onClose) : ViewBase
     // infoName was unused in duplication, reusing original logic if helpful or just removing dupes.
     var infoName = e.Track?.Title ?? e.Album?.Title ?? "-";
 
-    return Layout.Vertical().Gap(15)
+    return Layout.Vertical().Gap(10)
         // 1. Name (Description)
-        .Add(Layout.Vertical().Gap(5)
+        .Add(Layout.Vertical().Gap(2)
             .Add(Text.Label("Name"))
             .Add(descriptionState.ToTextInput().Placeholder("Enter name..."))
         )
         // 2. Date
-        .Add(Layout.Vertical().Gap(5)
+        .Add(Layout.Vertical().Gap(2)
             .Add(Text.Label("Date (MM/dd/yyyy)"))
             .Add(dateStringState.ToTextInput())
         )
         // 3. Amount
-        .Add(Layout.Vertical().Gap(5)
+        .Add(Layout.Vertical().Gap(2)
             .Add(Text.Label("Amount ($)"))
             .Add(amountState.ToTextInput().Placeholder("0.00"))
         )
@@ -180,7 +180,7 @@ public class RevenueEditSheet(int id, Action onClose) : ViewBase
         .Add(sheets.Count > 0
             ? Layout.Vertical().Gap(5)
                 .Add(Text.Label("Annexed Data"))
-                .Add(Layout.Vertical().Gap(5)
+                .Add(Layout.Vertical().Gap(2)
                      .Add(sheets.Select((s, i) =>
                           Layout.Vertical().Gap(2)
                               .Add(new Button(string.IsNullOrEmpty(s.Title) ? s.FileName : s.Title, () => viewingSheetIndex.Set(i))
