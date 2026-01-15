@@ -60,7 +60,9 @@ public class ExcelDataReaderApp : ViewBase
 
     // --- Annex State ---
     var annexEntries = UseState<List<RevenueEntry>>([]);
+
     var annexSelectedId = UseState<int?>(() => null); // Bound to SelectInput
+    var annexTitle = UseState("");
 
     // --- Template Creation State ---
     var newTemplateName = UseState("");
@@ -363,6 +365,12 @@ public class ExcelDataReaderApp : ViewBase
            | new Button("Back", () => activeMode.Set(AnalyzerMode.Home)).Variant(ButtonVariant.Link).Icon(Icons.ArrowLeft)
            | Text.Muted("Attach the current file content to an existing Revenue Entry.")
            | Layout.Vertical().Gap(5)
+               | Text.Label("Entry Title")
+               | annexTitle.ToTextInput().Placeholder("e.g. Q1 Royalty Statement")
+           | Layout.Vertical().Gap(5)
+               | Text.Label("Template Used")
+               | Text.Muted(matchedTemplate.Value?.Name ?? "Unknown")
+           | Layout.Vertical().Gap(5)
                | "Target Entry"
                | annexSelectedId.ToSelectInput(options).Placeholder("Search entry...")
            | new Button("Attach Data", async () =>
@@ -375,18 +383,59 @@ public class ExcelDataReaderApp : ViewBase
              var entry = await db.RevenueEntries.FindAsync(annexSelectedId.Value);
              if (entry != null)
              {
-               // Save with Metadata
+               // Load existing data
+               var existingSheets = new List<object>();
+               if (!string.IsNullOrEmpty(entry.JsonData))
+               {
+                 try
+                 {
+                   using var doc = JsonDocument.Parse(entry.JsonData);
+                   if (doc.RootElement.ValueKind == JsonValueKind.Array)
+                   {
+                     // Check if it's a list of Rows (Legacy) or List of Objects (New)
+                     // A simple heuristic: check first element
+                     if (doc.RootElement.GetArrayLength() > 0)
+                     {
+                       var first = doc.RootElement[0];
+                       if (first.ValueKind == JsonValueKind.Object && first.TryGetProperty("FileName", out _))
+                       {
+                         // It is ALREADY a list of sheets
+                         existingSheets = JsonSerializer.Deserialize<List<object>>(entry.JsonData) ?? [];
+                       }
+                       else
+                       {
+                         // It is a list of rows (Legacy)
+                         var rows = JsonSerializer.Deserialize<List<Dictionary<string, object?>>>(entry.JsonData);
+                         existingSheets.Add(new { Title = "Legacy Data", FileName = "Legacy", TemplateName = "Unknown", Rows = rows });
+                       }
+                     }
+                   }
+                   else if (doc.RootElement.ValueKind == JsonValueKind.Object)
+                   {
+                     // Single Sheet Object (Previous Format)
+                     var obj = JsonSerializer.Deserialize<object>(entry.JsonData);
+                     if (obj != null) existingSheets.Add(obj);
+                   }
+                 }
+                 catch { /* Ignore corrupt data */ }
+               }
+
+               // Append new sheet
                var payload = new
                {
+                 Title = annexTitle.Value,
                  FileName = fileAnalysis.Value?.FileName ?? "Unknown File",
                  TemplateName = matchedTemplate.Value?.Name ?? "Unknown Template",
                  Rows = data
                };
-               entry.JsonData = JsonSerializer.Serialize(payload);
+               existingSheets.Add(payload);
+
+               entry.JsonData = JsonSerializer.Serialize(existingSheets);
 
                await db.SaveChangesAsync();
                client.Toast($"Annexed to {entry.Description}", "Success");
                activeMode.Set(AnalyzerMode.Home);
+               annexTitle.Set(""); // Reset
              }
            }).Variant(ButtonVariant.Primary).Disabled(annexSelectedId.Value == null);
     }

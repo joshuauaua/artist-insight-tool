@@ -13,7 +13,7 @@ public class RevenueEditSheet(int id, Action onClose) : ViewBase
   {
     var factory = UseService<ArtistInsightToolContextFactory>();
     // Data Viewing State
-    var isViewingData = UseState(false);
+    var viewingSheetIndex = UseState<int?>(() => null);
 
     // Form States (Restored)
     var entryState = UseState<RevenueEntry?>(() => null);
@@ -53,9 +53,7 @@ public class RevenueEditSheet(int id, Action onClose) : ViewBase
     var hasAnnexData = !string.IsNullOrEmpty(e.JsonData);
 
     // Parse Metadata & Data
-    string annexFileName = "Unknown File";
-    string annexTemplateName = "Unknown Template";
-    List<Dictionary<string, object?>>? parsedRows = null;
+    var sheets = new List<AnnexSheetData>();
 
     if (hasAnnexData)
     {
@@ -64,18 +62,30 @@ public class RevenueEditSheet(int id, Action onClose) : ViewBase
         using var doc = System.Text.Json.JsonDocument.Parse(e.JsonData!);
         if (doc.RootElement.ValueKind == System.Text.Json.JsonValueKind.Array)
         {
-          parsedRows = System.Text.Json.JsonSerializer.Deserialize<List<Dictionary<string, object?>>>(e.JsonData!);
-          annexFileName = "Legacy Data";
-          annexTemplateName = "Unknown Source";
+          // Check if already list of sheets (properties check)
+          var isListOfSheets = false;
+          if (doc.RootElement.GetArrayLength() > 0 && doc.RootElement[0].ValueKind == System.Text.Json.JsonValueKind.Object)
+          {
+            if (doc.RootElement[0].TryGetProperty("FileName", out _)) isListOfSheets = true;
+          }
+
+          if (isListOfSheets)
+          {
+            var deserialized = System.Text.Json.JsonSerializer.Deserialize<List<AnnexSheetData>>(e.JsonData!);
+            if (deserialized != null) sheets.AddRange(deserialized);
+          }
+          else
+          {
+            // Legacy Rows
+            var rows = System.Text.Json.JsonSerializer.Deserialize<List<Dictionary<string, object?>>>(e.JsonData!);
+            if (rows != null) sheets.Add(new AnnexSheetData { Title = "Legacy Data", FileName = "Legacy", TemplateName = "Unknown", Rows = rows });
+          }
         }
         else if (doc.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object)
         {
-          if (doc.RootElement.TryGetProperty("FileName", out var fn)) annexFileName = fn.GetString() ?? "Unknown";
-          if (doc.RootElement.TryGetProperty("TemplateName", out var tn)) annexTemplateName = tn.GetString() ?? "Unknown";
-          if (doc.RootElement.TryGetProperty("Rows", out var r))
-          {
-            parsedRows = System.Text.Json.JsonSerializer.Deserialize<List<Dictionary<string, object?>>>(r.GetRawText());
-          }
+          // Single Sheet
+          var sheet = System.Text.Json.JsonSerializer.Deserialize<AnnexSheetData>(e.JsonData!);
+          if (sheet != null) sheets.Add(sheet);
         }
       }
       catch { /* Ignore parse errors */ }
@@ -83,9 +93,12 @@ public class RevenueEditSheet(int id, Action onClose) : ViewBase
 
 
     // --- RENDER annex data view ---
-    if (isViewingData.Value && parsedRows != null)
+    if (viewingSheetIndex.Value.HasValue && viewingSheetIndex.Value < sheets.Count)
     {
-      if (parsedRows.Count > 0)
+      var currentSheet = sheets[viewingSheetIndex.Value.Value];
+      var parsedRows = currentSheet.Rows;
+
+      if (parsedRows != null && parsedRows.Count > 0)
       {
         var headers = parsedRows[0].Keys.Take(50).ToArray();
         var dRows = parsedRows.Select(d =>
@@ -108,8 +121,9 @@ public class RevenueEditSheet(int id, Action onClose) : ViewBase
 
         return Layout.Vertical().Gap(10).Width(Size.Full())
            .Add(Layout.Horizontal().Align(Align.Center).Gap(10)
-               .Add(new Button("Back to Details", () => isViewingData.Set(false)).Variant(ButtonVariant.Link).Icon(Icons.ArrowLeft))
-               .Add(Text.H4("Annexed Data"))
+            .Add(new Button("Back to Details", () => viewingSheetIndex.Set((int?)null)).Variant(ButtonVariant.Link).Icon(Icons.ArrowLeft))
+               .Add(Text.H4(currentSheet.Title ?? "Annexed Data"))
+               .Add(Text.Muted($"{currentSheet.FileName}"))
            )
            .Add(new DataTableView(dRows, Size.Full(), Size.Fit(), cols, new DataTableConfig { ShowSearch = true, AllowSorting = true }));
       }
@@ -117,8 +131,8 @@ public class RevenueEditSheet(int id, Action onClose) : ViewBase
       {
         // Empty
         return Layout.Vertical().Gap(10)
-            .Add(new Button("Back", () => isViewingData.Set(false)).Variant(ButtonVariant.Link))
-            .Add(Text.Muted("No valid data found in this entry."));
+            .Add(new Button("Back", () => viewingSheetIndex.Set((int?)null)).Variant(ButtonVariant.Link))
+            .Add(Text.Muted("No valid data found in this sheet."));
       }
     }
 
@@ -131,16 +145,19 @@ public class RevenueEditSheet(int id, Action onClose) : ViewBase
         .Add(Layout.Vertical().Gap(5)
             .Add(Text.H4($"{e.Source.DescriptionText} • {type}"))
             .Add(Text.Label(name))
-            .Add(hasAnnexData && parsedRows != null
+            .Add(sheets.Count > 0
                 ? Layout.Vertical().Gap(5)
                     .Add(Text.Label("Annexed Data"))
-                    .Add(Layout.Vertical().Gap(2)
-                         .Add(new Button(annexFileName, () => isViewingData.Set(true))
-                            .Variant(ButtonVariant.Outline)
-                            .Icon(Icons.Sheet)
-                            .Width(Size.Full())
-                         )
-                         .Add(Text.Muted(annexTemplateName)) // Assuming Size helper works for Text, if not I'll just use Muted
+                    .Add(Layout.Vertical().Gap(5)
+                         .Add(sheets.Select((s, i) =>
+                              Layout.Vertical().Gap(2)
+                                  .Add(new Button(string.IsNullOrEmpty(s.Title) ? s.FileName : s.Title, () => viewingSheetIndex.Set(i))
+                                     .Variant(ButtonVariant.Outline)
+                                     .Icon(Icons.Sheet)
+                                     .Width(Size.Full())
+                                  )
+                                  .Add(Text.Muted($"{s.FileName} • {s.TemplateName}"))
+                         ).ToArray())
                     )
                 : null
             )
@@ -220,4 +237,12 @@ public class DynamicRow
   public object? Col41 => GetValue(41); public object? Col42 => GetValue(42); public object? Col43 => GetValue(43);
   public object? Col44 => GetValue(44); public object? Col45 => GetValue(45); public object? Col46 => GetValue(46);
   public object? Col47 => GetValue(47); public object? Col48 => GetValue(48); public object? Col49 => GetValue(49);
+}
+
+public class AnnexSheetData
+{
+  public string? Title { get; set; }
+  public string? FileName { get; set; }
+  public string? TemplateName { get; set; }
+  public List<Dictionary<string, object?>>? Rows { get; set; }
 }
