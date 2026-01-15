@@ -140,42 +140,58 @@ public class RevenueEditSheet(int id, Action onClose) : ViewBase
     var name = e.Track?.Title ?? e.Album?.Title ?? "-";
     var type = e.Track != null ? "Track" : (e.Album != null ? "Album" : "Other");
 
-    return Layout.Vertical().Gap(20)
-        // Info Header
+    // --- RENDER Edit Form ---
+    // infoName was unused in duplication, reusing original logic if helpful or just removing dupes.
+    var infoName = e.Track?.Title ?? e.Album?.Title ?? "-";
+
+    return Layout.Vertical().Gap(15)
+        // 1. Name (Description)
         .Add(Layout.Vertical().Gap(5)
-            .Add(Text.H4($"{e.Source.DescriptionText} • {type}"))
-            .Add(Text.Label(name))
-            .Add(sheets.Count > 0
-                ? Layout.Vertical().Gap(5)
-                    .Add(Text.Label("Annexed Data"))
-                    .Add(Layout.Vertical().Gap(5)
-                         .Add(sheets.Select((s, i) =>
-                              Layout.Vertical().Gap(2)
-                                  .Add(new Button(string.IsNullOrEmpty(s.Title) ? s.FileName : s.Title, () => viewingSheetIndex.Set(i))
-                                     .Variant(ButtonVariant.Outline)
-                                     .Icon(Icons.Sheet)
-                                     .Width(Size.Full())
-                                  )
-                                  .Add(Text.Muted($"{s.FileName} • {s.TemplateName}"))
-                         ).ToArray())
-                    )
-                : null
-            )
+            .Add(Text.Label("Name"))
+            .Add(descriptionState.ToTextInput().Placeholder("Enter name..."))
         )
-        // Edit Form
-        .Add(Layout.Vertical().Gap(15)
-            .Add(Layout.Vertical().Gap(5)
-                .Add(Text.Label("Amount ($)"))
-                .Add(amountState.ToTextInput().Placeholder("0.00"))
-            )
-             .Add(Layout.Vertical().Gap(5)
-                .Add(Text.Label("Date (MM/dd/yyyy)"))
-                .Add(dateStringState.ToTextInput())
-            )
-            .Add(Layout.Vertical().Gap(5)
-                .Add(Text.Label("Description"))
-                .Add(descriptionState.ToTextInput().Placeholder("Enter description..."))
-            )
+        // 2. Date
+        .Add(Layout.Vertical().Gap(5)
+            .Add(Text.Label("Date (MM/dd/yyyy)"))
+            .Add(dateStringState.ToTextInput())
+        )
+        // 3. Amount
+        .Add(Layout.Vertical().Gap(5)
+            .Add(Text.Label("Amount ($)"))
+            .Add(amountState.ToTextInput().Placeholder("0.00"))
+        )
+        // 4. Category & Source Info
+        .Add(new Card(
+             Layout.Vertical().Gap(5)
+                 .Add(Layout.Horizontal().Gap(10).Align(Align.Center)
+                     .Add(Layout.Vertical().Gap(2)
+                         .Add(Text.Label("Source"))
+                         .Add(Text.Muted(e.Source.DescriptionText))
+                     )
+                     .Add(new Spacer())
+                     .Add(Layout.Vertical().Gap(2).Align(Align.Center)
+                         .Add(Text.Label("Category"))
+                         .Add(Text.Muted(type))
+                     )
+                 )
+                 .Add(Text.Muted($"Linked to: {infoName}"))
+        ))
+        // 5. Annexed Data
+        .Add(sheets.Count > 0
+            ? Layout.Vertical().Gap(5)
+                .Add(Text.Label("Annexed Data"))
+                .Add(Layout.Vertical().Gap(5)
+                     .Add(sheets.Select((s, i) =>
+                          Layout.Vertical().Gap(2)
+                              .Add(new Button(string.IsNullOrEmpty(s.Title) ? s.FileName : s.Title, () => viewingSheetIndex.Set(i))
+                                 .Variant(ButtonVariant.Outline)
+                                 .Icon(Icons.Sheet)
+                                 .Width(Size.Full())
+                              )
+                              .Add(Text.Muted($"{s.FileName} • {s.TemplateName}"))
+                     ).ToArray())
+                )
+            : null
         )
         // Actions
         .Add(Layout.Horizontal().Align(Align.Center).Gap(10)
