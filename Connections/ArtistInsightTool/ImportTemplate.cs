@@ -16,6 +16,10 @@ public partial class ImportTemplate
   [Required]
   public string HeadersJson { get; set; } = "[]";
 
+  public string? AssetColumn { get; set; }
+
+  public string? AmountColumn { get; set; }
+
   public List<string> GetHeaders()
   {
     return System.Text.Json.JsonSerializer.Deserialize<List<string>>(HeadersJson) ?? [];

@@ -66,6 +66,8 @@ public class ExcelDataReaderApp : ViewBase
 
     // --- Template Creation State ---
     var newTemplateName = UseState("");
+    var newTemplateAssetColumn = UseState<string?>(() => null);
+    var newTemplateAmountColumn = UseState<string?>(() => null);
 
     // --- Upload Logic ---
     var uploadState = UseState<FileUpload<byte[]>?>();
@@ -315,6 +317,7 @@ public class ExcelDataReaderApp : ViewBase
     {
       if (fileAnalysis.Value?.Sheets.Count == 0) return Text.Muted("No sheets found.");
       var headers = fileAnalysis.Value!.Sheets[0].Headers;
+      var headerOptions = headers.Select(h => new Option<string?>(h, h)).ToList();
 
       return Layout.Vertical().Gap(10).Width(Size.Full())
           | Text.Muted("Define a name for this data structure.")
@@ -324,6 +327,12 @@ public class ExcelDataReaderApp : ViewBase
           | Layout.Vertical().Gap(5)
               | Text.Label("Template Name")
               | newTemplateName.ToTextInput().Placeholder("e.g. Spotify Report")
+          | Layout.Vertical().Gap(5)
+              | Text.Label("Asset Match Column (Optional)")
+              | newTemplateAssetColumn.ToSelectInput(headerOptions).Placeholder("Select column for Asset Name...")
+          | Layout.Vertical().Gap(5)
+              | Text.Label("Amount Column (Optional)")
+              | newTemplateAmountColumn.ToSelectInput(headerOptions).Placeholder("Select column for Revenue...")
           | new Button("Save Template", async () =>
           {
             if (string.IsNullOrWhiteSpace(newTemplateName.Value)) { client.Toast("Name required", "Warning"); return; }
@@ -333,6 +342,8 @@ public class ExcelDataReaderApp : ViewBase
             {
               Name = newTemplateName.Value,
               HeadersJson = JsonSerializer.Serialize(headers),
+              AssetColumn = newTemplateAssetColumn.Value,
+              AmountColumn = newTemplateAmountColumn.Value,
               CreatedAt = DateTime.UtcNow,
               UpdatedAt = DateTime.UtcNow
             };
@@ -431,6 +442,67 @@ public class ExcelDataReaderApp : ViewBase
                existingSheets.Add(payload);
 
                entry.JsonData = JsonSerializer.Serialize(existingSheets);
+
+               // --- Asset Extraction Logic ---
+               var tmpl = matchedTemplate.Value;
+               if (tmpl != null && !string.IsNullOrEmpty(tmpl.AssetColumn) && !string.IsNullOrEmpty(tmpl.AmountColumn))
+               {
+                 try
+                 {
+                   var assetCol = tmpl.AssetColumn;
+                   var amountCol = tmpl.AmountColumn;
+
+                   // 1. Identify Assets in this batch
+                   var batchAssets = new Dictionary<string, decimal>();
+                   foreach (var row in data)
+                   {
+                     if (row.TryGetValue(assetCol, out var nameObj) && row.TryGetValue(amountCol, out var amountObj))
+                     {
+                       var name = nameObj?.ToString()?.Trim();
+                       if (!string.IsNullOrEmpty(name) && decimal.TryParse(amountObj?.ToString(), out var amount))
+                       {
+                         if (!batchAssets.ContainsKey(name)) batchAssets[name] = 0;
+                         batchAssets[name] += amount;
+                       }
+                     }
+                   }
+
+                   if (batchAssets.Count > 0)
+                   {
+                     // 2. Find existing Assets
+                     var names = batchAssets.Keys.ToList();
+                     var existingAssets = await db.Assets.Where(a => names.Contains(a.Name)).ToListAsync();
+                     var existingNames = existingAssets.Select(a => a.Name).ToHashSet();
+
+                     // 3. Create missing Assets
+                     var newAssets = names.Where(n => !existingNames.Contains(n))
+                                          .Select(n => new Asset { Name = n, Type = "Unknown", AmountGenerated = 0 })
+                                          .ToList();
+
+                     if (newAssets.Count > 0)
+                     {
+                       db.Assets.AddRange(newAssets);
+                       await db.SaveChangesAsync();
+                       existingAssets.AddRange(newAssets);
+                     }
+
+                     // 4. Create Revenue Records
+                     var assetMap = existingAssets.ToDictionary(a => a.Name, a => a.Id);
+                     var revenueRecords = batchAssets.Select(kvp => new AssetRevenue
+                     {
+                       AssetId = assetMap[kvp.Key],
+                       RevenueEntry = entry,
+                       Amount = kvp.Value
+                     });
+
+                     db.AssetRevenues.AddRange(revenueRecords);
+                   }
+                 }
+                 catch (Exception ex)
+                 {
+                   client.Toast($"Asset extraction failed: {ex.Message}", "Error");
+                 }
+               }
 
                await db.SaveChangesAsync();
                client.Toast($"Annexed to {entry.Description}", "Success");

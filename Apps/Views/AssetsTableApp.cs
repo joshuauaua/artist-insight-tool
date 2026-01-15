@@ -20,7 +20,17 @@ public class AssetsTableApp : ViewBase
     async Task<IDisposable?> LoadData()
     {
       await using var db = factory.CreateDbContext();
-      var data = await db.Assets.OrderBy(a => a.Name).ToArrayAsync();
+      var data = await db.Assets
+          .Include(a => a.AssetRevenues)
+          .Select(a => new Asset
+          {
+            Id = a.Id,
+            Name = a.Name,
+            Type = a.Type,
+            AmountGenerated = a.AssetRevenues.Sum(ar => ar.Amount)
+          })
+          .OrderBy(a => a.Name)
+          .ToArrayAsync();
       assets.Set(data);
       return null;
     }

@@ -19,4 +19,6 @@ public class Asset
 
   [Column(TypeName = "decimal(18,2)")]
   public decimal AmountGenerated { get; set; }
+
+  public virtual ICollection<AssetRevenue> AssetRevenues { get; set; } = new List<AssetRevenue>();
 }
