@@ -152,13 +152,13 @@ public class AnalyzerView(Action<List<Dictionary<string, object?>>, ImportTempla
         {
           result = await Task.Run(() =>
               {
-                  try { return AnalyzeFile(currentPath); }
-                  catch (Exception ex)
-                  {
-                    Console.WriteLine($"Analysis Error: {ex.Message}");
-                    return null;
-                  }
-                });
+                try { return AnalyzeFile(currentPath); }
+                catch (Exception ex)
+                {
+                  Console.WriteLine($"Analysis Error: {ex.Message}");
+                  return null;
+                }
+              });
         }
         catch { /* Ignore */ }
 
@@ -388,65 +388,204 @@ public class DataPageView(List<Dictionary<string, object?>> data, ImportTemplate
   public override object? Build()
   {
     var headers = template.GetHeaders();
-    var searchQuery = UseState("");
 
-    // Filter data
-    var filteredData = data;
-    if (!string.IsNullOrWhiteSpace(searchQuery.Value))
+    // Map dictionaries to DynamicRow objects
+    // We map the first column in the dictionary to Col0, second to Col1, etc.
+    // This allows reasonable support for up to 50 columns.
+    var dynamicRows = data.Select(dict =>
     {
-      var q = searchQuery.Value.ToLowerInvariant();
-      filteredData = data.Where(row =>
-          row.Values.Any(v => v?.ToString()?.ToLowerInvariant().Contains(q) == true)
-      ).ToList();
-    }
-
-    // Limit display for performance 
-    var displayData = filteredData.Take(100).ToList();
-
-    // Generate Markdown Table
-    var sb = new System.Text.StringBuilder();
-
-    // Header
-    sb.Append("| ");
-    sb.Append(string.Join(" | ", headers));
-    sb.AppendLine(" |");
-
-    // Separator
-    sb.Append("| ");
-    sb.Append(string.Join(" | ", headers.Select(_ => "---")));
-    sb.AppendLine(" |");
-
-    // Rows
-    foreach (var row in displayData)
-    {
-      sb.Append("| ");
-      // Careful with null values in dictionary
-      var values = headers.Select(h =>
+      var row = new DynamicRow();
+      int i = 0;
+      foreach (var header in headers)
       {
-        var val = row.ContainsKey(h) ? row[h]?.ToString() ?? "" : "";
-        // Escape pipes in content to prevent breaking table
-        return val.Replace("|", "\\|").Replace("\n", " ");
-      });
-      sb.Append(string.Join(" | ", values));
-      sb.AppendLine(" |");
+        // Safeguard: don't exceed 50 columns
+        if (i >= 50) break;
+
+        var val = dict.ContainsKey(header) ? dict[header] : null;
+
+        // Reflection set is slow but done once per row on load. 
+        // For better perf we could use a switch or generated code, but reflection is fine for < 10k rows usually.
+        // Actually, direct assignment is cleaner if we had a mapped method, but simple reflection set is easiest for now without massive switch.
+        // Wait, I can just use a helper method inside DynamicRow to set by index? 
+        // No, let's just use reflection to set Col{i} or a massive switch in DynamicRow.
+        // A SetValue(index, val) method in DynamicRow with a switch case is best for perf.
+        row.SetValue(i, val);
+        i++;
+      }
+      return row;
+    }).AsQueryable();
+
+    // Create Columns 
+    // Name = "Col0", "Col1" ...
+    var columns = headers.Select((header, index) =>
+    {
+      if (index >= 50) return null; // Skip if > 50
+
+      return new DataTableColumn
+      {
+        Name = $"Col{index}",   // Property on DynamicRow
+        Header = header,        // Display Name
+        Order = index,
+        ColType = ColType.Text,
+        Align = Align.Left,
+        Sortable = true,
+        Filterable = true
+      };
+    }).Where(c => c != null).Cast<DataTableColumn>().ToArray();
+
+    // Configure DataTable
+    var config = new DataTableConfig
+    {
+      FreezeColumns = 1,
+      ShowGroups = true,
+      ShowIndexColumn = true,
+      SelectionMode = SelectionModes.Rows,
+      AllowCopySelection = true,
+      AllowColumnReordering = true,
+      AllowColumnResizing = true,
+      AllowLlmFiltering = false, // Disable LLM filtering for now as it might assume semantic names
+      AllowSorting = true,
+      AllowFiltering = true,
+      ShowSearch = true,
+      EnableCellClickEvents = true,
+      ShowVerticalBorders = true
+    };
+
+    return Layout.Vertical().Padding(20).Gap(20)//.Height(Size.Full()) // Allow page scrolling
+                                                // Header Card
+        | new Card(
+            Layout.Horizontal().Gap(20).Align(Align.Center)
+                | new Button("Back to Analyzer", onBack).Icon(Icons.ArrowLeft).Variant(ButtonVariant.Outline)
+                | Text.H3(template.Name)
+                | Text.Muted($"{data.Count} Records")
+                | new Spacer()
+        )
+
+        // Data Table Card
+        | new Card(
+             new DataTableView(
+                queryable: dynamicRows,
+                width: Size.Full(),
+                height: Size.Fit(), // Allow table to grow with content, page will scroll
+                columns: columns,
+                config: config
+            )
+        );//.Height(Size.Grow()); // Remove strict grow constraint
+  }
+}
+
+public class DynamicRow
+{
+  public object? Col0 { get; set; }
+  public object? Col1 { get; set; }
+  public object? Col2 { get; set; }
+  public object? Col3 { get; set; }
+  public object? Col4 { get; set; }
+  public object? Col5 { get; set; }
+  public object? Col6 { get; set; }
+  public object? Col7 { get; set; }
+  public object? Col8 { get; set; }
+  public object? Col9 { get; set; }
+
+  public object? Col10 { get; set; }
+  public object? Col11 { get; set; }
+  public object? Col12 { get; set; }
+  public object? Col13 { get; set; }
+  public object? Col14 { get; set; }
+  public object? Col15 { get; set; }
+  public object? Col16 { get; set; }
+  public object? Col17 { get; set; }
+  public object? Col18 { get; set; }
+  public object? Col19 { get; set; }
+
+  public object? Col20 { get; set; }
+  public object? Col21 { get; set; }
+  public object? Col22 { get; set; }
+  public object? Col23 { get; set; }
+  public object? Col24 { get; set; }
+  public object? Col25 { get; set; }
+  public object? Col26 { get; set; }
+  public object? Col27 { get; set; }
+  public object? Col28 { get; set; }
+  public object? Col29 { get; set; }
+
+  public object? Col30 { get; set; }
+  public object? Col31 { get; set; }
+  public object? Col32 { get; set; }
+  public object? Col33 { get; set; }
+  public object? Col34 { get; set; }
+  public object? Col35 { get; set; }
+  public object? Col36 { get; set; }
+  public object? Col37 { get; set; }
+  public object? Col38 { get; set; }
+  public object? Col39 { get; set; }
+
+  public object? Col40 { get; set; }
+  public object? Col41 { get; set; }
+  public object? Col42 { get; set; }
+  public object? Col43 { get; set; }
+  public object? Col44 { get; set; }
+  public object? Col45 { get; set; }
+  public object? Col46 { get; set; }
+  public object? Col47 { get; set; }
+  public object? Col48 { get; set; }
+  public object? Col49 { get; set; }
+
+  public void SetValue(int index, object? value)
+  {
+    switch (index)
+    {
+      case 0: Col0 = value; break;
+      case 1: Col1 = value; break;
+      case 2: Col2 = value; break;
+      case 3: Col3 = value; break;
+      case 4: Col4 = value; break;
+      case 5: Col5 = value; break;
+      case 6: Col6 = value; break;
+      case 7: Col7 = value; break;
+      case 8: Col8 = value; break;
+      case 9: Col9 = value; break;
+      case 10: Col10 = value; break;
+      case 11: Col11 = value; break;
+      case 12: Col12 = value; break;
+      case 13: Col13 = value; break;
+      case 14: Col14 = value; break;
+      case 15: Col15 = value; break;
+      case 16: Col16 = value; break;
+      case 17: Col17 = value; break;
+      case 18: Col18 = value; break;
+      case 19: Col19 = value; break;
+      case 20: Col20 = value; break;
+      case 21: Col21 = value; break;
+      case 22: Col22 = value; break;
+      case 23: Col23 = value; break;
+      case 24: Col24 = value; break;
+      case 25: Col25 = value; break;
+      case 26: Col26 = value; break;
+      case 27: Col27 = value; break;
+      case 28: Col28 = value; break;
+      case 29: Col29 = value; break;
+      case 30: Col30 = value; break;
+      case 31: Col31 = value; break;
+      case 32: Col32 = value; break;
+      case 33: Col33 = value; break;
+      case 34: Col34 = value; break;
+      case 35: Col35 = value; break;
+      case 36: Col36 = value; break;
+      case 37: Col37 = value; break;
+      case 38: Col38 = value; break;
+      case 39: Col39 = value; break;
+      case 40: Col40 = value; break;
+      case 41: Col41 = value; break;
+      case 42: Col42 = value; break;
+      case 43: Col43 = value; break;
+      case 44: Col44 = value; break;
+      case 45: Col45 = value; break;
+      case 46: Col46 = value; break;
+      case 47: Col47 = value; break;
+      case 48: Col48 = value; break;
+      case 49: Col49 = value; break;
     }
-
-    return Layout.Vertical().Padding(20).Gap(20).Height(Size.Full())
-        // Top Bar
-        | Layout.Horizontal().Gap(20).Align(Align.Center)
-            | new Button("Back to Analyzer", onBack).Icon(Icons.ArrowLeft).Variant(ButtonVariant.Outline)
-            | Text.H3(template.Name)
-            | Text.Muted($"{filteredData.Count} Records")
-            | new Spacer()
-            | searchQuery.ToTextInput().Placeholder("Search data...").Width(300)
-
-        // Table - remove invalid .Scrollable() and .Padding() on Markdown
-        | Layout.Vertical().Padding(0).Height(Size.Full())
-            | Layout.Vertical().Padding(10).Add(new Markdown(sb.ToString()))
-            | (filteredData.Count > 100
-                ? Layout.Center().Padding(20).Add(Text.Muted($"Showing 100 of {filteredData.Count} records. Refine search to see more."))
-                : null
-              );
   }
 }
 
