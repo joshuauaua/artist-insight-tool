@@ -142,16 +142,19 @@ public class RevenueTableView : ViewBase
             .Width(Size.Full())
             .Height(Size.Fit())
             .Align(Align.Center)
-            .Gap(10)
             .Add("Revenue Streams")
-            .Add(searchBar)
-            .Add(filterSelect)
             .Add(new Spacer().Width(Size.Fraction(1))) // Force spacer to take remaining width
             .Add(new Button("Create Entry", () => showCreateSheet.Set(true))
                .Icon(Icons.Plus)
                .Variant(ButtonVariant.Primary)
             )
-       );
+       )
+       .Add(Layout.Horizontal()
+           .Width(Size.Full())
+           .Height(Size.Fit()) // Ensure input row has height
+           .Gap(10)
+           .Add(searchBar)
+           .Add(filterSelect));
 
     // Projection for ToTable
     var tableData = filteredEntries.Select(r => new
