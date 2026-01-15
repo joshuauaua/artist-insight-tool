@@ -361,8 +361,8 @@ public class ExcelDataReaderApp : ViewBase
          new Option<int?>($"{e.Description ?? "No Name"} - {e.RevenueDate:MM/dd/yyyy} - {e.Source.DescriptionText} - {e.Amount:C}", e.Id)
       ).ToList();
 
-      return Layout.Vertical().Gap(20).Width(Size.Full())
-           | new Button("Back", () => activeMode.Set(AnalyzerMode.Home)).Variant(ButtonVariant.Link).Icon(Icons.ArrowLeft)
+      return Layout.Vertical().Gap(5).Width(Size.Full())
+           | new Button("Back", () => activeMode.Set(AnalyzerMode.Home)).Variant(ButtonVariant.Primary).Icon(Icons.ArrowLeft)
            | Text.Muted("Attach the current file content to an existing Revenue Entry.")
            | Layout.Vertical().Gap(5)
                | Text.Label("Entry Title")

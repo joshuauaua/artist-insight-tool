@@ -119,10 +119,11 @@ public class RevenueEditSheet(int id, Action onClose) : ViewBase
           ColType = ColType.Text
         }).Cast<DataTableColumn>().ToArray();
 
-        return Layout.Vertical().Gap(10).Width(Size.Full())
+        return Layout.Vertical().Gap(5).Width(Size.Full())
            .Add(Layout.Horizontal().Align(Align.Center).Gap(10)
-            .Add(new Button("Back to Details", () => viewingSheetIndex.Set((int?)null)).Variant(ButtonVariant.Link).Icon(Icons.ArrowLeft))
+               .Add(new Button("Back", () => viewingSheetIndex.Set((int?)null)).Variant(ButtonVariant.Primary).Icon(Icons.ArrowLeft))
                .Add(Text.H4(currentSheet.Title ?? "Annexed Data"))
+               .Add(new Spacer())
                .Add(Text.Muted($"{currentSheet.FileName}"))
            )
            .Add(new DataTableView(dRows, Size.Full(), Size.Fit(), cols, new DataTableConfig { ShowSearch = true, AllowSorting = true }));
