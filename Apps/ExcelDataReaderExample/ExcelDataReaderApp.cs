@@ -15,7 +15,7 @@ public class ExcelDataReaderApp : ViewBase
 {
   private enum AnalyzerMode
   {
-    Instructions,
+    Home,
     Analysis,
     TemplateCreation,
     Annex,
@@ -47,7 +47,7 @@ public class ExcelDataReaderApp : ViewBase
     var client = UseService<IClientProvider>();
 
     // --- Global State ---
-    var activeMode = UseState(AnalyzerMode.Instructions);
+    var activeMode = UseState(AnalyzerMode.Home);
     var templates = UseState<List<ImportTemplate>>([]);
 
     // --- Analysis State ---
@@ -105,7 +105,7 @@ public class ExcelDataReaderApp : ViewBase
           var finalPath = tempPath + extension;
           File.WriteAllBytes(finalPath, bytes);
           filePath.Set(finalPath);
-          activeMode.Set(AnalyzerMode.Instructions); // Reset view on new file
+          activeMode.Set(AnalyzerMode.Home); // Stay on home to show actions
         }
         catch (Exception ex)
         {
@@ -129,9 +129,9 @@ public class ExcelDataReaderApp : ViewBase
         {
           result = await Task.Run(() =>
               {
-                  try { return AnalyzeFile(currentPath); }
-                  catch { return null; }
-                });
+                try { return AnalyzeFile(currentPath); }
+                catch { return null; }
+              });
         }
         catch { }
 
@@ -147,10 +147,9 @@ public class ExcelDataReaderApp : ViewBase
             if (match != null) matchedTemplate.Set(match);
             else isNewTemplate.Set(true);
           }
-          client.Toast($"Analyzed: {result.TotalSheets} sheets found.", "Success");
 
           if (isNewTemplate.Value) activeMode.Set(AnalyzerMode.TemplateCreation);
-          else activeMode.Set(AnalyzerMode.Analysis);
+          else client.Toast($"Analyzed: {result.TotalSheets} sheets found.", "Success");
         }
         isAnalyzing.Set(false);
       }
@@ -159,7 +158,7 @@ public class ExcelDataReaderApp : ViewBase
         fileAnalysis.Set((FileAnalysis?)null);
         matchedTemplate.Set((ImportTemplate?)null);
         isNewTemplate.Set(false);
-        activeMode.Set(AnalyzerMode.Instructions);
+        activeMode.Set(AnalyzerMode.Home);
       }
     }, [filePath]);
 
@@ -187,151 +186,133 @@ public class ExcelDataReaderApp : ViewBase
 
     // --- Render Methods ---
 
-    object RenderLeftCard()
+    object RenderHome()
     {
-      return new Card(
-          Layout.Vertical()
-          | Text.H3("Excel Analyzer")
-          | Text.Muted("Upload Excel or CSV files.")
-          | uploadState.ToFileInput(uploadContext).Placeholder("Select File").Width(Size.Full())
-          | new Spacer()
-          | (fileAnalysis.Value != null ?
-              Layout.Vertical().Gap(10).Padding(10)
-              | Text.Small("Status")
-              | (matchedTemplate.Value != null
-                  ? Layout.Vertical().Gap(5)
-                      | Text.Markdown("✅ **Match Found**")
-                      | Text.Small($"Template: {matchedTemplate.Value.Name}")
-                      | Layout.Vertical().Gap(5)
-                          | new Button("View Data Preview")
-                              .Variant(activeMode.Value == AnalyzerMode.Analysis ? ButtonVariant.Primary : ButtonVariant.Outline)
-                              .Icon(Icons.Info)
-                              .HandleClick(() => activeMode.Set(AnalyzerMode.Analysis))
-                          | new Button("View Contents")
-                              .Variant(activeMode.Value == AnalyzerMode.DataView ? ButtonVariant.Primary : ButtonVariant.Outline)
-                              .Icon(Icons.Eye)
-                              .HandleClick(() =>
-                              {
-                                // Parse only if needed? Or re-parse?
-                                parsedData.Set(ParseCurrentFile());
-                                activeMode.Set(AnalyzerMode.DataView);
-                              })
-                          | new Button("Annex to Entry")
-                              .Variant(activeMode.Value == AnalyzerMode.Annex ? ButtonVariant.Primary : ButtonVariant.Outline)
-                              .Icon(Icons.Link)
-                              .HandleClick(() =>
-                              {
-                                parsedData.Set(ParseCurrentFile());
-                                activeMode.Set(AnalyzerMode.Annex);
-                              })
-                  : (isNewTemplate.Value
+      return Layout.Center()
+          | new Card(
+              Layout.Vertical().Gap(15).Align(Align.Center)
+              | Text.H3("Excel Analyzer")
+              | Text.Muted("Upload analyzed financial data files.")
+              | uploadState.ToFileInput(uploadContext).Placeholder("Select File").Width(Size.Full())
+              | new Spacer()
+              | (fileAnalysis.Value != null ?
+                  Layout.Vertical().Gap(10).Padding(10)
+                  | Text.Small("Status")
+                  | (matchedTemplate.Value != null
                       ? Layout.Vertical().Gap(5)
-                          | Text.Markdown("✨ **New Structure**")
-                          | new Button("Create Template", () => activeMode.Set(AnalyzerMode.TemplateCreation)).Variant(ButtonVariant.Primary)
-                      : Text.Small("Analyzing...")))
-              : null)
-          | new Spacer()
-          | (isAnalyzing.Value ? Text.Label("Processing...") : null)
-      ).Width(Size.Fraction(0.3f)).Height(Size.Fit().Min(Size.Full()));
-    }
-
-    object RenderRightCard()
-    {
-      object content = activeMode.Value switch
-      {
-        AnalyzerMode.Instructions => RenderInstructions(),
-        AnalyzerMode.Analysis => RenderAnalysisResults(),
-        AnalyzerMode.TemplateCreation => RenderTemplateCreation(),
-        AnalyzerMode.Annex => RenderAnnexForm(),
-        AnalyzerMode.DataView => RenderDataTableView(),
-        _ => RenderInstructions()
-      };
-
-      return new Card(content).Width(Size.Fraction(0.7f)).Height(Size.Fit().Min(Size.Full()));
-    }
-
-    object RenderInstructions()
-    {
-      return Layout.Vertical().Gap(20).Padding(20).Align(Align.Center)//.Justify(Justify.Center)
-          | Text.H3("How to use")
-          | Layout.Vertical().Gap(10)
-              | Text.Markdown("1. **Upload a file** using the panel on the left.")
-              | Text.Markdown("2. **Review Analysis**: If the file format is new, create a template.")
-              | Text.Markdown("3. **Choose Action**: If recognized, you can View Data or Annex it to an entry.");
+                          | Text.Markdown("✅ **Match Found**")
+                          | Text.Small($"Template: {matchedTemplate.Value.Name}")
+                          | Layout.Vertical().Gap(10).Padding(10, 0, 0, 0)
+                              | new Button("View Analysis Results")
+                                  .Variant(ButtonVariant.Outline)
+                                  .Icon(Icons.Info)
+                                  .HandleClick(() => activeMode.Set(AnalyzerMode.Analysis))
+                              | new Button("View Contents")
+                                  .Variant(ButtonVariant.Primary)
+                                  .Icon(Icons.Eye)
+                                  .HandleClick(() =>
+                                  {
+                                    parsedData.Set(ParseCurrentFile());
+                                    activeMode.Set(AnalyzerMode.DataView);
+                                  })
+                              | new Button("Annex to Entry")
+                                  .Variant(ButtonVariant.Secondary)
+                                  .Icon(Icons.Link)
+                                  .HandleClick(() =>
+                                  {
+                                    parsedData.Set(ParseCurrentFile());
+                                    activeMode.Set(AnalyzerMode.Annex);
+                                  })
+                      : (isNewTemplate.Value
+                          ? Layout.Vertical().Gap(5)
+                              | Text.Markdown("✨ **New Structure**")
+                              | new Button("Create Template", () => activeMode.Set(AnalyzerMode.TemplateCreation)).Variant(ButtonVariant.Primary)
+                          : Text.Small("Analyzing...")))
+                  : null)
+              | (isAnalyzing.Value ? Text.Label("Processing...") : null)
+          ).Width(500);
     }
 
     object RenderAnalysisResults()
     {
-      if (fileAnalysis.Value == null) return RenderInstructions();
-
+      if (fileAnalysis.Value == null) return RenderHome();
       var fa = fileAnalysis.Value;
-      return Layout.Vertical().Gap(10).Padding(20)
-          | Text.H3("File Analysis")
-          | new Markdown($"""                                
-                            | Property | Value |
-                            |----------|-------|
-                            | **File name** | `{fa.FileName}` |
-                            | **Type** | `{fa.FileType}` |
-                            | **Size** | `{FormatFileSize(fa.FileSize)}` |
-                            """)
-          | Layout.Vertical(
-              fa.Sheets.Select((sheet, index) =>
-                      new Expandable(
-                          Text.Label($"Sheet {index + 1}: {sheet.Name}"),
-                          new Markdown($"""
-                                        | Property | Value |
-                                        |----------|-------|
-                                        | **Columns** | `{sheet.FieldCount}` |
-                                        | **Rows** | `{sheet.RowCount}` |
-                                        | **Headers** | {string.Join(", ", sheet.Headers.Select(header => $"`{header}`"))} |
-                                        """)
-                      )
-              ).ToArray()
+
+      return Layout.Vertical().Gap(16).Padding(20)
+          | Layout.Horizontal().Gap(10).Align(Align.Center)
+              | new Button("Back", () => activeMode.Set(AnalyzerMode.Home)).Variant(ButtonVariant.Ghost).Icon(Icons.ArrowLeft)
+              | Text.H3("File Analysis")
+          | new Card(
+              Layout.Vertical().Gap(10)
+              | new Markdown($"""                                
+                                | Property | Value |
+                                |----------|-------|
+                                | **File name** | `{fa.FileName}` |
+                                | **Type** | `{fa.FileType}` |
+                                | **Size** | `{FormatFileSize(fa.FileSize)}` |
+                                """)
+              | Layout.Vertical(
+                  fa.Sheets.Select((sheet, index) =>
+                          new Expandable(
+                              Text.Label($"Sheet {index + 1}: {sheet.Name}"),
+                              new Markdown($"""
+                                            | Property | Value |
+                                            |----------|-------|
+                                            | **Columns** | `{sheet.FieldCount}` |
+                                            | **Rows** | `{sheet.RowCount}` |
+                                            | **Headers** | {string.Join(", ", sheet.Headers.Select(header => $"`{header}`"))} |
+                                            """)
+                          )
+                  ).ToArray()
+              )
           );
     }
 
     object RenderTemplateCreation()
     {
-      if (fileAnalysis.Value?.Sheets.Count == 0) return Text.Label("No sheets to template.");
+      if (fileAnalysis.Value?.Sheets.Count == 0) return RenderHome();
       var headers = fileAnalysis.Value!.Sheets[0].Headers;
 
-      return Layout.Vertical().Gap(20).Padding(20)
-         .Add(Text.H3("Create Import Template"))
-         .Add(Text.Muted("Define a name for this data structure."))
-         .Add(Layout.Vertical().Gap(5)
-             .Add(Text.Small("Detected Headers"))
-             .Add(Text.Markdown($"`{string.Join(", ", headers)}`"))
-         )
-         .Add(Layout.Vertical().Gap(5)
-             .Add("Template Name")
-             .Add(newTemplateName.ToTextInput().Placeholder("e.g. Spotify Report"))
-         )
-         .Add(new Button("Save Template", async () =>
-         {
-           if (string.IsNullOrWhiteSpace(newTemplateName.Value)) { client.Toast("Name required", "Warning"); return; }
+      return Layout.Center()
+         | new Card(
+             Layout.Vertical().Gap(20).Padding(20)
+             | Layout.Horizontal().Gap(10).Align(Align.Center)
+                 | new Button("Back", () => activeMode.Set(AnalyzerMode.Home)).Variant(ButtonVariant.Ghost).Icon(Icons.ArrowLeft)
+                 | Text.H3("Create Import Template")
+             | Text.Muted("Define a name for this data structure.")
+             | Layout.Vertical().Gap(5)
+                 | Text.Small("Detected Headers")
+                 | Text.Markdown($"`{string.Join(", ", headers)}`")
+             | Layout.Vertical().Gap(5)
+                 | "Template Name"
+                 | newTemplateName.ToTextInput().Placeholder("e.g. Spotify Report")
+             | new Button("Save Template", async () =>
+             {
+               if (string.IsNullOrWhiteSpace(newTemplateName.Value)) { client.Toast("Name required", "Warning"); return; }
 
-           await using var db = factory.CreateDbContext();
-           var newT = new ImportTemplate
-           {
-             Name = newTemplateName.Value,
-             HeadersJson = JsonSerializer.Serialize(headers),
-             CreatedAt = DateTime.UtcNow,
-             UpdatedAt = DateTime.UtcNow
-           };
-           db.ImportTemplates.Add(newT);
-           await db.SaveChangesAsync();
+               await using var db = factory.CreateDbContext();
+               var newT = new ImportTemplate
+               {
+                 Name = newTemplateName.Value,
+                 HeadersJson = JsonSerializer.Serialize(headers),
+                 CreatedAt = DateTime.UtcNow,
+                 UpdatedAt = DateTime.UtcNow
+               };
+               db.ImportTemplates.Add(newT);
+               await db.SaveChangesAsync();
 
-           var fresh = await db.ImportTemplates.ToListAsync();
-           templates.Set(fresh);
+               var fresh = await db.ImportTemplates.ToListAsync();
+               templates.Set(fresh);
 
-           var jsonHeaders = JsonSerializer.Serialize(headers);
-           var match = fresh.FirstOrDefault(t => t.HeadersJson == jsonHeaders);
-           if (match != null) matchedTemplate.Set(match);
+               var jsonHeaders = JsonSerializer.Serialize(headers);
+               var match = fresh.FirstOrDefault(t => t.HeadersJson == jsonHeaders);
+               if (match != null) matchedTemplate.Set(match);
 
-           isNewTemplate.Set(false);
-           activeMode.Set(AnalyzerMode.Analysis); // Go to analysis/options
-           client.Toast("Template Created", "Success");
-         }).Variant(ButtonVariant.Primary));
+               isNewTemplate.Set(false);
+               activeMode.Set(AnalyzerMode.Home);
+               client.Toast("Template Created", "Success");
+             }).Variant(ButtonVariant.Primary)
+         ).Width(600);
     }
 
     object RenderAnnexForm()
@@ -340,39 +321,42 @@ public class ExcelDataReaderApp : ViewBase
          new Option<int?>($"{e.Description ?? "No Name"} - {e.RevenueDate:MM/dd/yyyy} - {e.Source.DescriptionText} - {e.Amount:C}", e.Id)
       ).ToList();
 
-      return Layout.Vertical().Gap(20).Padding(20)
-         .Add(Text.H3("Annex Data"))
-         .Add(Text.Muted("Attach the current file content to an existing Revenue Entry."))
-         .Add(Layout.Vertical().Gap(5)
-             .Add("Target Entry")
-             .Add(annexSelectedId.ToSelectInput(options).Placeholder("Search entry..."))
-         )
-         .Add(new Button("Attach Data", async () =>
-         {
-           if (annexSelectedId.Value == null) { client.Toast("Select an entry", "Warning"); return; }
-           var data = parsedData.Value;
-           if (data.Count == 0) data = ParseCurrentFile(); // Ensure data
+      return Layout.Center()
+         | new Card(
+             Layout.Vertical().Gap(20).Padding(20)
+             | Layout.Horizontal().Gap(10).Align(Align.Center)
+                 | new Button("Back", () => activeMode.Set(AnalyzerMode.Home)).Variant(ButtonVariant.Ghost).Icon(Icons.ArrowLeft)
+                 | Text.H3("Annex Data")
+             | Text.Muted("Attach the current file content to an existing Revenue Entry.")
+             | Layout.Vertical().Gap(5)
+                 | "Target Entry"
+                 | annexSelectedId.ToSelectInput(options).Placeholder("Search entry...")
+             | new Button("Attach Data", async () =>
+             {
+               if (annexSelectedId.Value == null) { client.Toast("Select an entry", "Warning"); return; }
+               var data = parsedData.Value;
+               if (data.Count == 0) data = ParseCurrentFile();
 
-           await using var db = factory.CreateDbContext();
-           var entry = await db.RevenueEntries.FindAsync(annexSelectedId.Value);
-           if (entry != null)
-           {
-             entry.JsonData = JsonSerializer.Serialize(data);
-             await db.SaveChangesAsync();
-             client.Toast($"Annexed to {entry.Description}", "Success");
-             activeMode.Set(AnalyzerMode.Analysis); // Return home?
-           }
-         }).Variant(ButtonVariant.Primary).Disabled(annexSelectedId.Value == null));
+               await using var db = factory.CreateDbContext();
+               var entry = await db.RevenueEntries.FindAsync(annexSelectedId.Value);
+               if (entry != null)
+               {
+                 entry.JsonData = JsonSerializer.Serialize(data);
+                 await db.SaveChangesAsync();
+                 client.Toast($"Annexed to {entry.Description}", "Success");
+                 activeMode.Set(AnalyzerMode.Home);
+               }
+             }).Variant(ButtonVariant.Primary).Disabled(annexSelectedId.Value == null)
+         ).Width(600);
     }
 
     object RenderDataTableView()
     {
       var tmpl = matchedTemplate.Value;
       var data = parsedData.Value;
-      if (tmpl == null || data.Count == 0) return Text.Label("No data loaded.");
+      if (tmpl == null || data.Count == 0) return RenderHome();
 
       var headers = tmpl.GetHeaders();
-      // Map to DynamicRows
       var dRows = data.Select(d =>
       {
         var r = new DynamicRow();
@@ -407,15 +391,28 @@ public class ExcelDataReaderApp : ViewBase
         ShowVerticalBorders = true
       };
 
-      return Layout.Vertical().Gap(10).Padding(10)
-         .Add(Layout.Horizontal().Align(Align.Center).Add(Text.H3("Data View")).Add(new Spacer()).Add(Text.Muted($"{data.Count} Rows")))
-         .Add(new DataTableView(dRows, Size.Full(), Size.Fit(), cols, config));
+      return Layout.Vertical().Gap(10).Padding(20)
+         | new Card(
+             Layout.Vertical().Gap(10)
+             | Layout.Horizontal().Gap(10).Align(Align.Center)
+                 | new Button("Back", () => activeMode.Set(AnalyzerMode.Home)).Variant(ButtonVariant.Outline).Icon(Icons.ArrowLeft)
+                 | Text.H3("Data View")
+                 | new Spacer()
+                 | Text.Muted($"{data.Count} Rows")
+             | new DataTableView(dRows, Size.Full(), Size.Fit(), cols, config)
+         );
     }
 
-    // Layout
-    return Layout.Horizontal().Gap(16).Padding(20)
-        .Add(RenderLeftCard())
-        .Add(RenderRightCard());
+    // --- Main Build ---
+    return activeMode.Value switch
+    {
+      AnalyzerMode.Home => RenderHome(),
+      AnalyzerMode.Analysis => RenderAnalysisResults(),
+      AnalyzerMode.TemplateCreation => RenderTemplateCreation(),
+      AnalyzerMode.Annex => RenderAnnexForm(),
+      AnalyzerMode.DataView => RenderDataTableView(),
+      _ => RenderHome()
+    };
   }
 
   // --- Parsing & Analysis Helpers ---
