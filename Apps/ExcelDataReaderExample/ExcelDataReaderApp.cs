@@ -194,13 +194,15 @@ public class ExcelDataReaderApp : ViewBase
           (activeMode.Value == AnalyzerMode.Home ||
            activeMode.Value == AnalyzerMode.TemplateCreation ||
            activeMode.Value == AnalyzerMode.Analysis ||
-           activeMode.Value == AnalyzerMode.Annex);
+           activeMode.Value == AnalyzerMode.Annex ||
+           activeMode.Value == AnalyzerMode.DataView);
 
       string GetDialogTitle() => activeMode.Value switch
       {
         AnalyzerMode.TemplateCreation => "Create Import Template",
         AnalyzerMode.Analysis => "File Metadata",
         AnalyzerMode.Annex => "Annex Data",
+        AnalyzerMode.DataView => "Data Preview",
         _ => matchedTemplate.Value != null ? "Match Found" : "File Analyzed"
       };
 
@@ -239,6 +241,7 @@ public class ExcelDataReaderApp : ViewBase
                    activeMode.Value == AnalyzerMode.TemplateCreation ? RenderTemplateCreationContent() :
                    activeMode.Value == AnalyzerMode.Analysis ? RenderAnalysisContent() :
                    activeMode.Value == AnalyzerMode.Annex ? RenderAnnexContent() :
+                   activeMode.Value == AnalyzerMode.DataView ? RenderDataTableView() :
                    Layout.Vertical().Gap(20).Align(Align.Center)
                        | (matchedTemplate.Value != null
                           ? Layout.Vertical().Gap(15).Align(Align.Center).Width(Size.Full())
@@ -393,7 +396,7 @@ public class ExcelDataReaderApp : ViewBase
     {
       var tmpl = matchedTemplate.Value;
       var data = parsedData.Value;
-      if (tmpl == null || data.Count == 0) return RenderHome();
+      if (tmpl == null || data.Count == 0) return Text.Muted("No data loaded.");
 
       var headers = tmpl.GetHeaders();
       var dRows = data.Select(d =>
@@ -430,16 +433,12 @@ public class ExcelDataReaderApp : ViewBase
         ShowVerticalBorders = true
       };
 
-      return Layout.Vertical().Gap(10).Padding(20)
-         | new Card(
-             Layout.Vertical().Gap(10)
-             | Layout.Horizontal().Gap(10).Align(Align.Center)
-                 | new Button("Back", () => activeMode.Set(AnalyzerMode.Home)).Variant(ButtonVariant.Outline).Icon(Icons.ArrowLeft)
-                 | Text.H3("Data View")
-                 | new Spacer()
-                 | Text.Muted($"{data.Count} Rows")
-             | new DataTableView(dRows, Size.Full(), Size.Fit(), cols, config)
-         );
+      // Return content suitable for Dialog Body (no card/padding)
+      return Layout.Vertical().Gap(10).Width(Size.Full())
+              | Layout.Horizontal().Gap(10).Align(Align.Center)
+                  | new Button("Back", () => activeMode.Set(AnalyzerMode.Home)).Variant(ButtonVariant.Link).Icon(Icons.ArrowLeft)
+                  | Text.H4($"{data.Count} Rows")
+              | new DataTableView(dRows, Size.Full(), Size.Fit(), cols, config);
     }
 
     // --- Main Build ---
@@ -449,7 +448,7 @@ public class ExcelDataReaderApp : ViewBase
       AnalyzerMode.Analysis => RenderHome(), // Now handled in Dialog
       AnalyzerMode.TemplateCreation => RenderHome(), // Handled in Dialog
       AnalyzerMode.Annex => RenderHome(), // Handled in Dialog
-      AnalyzerMode.DataView => RenderDataTableView(),
+      AnalyzerMode.DataView => RenderHome(), // RenderHome handles Dialog
       _ => RenderHome()
     };
   }
