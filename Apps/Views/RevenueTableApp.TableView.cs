@@ -80,11 +80,6 @@ public class RevenueTableView : ViewBase
     // Handle "Sheet" Views
 
 
-    if (selectedDetailsId.Value != null)
-    {
-      return new RevenueEditSheet(selectedDetailsId.Value.Value, () => selectedDetailsId.Set((int?)null));
-    }
-
     // State for Create Sheet
     var showCreateSheet = UseState(false);
     if (showCreateSheet.Value)
@@ -169,18 +164,22 @@ public class RevenueTableView : ViewBase
             .Gap(10)
             .Add(searchBar)
             .Add(filterSelect));
-    // Removed Size.Full() from the inner container, so it hugs content.
-    // But then it will be left aligned next to title.
-    // We want it right aligned.
-    // If Justify.SpaceBetween works...
-    // Let's try putting them in a stack?
-    // Or assume Size.Full() works if we give the first item a size?
 
+    return new Fragment(
+        Layout.Vertical()
+            .Gap(10)
+            .Padding(20)
+            .Add(new Card(headerContent))
+            .Add(new Card(table).Title("")),
 
-    return Layout.Vertical()
-        .Gap(10)
-        .Padding(20)
-        .Add(new Card(headerContent))
-        .Add(new Card(table).Title(""));
+        selectedDetailsId.Value != null ? new Dialog(
+            _ => selectedDetailsId.Set((int?)null),
+            new DialogHeader("Edit Entry"),
+            new DialogBody(
+                new RevenueEditSheet(selectedDetailsId.Value.Value, () => selectedDetailsId.Set((int?)null))
+            ),
+            new DialogFooter()
+        ) : null
+    );
   }
 }

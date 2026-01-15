@@ -199,7 +199,7 @@ public class ExcelDataReaderApp : ViewBase
       string GetDialogTitle() => activeMode.Value switch
       {
         AnalyzerMode.TemplateCreation => "Create Import Template",
-        AnalyzerMode.Analysis => "File Analysis",
+        AnalyzerMode.Analysis => "File Metadata",
         AnalyzerMode.Annex => "Annex Data",
         _ => matchedTemplate.Value != null ? "Match Found" : "File Analyzed"
       };
@@ -249,9 +249,9 @@ public class ExcelDataReaderApp : ViewBase
                                     DropDownMenu.DefaultSelectHandler(),
                                     new Button("Actions").Icon(Icons.ChevronDown).Width(Size.Full())
                                 )
-                                  | MenuItem.Default("View Analysis Results").Icon(Icons.Info)
+                                  | MenuItem.Default("View File Metadata").Icon(Icons.Info)
                                       .HandleSelect(() => activeMode.Set(AnalyzerMode.Analysis))
-                                  | MenuItem.Default("View Contents").Icon(Icons.Eye)
+                                  | MenuItem.Default("View Table").Icon(Icons.Eye)
                                       .HandleSelect(() =>
                                       {
                                         parsedData.Set(ParseCurrentFile());
@@ -282,7 +282,7 @@ public class ExcelDataReaderApp : ViewBase
       var fa = fileAnalysis.Value;
 
       return Layout.Vertical().Gap(10).Width(Size.Full())
-           | new Button("Back", () => activeMode.Set(AnalyzerMode.Home)).Variant(ButtonVariant.Link).Icon(Icons.ArrowLeft).Align(Align.Start)
+           | new Button("Back", () => activeMode.Set(AnalyzerMode.Home)).Variant(ButtonVariant.Link).Icon(Icons.ArrowLeft)
            | new Markdown($"""                                
                              | Property | Value |
                              |----------|-------|
@@ -357,7 +357,7 @@ public class ExcelDataReaderApp : ViewBase
       ).ToList();
 
       return Layout.Vertical().Gap(20).Width(Size.Full())
-           | new Button("Back", () => activeMode.Set(AnalyzerMode.Home)).Variant(ButtonVariant.Link).Icon(Icons.ArrowLeft).Align(Align.Start)
+           | new Button("Back", () => activeMode.Set(AnalyzerMode.Home)).Variant(ButtonVariant.Link).Icon(Icons.ArrowLeft)
            | Text.Muted("Attach the current file content to an existing Revenue Entry.")
            | Layout.Vertical().Gap(5)
                | "Target Entry"
@@ -372,7 +372,15 @@ public class ExcelDataReaderApp : ViewBase
              var entry = await db.RevenueEntries.FindAsync(annexSelectedId.Value);
              if (entry != null)
              {
-               entry.JsonData = JsonSerializer.Serialize(data);
+               // Save with Metadata
+               var payload = new
+               {
+                 FileName = fileAnalysis.Value?.FileName ?? "Unknown File",
+                 TemplateName = matchedTemplate.Value?.Name ?? "Unknown Template",
+                 Rows = data
+               };
+               entry.JsonData = JsonSerializer.Serialize(payload);
+
                await db.SaveChangesAsync();
                client.Toast($"Annexed to {entry.Description}", "Success");
                activeMode.Set(AnalyzerMode.Home);
