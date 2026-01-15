@@ -317,22 +317,54 @@ public class ExcelDataReaderApp : ViewBase
     {
       if (fileAnalysis.Value?.Sheets.Count == 0) return Text.Muted("No sheets found.");
       var headers = fileAnalysis.Value!.Sheets[0].Headers;
-      var headerOptions = headers.Select(h => new Option<string?>(h, h)).ToList();
 
       return Layout.Vertical().Gap(10).Width(Size.Full())
           | Text.Muted("Define a name for this data structure.")
           | Layout.Vertical().Gap(5)
-              | Text.Label("Detected Headers")
-              | Text.Muted(string.Join(", ", headers))
-          | Layout.Vertical().Gap(5)
               | Text.Label("Template Name")
               | newTemplateName.ToTextInput().Placeholder("e.g. Spotify Report")
-          | Layout.Vertical().Gap(5)
-              | Text.Label("Asset Match Column (Optional)")
-              | newTemplateAssetColumn.ToSelectInput(headerOptions).Placeholder("Select column for Asset Name...")
-          | Layout.Vertical().Gap(5)
-              | Text.Label("Amount Column (Optional)")
-              | newTemplateAmountColumn.ToSelectInput(headerOptions).Placeholder("Select column for Revenue...")
+          | Layout.Vertical().Gap(10).Padding(10, 0)
+              | Text.Label("Map Columns")
+              | Text.Muted("Click buttons to map columns to Asset Name and Revenue Amount.")
+              | Layout.Vertical().Gap(5)
+                  | headers.Select(h =>
+                  {
+                    var isAsset = newTemplateAssetColumn.Value == h;
+                    var isAmount = newTemplateAmountColumn.Value == h;
+
+                    return Layout.Horizontal().Gap(10).Align(Align.Center).Padding(5)
+                        // Header Name
+                        | Layout.Vertical().Width(200)
+                            | Text.Label(h)
+
+                        // Badges / Buttons
+                        | (isAsset
+                            ? new Button("Asset Name").Variant(ButtonVariant.Primary).Icon(Icons.Check).Disabled(true)
+                            : isAmount
+                                ? new Button("Amount").Variant(ButtonVariant.Primary).Icon(Icons.Check).Disabled(true)
+                                : Layout.Horizontal().Gap(5)
+                                    | new Button("Asset", () =>
+                                    {
+                                      if (newTemplateAmountColumn.Value == h) newTemplateAmountColumn.Set((string?)null);
+                                      newTemplateAssetColumn.Set(h);
+                                    }).Variant(ButtonVariant.Outline)
+                                    | new Button("Amount", () =>
+                                    {
+                                      if (newTemplateAssetColumn.Value == h) newTemplateAssetColumn.Set((string?)null);
+                                      newTemplateAmountColumn.Set(h);
+                                    }).Variant(ButtonVariant.Outline)
+                          )
+
+                        // Clear Action (only if mapped)
+                        | ((isAsset || isAmount)
+                            ? new Button("Clear", () =>
+                            {
+                              if (isAsset) newTemplateAssetColumn.Set((string?)null);
+                              if (isAmount) newTemplateAmountColumn.Set((string?)null);
+                            }).Variant(ButtonVariant.Outline).Icon(Icons.X)
+                            : null
+                          );
+                  }).ToArray()
           | new Button("Save Template", async () =>
           {
             if (string.IsNullOrWhiteSpace(newTemplateName.Value)) { client.Toast("Name required", "Warning"); return; }
