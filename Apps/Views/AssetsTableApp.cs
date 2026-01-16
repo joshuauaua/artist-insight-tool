@@ -35,7 +35,7 @@ public class AssetsTableApp : ViewBase
       return null;
     }
 
-    UseEffect(LoadData, [refreshToken]);
+    UseEffect(LoadData, [EffectTrigger.AfterInit(), refreshToken]);
 
     if (showCreate.Value)
     {
