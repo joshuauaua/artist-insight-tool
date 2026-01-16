@@ -115,7 +115,8 @@ public class ImportSpotifyAssetSheet(Action onClose) : ViewBase
   public override object Build()
   {
     var factory = UseService<ArtistInsightToolContextFactory>();
-    var artistId = UseState("");
+    var importType = UseState("Artist");
+    var id = UseState("");
     var token = UseState("");
     var isImporting = UseState(false);
 
@@ -124,29 +125,31 @@ public class ImportSpotifyAssetSheet(Action onClose) : ViewBase
         new DialogHeader("Fetch Asset from Spotify"),
         new DialogBody(
             Layout.Vertical().Gap(10)
-            .Add(Text.Label("Spotify Artist ID"))
-            .Add(artistId.ToTextInput().Placeholder("e.g. 0TnOYISbd1XYRBk9myaseg"))
+            .Add(Text.Label("Import Type"))
+            .Add(importType.ToSelectInput([new Option<string>("Artist", "Artist"), new Option<string>("Song", "Song")]))
+            .Add(Text.Label("Spotify ID"))
+            .Add(id.ToTextInput().Placeholder("e.g. 0TnOYISbd1XYRBk9myaseg"))
             .Add(Text.Label("Bearer Token"))
             .Add(token.ToTextInput().Placeholder("Authorization: Bearer ..."))
             .Add(Layout.Horizontal().Align(Align.Right).Gap(10).Padding(10, 0, 0, 0)
                 .Add(new Button("Cancel", onClose))
                 .Add(new Button("Fetch & Create", async () =>
                 {
-                  if (string.IsNullOrWhiteSpace(artistId.Value) || string.IsNullOrWhiteSpace(token.Value))
+                  if (string.IsNullOrWhiteSpace(id.Value) || string.IsNullOrWhiteSpace(token.Value))
                   {
-                    // Error: Artist ID and Token are required.
+                    // Error: ID and Token are required.
                     return;
                   }
 
                   isImporting.Set(true);
-                  // error cleared
 
                   try
                   {
                     using var client = new HttpClient();
                     client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token.Value);
 
-                    var url = $"https://api.spotify.com/v1/artists/{artistId.Value}";
+                    string endpoint = importType.Value == "Artist" ? "artists" : "tracks";
+                    var url = $"https://api.spotify.com/v1/{endpoint}/{id.Value}";
                     var response = await client.GetAsync(url);
 
                     if (!response.IsSuccessStatusCode)
@@ -158,25 +161,22 @@ public class ImportSpotifyAssetSheet(Action onClose) : ViewBase
 
                     var json = await response.Content.ReadAsStringAsync();
                     using var doc = JsonDocument.Parse(json);
+
                     if (doc.RootElement.TryGetProperty("name", out var nameProp))
                     {
-                      var artistName = nameProp.GetString();
-                      if (!string.IsNullOrEmpty(artistName))
+                      var assetName = nameProp.GetString();
+                      if (!string.IsNullOrEmpty(assetName))
                       {
                         await using var db = factory.CreateDbContext();
                         db.Assets.Add(new Asset
                         {
-                          Name = artistName,
-                          Type = "Artist",
+                          Name = assetName,
+                          Type = importType.Value, // "Artist" or "Song"
                           AmountGenerated = 0
                         });
                         await db.SaveChangesAsync();
                         onClose();
                       }
-                    }
-                    else
-                    {
-                      // Error: Could not parse name
                     }
                   }
                   catch (Exception)
