@@ -118,7 +118,6 @@ public class ImportSpotifyAssetSheet(Action onClose) : ViewBase
     var artistId = UseState("");
     var token = UseState("");
     var isImporting = UseState(false);
-    var isImporting = UseState(false);
 
     return new Dialog(
         _ => onClose(),
