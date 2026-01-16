@@ -181,26 +181,13 @@ public class RevenueEditSheet(int id, Action onClose) : ViewBase
         .Add(sheets.Count > 0
             ? Layout.Vertical().Gap(5)
                 .Add(Text.Label("Annexed Data"))
-                .Add(Layout.Vertical().Gap(0)
-
-                    // Header
-                    .Add(Layout.Horizontal().Padding(10, 2).Gap(10)
-                        .Add(Text.Muted("Name").Width(Size.Fraction(3)))
-                        .Add(Text.Muted("Template").Width(Size.Fraction(2)))
-                    )
-
-                    // Rows
-                    .Add(Layout.Vertical()
-                        .Add(sheets.Select((s, i) =>
-                            Layout.Horizontal().Padding(10, 2).Gap(10).Align(Align.Center)
-                                .Add(Layout.Horizontal().Width(Size.Fraction(3))
-                                    .Add(new Button(string.IsNullOrEmpty(s.Title) ? s.FileName : s.Title, () => viewingSheetIndex.Set(i))
-                                        .Variant(ButtonVariant.Link)
-                                    )
-                                )
-                                .Add(Text.Muted(s.TemplateName ?? "-").Width(Size.Fraction(2)))
-                        ).ToArray())
-                    )
+                .Add(
+                    viewingSheetIndex.ToSelectInput(
+                        sheets.Select((s, i) => new Option<int?>(
+                            $"{(!string.IsNullOrEmpty(s.Title) ? s.Title : s.FileName)} | {s.TemplateName ?? "-"}",
+                            i
+                        )).ToList()
+                    ).Placeholder("Select annexed file to view...")
                 )
             : null
         )
