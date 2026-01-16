@@ -64,7 +64,7 @@ public class AssetsTableApp : ViewBase
       a.Name,
       a.Type,
       Amount = a.AmountGenerated.ToString("C"),
-      Delete = new Button("", () => DeleteAsset(a.Id)).Icon(Icons.Trash).Variant(ButtonVariant.Destructive)
+      Delete = new Button("", async () => await DeleteAsset(a.Id)).Icon(Icons.Trash).Variant(ButtonVariant.Destructive)
     }).ToArray()
     .ToTable()
     .Width(Size.Full())
