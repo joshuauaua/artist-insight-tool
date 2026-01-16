@@ -46,19 +46,33 @@ public class AssetsTableApp : ViewBase
       });
     }
 
+    async Task DeleteAsset(int id)
+    {
+      await using var db = factory.CreateDbContext();
+      var asset = await db.Assets.FindAsync(id);
+      if (asset != null)
+      {
+        db.Assets.Remove(asset);
+        await db.SaveChangesAsync();
+        refreshToken.Set(refreshToken.Value + 1);
+      }
+    }
+
     var table = assets.Value.Select(a => new
     {
       a.Id,
       a.Name,
       a.Type,
-      Amount = a.AmountGenerated.ToString("C")
+      Amount = a.AmountGenerated.ToString("C"),
+      Delete = new Button("", () => DeleteAsset(a.Id)).Icon(Icons.Trash).Variant(ButtonVariant.Destructive)
     }).ToArray()
     .ToTable()
     .Width(Size.Full())
     .Header(x => x.Id, "ID")
     .Header(x => x.Name, "Asset Name")
     .Header(x => x.Type, "Type")
-    .Header(x => x.Amount, "Amount Generated");
+    .Header(x => x.Amount, "Amount Generated")
+    .Header(x => x.Delete, "Delete");
 
     return Layout.Vertical()
         .Height(Size.Full())
