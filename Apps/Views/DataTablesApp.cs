@@ -83,7 +83,7 @@ public class DataTablesApp : ViewBase
       }
     }, [EffectTrigger.AfterInit(), refresh]);
 
-    var searchQuery = UseState("");
+    var selectedIds = UseState<HashSet<string>>([]);
 
     // Filter items based on search
     var filteredItems = tables.Value;
@@ -96,6 +96,8 @@ public class DataTablesApp : ViewBase
       ).ToList();
     }
 
+    bool allSelected = filteredItems.Count > 0 && selectedIds.Value.Count == filteredItems.Count;
+
     var headerContent = Layout.Vertical()
        .Width(Size.Full())
        .Height(Size.Fit())
@@ -107,14 +109,18 @@ public class DataTablesApp : ViewBase
             .Align(Align.Center)
             .Add("Data Tables")
             .Add(new Spacer().Width(Size.Fraction(1)))
-       // No action button needed for now
+            .Add(selectedIds.Value.Count > 0
+                ? Layout.Horizontal().Gap(10).Align(Align.Center)
+                    .Add(Text.Small($"{selectedIds.Value.Count} selected"))
+                    .Add(new Button("Deselect All", () => selectedIds.Set([])).Variant(ButtonVariant.Ghost))
+                : null
+            )
        )
        .Add(Layout.Horizontal()
            .Width(Size.Full())
            .Height(Size.Fit())
            .Gap(10)
            .Add(searchQuery.ToTextInput().Placeholder("Search tables...").Width(300))
-       // Placeholder for filters if needed later
        );
 
     return new Fragment(
@@ -130,18 +136,32 @@ public class DataTablesApp : ViewBase
                     .Add(filteredItems.Count > 0
                         ? filteredItems.Select(t => new
                         {
-                          IdButton = new Button(t.Id, () => { }).Variant(ButtonVariant.Ghost), // Ghost button for ID to match Revenue
+                          Select = new Checkbox(selectedIds.Value.Contains(t.Id), _ =>
+                          {
+                            var newSet = new HashSet<string>(selectedIds.Value);
+                            if (newSet.Contains(t.Id)) newSet.Remove(t.Id);
+                            else newSet.Add(t.Id);
+                            selectedIds.Set(newSet);
+                          }),
+                          IdButton = new Button(t.Id, () => { }).Variant(ButtonVariant.Ghost),
                           t.Name,
                           t.AnnexedTo,
                           t.LinkedTo,
                           t.Date
                         }).ToArray().ToTable()
                             .Width(Size.Full())
+                            // Header checkbox for Select All
+                            .Add(x => x.Select)
                             .Add(x => x.IdButton)
                             .Add(x => x.Name)
                             .Add(x => x.AnnexedTo)
                             .Add(x => x.LinkedTo)
                             .Add(x => x.Date)
+                            .Header(x => x.Select, new Checkbox(allSelected, _ =>
+                            {
+                              if (allSelected) selectedIds.Set([]);
+                              else selectedIds.Set(new HashSet<string>(filteredItems.Select(i => i.Id)));
+                            }))
                             .Header(x => x.IdButton, "ID")
                             .Header(x => x.Name, "Name")
                             .Header(x => x.AnnexedTo, "Annexed To")
@@ -150,9 +170,6 @@ public class DataTablesApp : ViewBase
                         : Text.Muted("No data tables found.")
                     )
             )
-    // Add Debug info at the bottom if empty or just hidden for now, user didn't ask for it to be removed but "match UI" implies cleaner look.
-    // I'll keep it hidden unless really needed or maybe strict visual match means removing it.
-    // I'll remove the debug card from the main view to match the clean look.
     );
   }
 }

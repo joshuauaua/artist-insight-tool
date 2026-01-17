@@ -34,3 +34,15 @@ Sources Count: 6
  - ID: 5, Desc: Other
 
 Total Assets: 1
+ - [004] Bonafide (Single)
+
+--- Data Tables Analysis ---
+ - Entry 15: Multi-sheet (1 tables)
+ - Entry 19: Multi-sheet (1 tables)
+ - Entry 22: Multi-sheet (1 tables)
+ - Entry 23: Multi-sheet (1 tables)
+ - Entry 24: Multi-sheet (1 tables)
+ - Entry 25: Multi-sheet (1 tables)
+ - Entry 26: Multi-sheet (1 tables)
+ - Entry 27: Multi-sheet (1 tables)
+ - Entry 28: Multi-sheet (1 tables)
