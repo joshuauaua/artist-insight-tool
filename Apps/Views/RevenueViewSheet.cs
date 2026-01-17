@@ -127,20 +127,19 @@ public class RevenueViewSheet(int id, Action onClose, Action onEdit) : ViewBase
     var infoName = e.Track?.Title ?? e.Album?.Title ?? "-";
     var type = e.Track != null ? "Track" : (e.Album != null ? "Album" : "Other");
 
-    return Layout.Vertical().Gap(15)
+    return Layout.Vertical().Gap(10)
         // 1. Name & Description
-        .Add(Layout.Vertical().Gap(5)
-            .Add(Text.H4(e.Description ?? "-"))
-        )
+        // 1. Name & Description
+        .Add(Text.H4(e.Description ?? "-"))
         // 2. Date & Amount Row
-        .Add(Layout.Horizontal().Gap(20)
-            .Add(Layout.Vertical().Gap(5).Width(Size.Fraction(1))
+        .Add(Layout.Horizontal().Gap(10)
+            .Add(Layout.Vertical().Gap(2).Width(Size.Fraction(1))
                 .Add(Text.Label("Date"))
                 .Add(Text.P(e.RevenueDate.ToShortDateString()))
             )
-            .Add(Layout.Vertical().Gap(5).Width(Size.Fraction(1))
+            .Add(Layout.Vertical().Gap(2).Width(Size.Fraction(1))
                 .Add(Text.Label("Amount"))
-                .Add(Text.H4(e.Amount.ToString("C", CultureInfo.GetCultureInfo("sv-SE"))))
+                .Add(Text.P(e.Amount.ToString("C", CultureInfo.GetCultureInfo("sv-SE"))))
             )
         )
         // 3. Category & Source Info Card
@@ -157,21 +156,20 @@ public class RevenueViewSheet(int id, Action onClose, Action onEdit) : ViewBase
                          .Add(Text.Muted(type))
                      )
                  )
-                 .Add(Text.Muted($"Linked to: {infoName}"))
         ))
         // 4. Annexed Data
-        .Add(sheets.Count > 0
-            ? Layout.Vertical().Gap(5)
-                .Add(Text.Label("Annexed Data"))
-                .Add(
-                    viewingSheetIndex.ToSelectInput(
-                        sheets.Select((s, i) => new Option<int?>(
-                            $"{(!string.IsNullOrEmpty(s.Title) ? s.Title : s.FileName)} | {s.TemplateName ?? "-"}",
-                            i
-                        )).ToList()
-                    ).Placeholder("Select annexed file to view...")
-                )
-            : null
+        // 4. Annexed Data
+        .Add(Layout.Vertical().Gap(5)
+            .Add(Text.Label("Annexed Data"))
+            .Add(sheets.Count > 0
+                ? viewingSheetIndex.ToSelectInput(
+                    sheets.Select((s, i) => new Option<int?>(
+                        $"{(!string.IsNullOrEmpty(s.Title) ? s.Title : s.FileName)} | {s.TemplateName ?? "-"}",
+                        i
+                    )).ToList()
+                ).Placeholder("Select annexed file to view...")
+                : Text.Muted("No annexed data available")
+            )
         )
         // Actions
         .Add(Layout.Horizontal().Align(Align.Right).Gap(10).Padding(10, 0, 0, 0)
