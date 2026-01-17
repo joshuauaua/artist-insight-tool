@@ -13,7 +13,7 @@ public class DataTablesApp : ViewBase
   public override object? Build()
   {
     var factory = UseService<ArtistInsightToolContextFactory>();
-    var refresh = UseRefreshToken();
+    var refresh = UseState(0);
     var tables = UseState<List<TableItem>>([]);
 
     UseEffect(async () =>
@@ -87,7 +87,7 @@ public class DataTablesApp : ViewBase
       }
 
       tables.Set(items);
-
+      return null;
     }, [refresh]);
 
     return Layout.Vertical()
