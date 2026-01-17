@@ -1,4 +1,5 @@
 using Ivy.Shared;
+using System.Globalization;
 
 namespace ArtistInsightTool.Apps.Views;
 
@@ -62,7 +63,7 @@ public class RevenueTableView : ViewBase
          Layout.Horizontal().Width(Size.Fraction(1)).Add(r.Source),
 
          // Amount (Right aligned, evenly spaced)
-         Layout.Horizontal().Width(Size.Fraction(1)).Align(Align.Right).Add(r.Amount.ToString("C")),
+         Layout.Horizontal().Width(Size.Fraction(1)).Align(Align.Right).Add(r.Amount.ToString("C", CultureInfo.GetCultureInfo("sv-SE"))),
          r.RevenueDate,
          r.Name,
          r.Type,
@@ -165,7 +166,7 @@ public class RevenueTableView : ViewBase
       Name = r.Name,
       Type = r.Type,
       Source = r.Source,
-      Amount = r.Amount.ToString("C")
+      Amount = r.Amount.ToString("C", CultureInfo.GetCultureInfo("sv-SE"))
     }).ToArray();
 
     // Use ToTable() pattern

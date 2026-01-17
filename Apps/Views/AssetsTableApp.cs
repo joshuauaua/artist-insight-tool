@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text.Json;
+using System.Globalization;
 
 namespace ArtistInsightTool.Apps.Views;
 
@@ -77,7 +78,7 @@ public class AssetsTableApp : ViewBase
       a.Id,
       a.Name,
       a.Type,
-      Amount = a.AmountGenerated.ToString("C"),
+      Amount = a.AmountGenerated.ToString("C", CultureInfo.GetCultureInfo("sv-SE")),
       Delete = new Button("", async () => await DeleteAsset(a.Id)).Icon(Icons.Trash).Variant(ButtonVariant.Destructive)
     }).ToArray()
     .ToTable()
