@@ -17,6 +17,12 @@ public class Asset
   [MaxLength(50)]
   public string Type { get; set; } = "";
 
+  [MaxLength(50)]
+  public string Category { get; set; } = "";
+
+  [MaxLength(100)]
+  public string Collection { get; set; } = "";
+
   [Column(TypeName = "decimal(18,2)")]
   public decimal AmountGenerated { get; set; }
 

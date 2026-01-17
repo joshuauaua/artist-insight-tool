@@ -32,7 +32,9 @@ public class AssetsTableApp : ViewBase
           {
             Id = a.Id,
             Name = a.Name,
+            Category = a.Category,
             Type = a.Type,
+            Collection = a.Collection,
             AmountGenerated = a.AssetRevenues.Sum(ar => ar.Amount)
           })
           .OrderBy(a => a.Name)
@@ -77,7 +79,9 @@ public class AssetsTableApp : ViewBase
     {
       Id = $"A{a.Id:D3}",
       a.Name,
+      a.Category,
       a.Type,
+      a.Collection,
       Amount = a.AmountGenerated.ToString("C", CultureInfo.GetCultureInfo("sv-SE")),
       Delete = new Button("", async () => await DeleteAsset(a.Id)).Icon(Icons.Trash).Variant(ButtonVariant.Destructive)
     }).ToArray()
@@ -85,7 +89,9 @@ public class AssetsTableApp : ViewBase
     .Width(Size.Full())
     .Header(x => x.Id, "ID")
     .Header(x => x.Name, "Asset Name")
+    .Header(x => x.Category, "Category")
     .Header(x => x.Type, "Type")
+    .Header(x => x.Collection, "Collection")
     .Header(x => x.Amount, "Amount Generated")
     .Header(x => x.Delete, "Delete");
 
@@ -199,7 +205,29 @@ public class CreateAssetSheet(Action onClose) : ViewBase
   {
     var factory = UseService<ArtistInsightToolContextFactory>();
     var name = UseState("");
+    var category = UseState("Royalties");
     var type = UseState("");
+    var collection = UseState("");
+
+    var typeOptions = category.Value switch
+    {
+      "Concert" => new[] { "Single Concert", "Tour" },
+      "Merchandise" => new[] { "Item", "Collection" },
+      "Royalties" => new[] { "Single", "EP", "Album" },
+      _ => Array.Empty<string>()
+    };
+
+    UseEffect(() =>
+    {
+      if (category.Value == "Other")
+      {
+        type.Set("");
+      }
+      else if (typeOptions.Length > 0 && !typeOptions.Contains(type.Value))
+      {
+        type.Set(typeOptions[0]);
+      }
+    }, [category]);
 
     return new Dialog(
         _ => onClose(),
@@ -208,8 +236,14 @@ public class CreateAssetSheet(Action onClose) : ViewBase
             Layout.Vertical().Gap(10)
             .Add(Text.Label("Name"))
             .Add(name.ToTextInput().Placeholder("Asset Name"))
+            .Add(Text.Label("Category"))
+            .Add(category.ToSelectInput(new[] { "Concert", "Merchandise", "Royalties", "Other" }.Select(c => new Option<string>(c, c))))
             .Add(Text.Label("Type"))
-            .Add(type.ToTextInput().Placeholder("e.g. Master, Publishing"))
+            .Add(category.Value == "Other"
+                ? type.ToTextInput().Placeholder("Type")
+                : type.ToSelectInput(typeOptions.Select(t => new Option<string>(t, t))))
+            .Add(Text.Label("Collection"))
+            .Add(collection.ToTextInput().Placeholder("Collection Name"))
             .Add(Layout.Horizontal().Align(Align.Right).Gap(10).Padding(10, 0, 0, 0)
                 .Add(new Button("Cancel", onClose))
                 .Add(new Button("Create", async () =>
@@ -220,7 +254,9 @@ public class CreateAssetSheet(Action onClose) : ViewBase
                   db.Assets.Add(new Asset
                   {
                     Name = name.Value,
+                    Category = category.Value,
                     Type = type.Value,
+                    Collection = collection.Value,
                     AmountGenerated = 0 // Calculated dynamically later
                   });
                   await db.SaveChangesAsync();
