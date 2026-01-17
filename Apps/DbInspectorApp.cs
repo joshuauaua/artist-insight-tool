@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Linq;
 using Microsoft.EntityFrameworkCore;
 using ArtistInsightTool.Connections.ArtistInsightTool;
@@ -41,7 +42,14 @@ public class DbInspectorApp : ViewBase
           report += $" - ID: {s.Id}, Desc: {s.DescriptionText}\n";
         }
 
+
         report += $"\nTotal Assets: {await db.Assets.CountAsync()}\n";
+
+        try
+        {
+          File.WriteAllText("/Users/joshuang/Desktop/Programming/Ivy/artist-insight-tool/db_dump.txt", report);
+        }
+        catch { }
 
         output.Set(report);
       }
