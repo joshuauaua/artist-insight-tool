@@ -41,6 +41,7 @@ public class DataTablesApp : ViewBase
       // Let's do 1..N in the displayed list for simplicity as "View ID".
 
       debugLogs.Add($"Found {entries.Count} entries with potential data.");
+      Console.WriteLine($"DataTablesApp: Found {entries.Count} entries with potential data.");
 
       foreach (var entry in entries)
       {
@@ -49,32 +50,46 @@ public class DataTablesApp : ViewBase
           if (string.IsNullOrWhiteSpace(entry.JsonData))
           {
             debugLogs.Add($"Entry {entry.Id}: JsonData is empty/null");
+            Console.WriteLine($"DataTablesApp: Entry {entry.Id} has empty JsonData");
             continue;
           }
 
-          debugLogs.Add($"Entry {entry.Id}: JSON Length {entry.JsonData.Length}. Sample: {entry.JsonData.Substring(0, Math.Min(50, entry.JsonData.Length))}...");
-
-          var linkedAssets = entry.AssetRevenues?.Select(ar => ar.Asset.Name).Distinct().OrderBy(n => n).ToList() ?? new List<string>();
-          var linkedToStr = linkedAssets.Count > 0 ? string.Join(", ", linkedAssets) : "-";
+          // DEBUG: Dump the first few characters
+          debugLogs.Add($"Entry {entry.Id} Raw Start: {entry.JsonData.Substring(0, Math.Min(100, entry.JsonData.Length))}");
 
           using var doc = JsonDocument.Parse(entry.JsonData);
-          if (doc.RootElement.ValueKind == JsonValueKind.Array)
-          {
-            if (doc.RootElement.GetArrayLength() > 0)
-            {
-              var first = doc.RootElement[0];
-              debugLogs.Add($"Entry {entry.Id}: First element kind: {first.ValueKind}");
+          var root = doc.RootElement;
 
-              if (first.ValueKind == JsonValueKind.Object && first.TryGetProperty("FileName", out _))
+          debugLogs.Add($"Entry {entry.Id} Root Kind: {root.ValueKind}");
+
+          if (root.ValueKind == JsonValueKind.Array)
+          {
+            int arrayLen = root.GetArrayLength();
+            debugLogs.Add($"Entry {entry.Id} Array Length: {arrayLen}");
+
+            if (arrayLen > 0)
+            {
+              var first = root[0];
+              debugLogs.Add($"Entry {entry.Id} First Item Kind: {first.ValueKind}");
+
+              // Try casing check
+              var hasFileName = first.TryGetProperty("FileName", out _) || first.TryGetProperty("fileName", out _);
+              debugLogs.Add($"Entry {entry.Id} Has 'FileName' (or camel): {hasFileName}");
+
+              if (first.ValueKind == JsonValueKind.Object && hasFileName)
               {
-                foreach (var element in doc.RootElement.EnumerateArray())
+                foreach (var element in root.EnumerateArray())
                 {
-                  var sheetTitle = element.TryGetProperty("Title", out var t) ? t.GetString() : "Unknown";
+                  // Try both cases for Title
+                  string title = "Unknown";
+                  if (element.TryGetProperty("Title", out var t)) title = t.GetString();
+                  else if (element.TryGetProperty("title", out t)) title = t.GetString();
+
                   items.Add(new TableItem(
                       $"DT{index:D3}",
-                      sheetTitle ?? "Untitled",
+                      title ?? "Untitled",
                       entry.Description ?? "No Description",
-                      linkedToStr,
+                      "-", // Ignoring links for debug simplicity
                       entry.UpdatedAt.ToShortDateString()
                   ));
                   index++;
@@ -82,26 +97,26 @@ public class DataTablesApp : ViewBase
               }
               else
               {
-                // Legacy list of rows? 
-                // If it is a list of rows, we count it as ONE table (the entry itself)
+                debugLogs.Add($"Entry {entry.Id}: Fallback to legacy row mode.");
                 items.Add(new TableItem(
                      $"DT{index:D3}",
                     "Legacy Data",
                     entry.Description ?? "No Description",
-                    linkedToStr,
+                    "-",
                     entry.UpdatedAt.ToShortDateString()
                 ));
                 index++;
               }
             }
           }
-          else if (doc.RootElement.ValueKind == JsonValueKind.Object)
+          else if (root.ValueKind == JsonValueKind.Object)
           {
+            debugLogs.Add($"Entry {entry.Id}: Object mode (Single Sheet)");
             items.Add(new TableItem(
                  $"DT{index:D3}",
                 "Single Sheet",
                 entry.Description ?? "No Description",
-                linkedToStr,
+                "-",
                 entry.UpdatedAt.ToShortDateString()
             ));
             index++;
@@ -109,8 +124,20 @@ public class DataTablesApp : ViewBase
         }
         catch (Exception ex)
         {
-          debugLogs.Add($"Error Entry {entry.Id}: {ex.Message}");
+          var msg = $"Error Entry {entry.Id}: {ex.Message}";
+          debugLogs.Add(msg);
+          Console.WriteLine(msg);
         }
+      }
+
+      if (items.Count == 0)
+      {
+        debugLogs.Add("No items generated from any entries.");
+        Console.WriteLine("DataTablesApp: No items generated.");
+      }
+      else
+      {
+        Console.WriteLine($"DataTablesApp: Generated {items.Count} items.");
       }
 
       debug.Set(debugLogs);

@@ -269,6 +269,11 @@ public class ExcelDataReaderApp : ViewBase
                                     parsedData.Set(ParseCurrentFile());
                                     activeMode.Set(AnalyzerMode.Preview);
                                   }).Variant(ButtonVariant.Outline).Icon(Icons.Eye).Width(Size.Full())
+                                  | new Button("Annex to Table", () =>
+                                  {
+                                    parsedData.Set(ParseCurrentFile());
+                                    activeMode.Set(AnalyzerMode.Annex);
+                                  }).Variant(ButtonVariant.Outline).Icon(Icons.Paperclip).Width(Size.Full())
                                   | new Button("Upload", () =>
                                   {
                                     uploadName.Set(fileAnalysis.Value?.Sheets.FirstOrDefault()?.Name ?? "Untitled");
@@ -657,7 +662,8 @@ public class ExcelDataReaderApp : ViewBase
                 Amount = 0,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow,
-                SourceId = otherSource?.Id ?? 1
+                SourceId = otherSource?.Id ?? 1,
+                ArtistId = 1 // Default Artist
               };
               db.RevenueEntries.Add(targetEntry);
             }
@@ -741,13 +747,12 @@ public class ExcelDataReaderApp : ViewBase
                     await db.SaveChangesAsync();
                     existingAssets.AddRange(newAssets);
                   }
-                  if (targetEntry.Id == 0) await db.SaveChangesAsync();
-
+                  // 4. Create Revenue Records
                   var assetMap = existingAssets.ToDictionary(a => a.Name, a => a.Id);
                   var revenueRecords = batchAssets.Select(kvp => new AssetRevenue
                   {
                     AssetId = assetMap[kvp.Key],
-                    RevenueEntryId = targetEntry.Id,
+                    RevenueEntry = targetEntry,
                     Amount = kvp.Value
                   });
                   db.AssetRevenues.AddRange(revenueRecords);
