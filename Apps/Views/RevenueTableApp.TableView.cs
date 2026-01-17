@@ -22,6 +22,7 @@ public class RevenueTableView : ViewBase
 
     // State for Details
     var selectedDetailsId = UseState<int?>(() => null);
+    var isEditingDetails = UseState(false);
 
     async Task<IDisposable?> LoadData()
     {
@@ -160,8 +161,11 @@ public class RevenueTableView : ViewBase
     // Projection for ToTable
     var tableData = filteredEntries.Select(r => new
     {
-      IdButton = new Button($"E{r.Id:D3}", () => selectedDetailsId.Set(r.Id))
-            .Variant(ButtonVariant.Ghost),
+      IdButton = new Button($"E{r.Id:D3}", () =>
+      {
+        selectedDetailsId.Set(r.Id);
+        isEditingDetails.Set(false);
+      }).Variant(ButtonVariant.Ghost),
       Date = r.RevenueDate.ToShortDateString(),
       Name = r.Name,
       Type = r.Type,
@@ -201,9 +205,24 @@ public class RevenueTableView : ViewBase
 
         selectedDetailsId.Value != null ? new Dialog(
             _ => selectedDetailsId.Set((int?)null),
-            new DialogHeader("Edit Entry"),
+            new DialogHeader(isEditingDetails.Value ? "Edit Entry" : "Entry Details"),
             new DialogBody(
-                new RevenueEditSheet(selectedDetailsId.Value.Value, () => selectedDetailsId.Set((int?)null))
+                isEditingDetails.Value
+                ? new RevenueEditSheet(selectedDetailsId.Value.Value, () =>
+                  {
+                    // If canceling/saving from edit, go back to view? Or close?
+                    // Let's assume on Edit completion/cancel we go back to View mode first?
+                    // Or simple close for now as per usual flow if saved.
+                    // If we want cancel to go back to view, RevenueEditSheet needs an OnCancel.
+                    // For now, let's close on Save, but maybe we can just toggle back to view on Close?
+                    // Simpler: Just close everything on finish for now.
+                    selectedDetailsId.Set((int?)null);
+                  })
+                : new RevenueViewSheet(
+                    selectedDetailsId.Value.Value,
+                    () => selectedDetailsId.Set((int?)null),
+                    () => isEditingDetails.Set(true)
+                  )
             ),
             new DialogFooter()
         ) : null
