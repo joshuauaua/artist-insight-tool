@@ -83,24 +83,78 @@ public class DataTablesApp : ViewBase
       }
     }, [refresh]);
 
-    return Layout.Vertical()
-        .Padding(20)
-        .Gap(20)
-        .Add(Text.H3("Data Tables"))
-        .Add(Layout.Horizontal().Gap(10).Align(Align.Center)
-            .Add(new Button("Refresh", () => refresh.Set(refresh.Value + 1)))
-            .Add(isLoading.Value ? Text.Muted("Loading data...") : Text.Muted($"{tables.Value.Count} tables found"))
-        )
-        .Add(isLoading.Value
-            ? Layout.Center().Padding(50).Add(Text.Label("Loading..."))
-            : tables.Value.Count > 0
-                ? tables.Value.ToArray().ToTable()
-                    .Header(x => x.Id, "ID")
-                    .Header(x => x.Name, "Name")
-                    .Header(x => x.AnnexedTo, "Annexed To")
-                    .Header(x => x.LinkedTo, "Linked To")
-                    .Header(x => x.Date, "Uploaded")
-                : Text.Muted("No data tables found.")
-        );
+    var searchQuery = UseState("");
+
+    // Filter items based on search
+    var filteredItems = tables.Value;
+    if (!string.IsNullOrWhiteSpace(searchQuery.Value))
+    {
+      var q = searchQuery.Value.ToLowerInvariant();
+      filteredItems = filteredItems.Where(t =>
+          t.Name.ToLowerInvariant().Contains(q) ||
+          t.Id.ToLowerInvariant().Contains(q)
+      ).ToList();
+    }
+
+    var headerContent = Layout.Vertical()
+       .Width(Size.Full())
+       .Height(Size.Fit())
+       .Gap(10)
+       .Padding(20, 20, 20, 5)
+       .Add(Layout.Horizontal()
+            .Width(Size.Full())
+            .Height(Size.Fit())
+            .Align(Align.Center)
+            .Add("Data Tables")
+            .Add(new Spacer().Width(Size.Fraction(1)))
+            .Add(new Button("Refresh Data", () => refresh.Set(refresh.Value + 1))
+               .Variant(ButtonVariant.Outline) // Using Outline as it's secondary action
+            )
+       )
+       .Add(Layout.Horizontal()
+           .Width(Size.Full())
+           .Height(Size.Fit())
+           .Gap(10)
+           .Add(searchQuery.ToTextInput().Placeholder("Search tables...").Width(300))
+       // Placeholder for filters if needed later
+       );
+
+    return new Fragment(
+        Layout.Vertical()
+            .Height(Size.Full())
+            .Gap(0)
+            .Add(headerContent)
+            .Add(isLoading.Value
+                ? Layout.Center().Padding(50).Add(Text.Label("Loading..."))
+                : Layout.Vertical()
+                    .Height(Size.Fraction(1))
+                    .Padding(20, 0, 20, 50)
+                    .Add(filteredItems.Count > 0
+                        ? filteredItems.Select(t => new
+                        {
+                          IdButton = new Button(t.Id, () => { }).Variant(ButtonVariant.Ghost), // Ghost button for ID to match Revenue
+                          t.Name,
+                          t.AnnexedTo,
+                          t.LinkedTo,
+                          t.Date
+                        }).ToArray().ToTable()
+                            .Width(Size.Full())
+                            .Add(x => x.IdButton)
+                            .Add(x => x.Name)
+                            .Add(x => x.AnnexedTo)
+                            .Add(x => x.LinkedTo)
+                            .Add(x => x.Date)
+                            .Header(x => x.IdButton, "ID")
+                            .Header(x => x.Name, "Name")
+                            .Header(x => x.AnnexedTo, "Annexed To")
+                            .Header(x => x.LinkedTo, "Linked To")
+                            .Header(x => x.Date, "Uploaded")
+                        : Text.Muted("No data tables found.")
+                    )
+            )
+    // Add Debug info at the bottom if empty or just hidden for now, user didn't ask for it to be removed but "match UI" implies cleaner look.
+    // I'll keep it hidden unless really needed or maybe strict visual match means removing it.
+    // I'll remove the debug card from the main view to match the clean look.
+    );
   }
 }
