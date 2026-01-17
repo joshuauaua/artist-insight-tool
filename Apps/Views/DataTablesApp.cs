@@ -81,7 +81,7 @@ public class DataTablesApp : ViewBase
       {
         isLoading.Set(false);
       }
-    }, [refresh]);
+    }, [EffectTrigger.AfterInit(), refresh]);
 
     var searchQuery = UseState("");
 
@@ -107,9 +107,7 @@ public class DataTablesApp : ViewBase
             .Align(Align.Center)
             .Add("Data Tables")
             .Add(new Spacer().Width(Size.Fraction(1)))
-            .Add(new Button("Refresh Data", () => refresh.Set(refresh.Value + 1))
-               .Variant(ButtonVariant.Outline) // Using Outline as it's secondary action
-            )
+       // No action button needed for now
        )
        .Add(Layout.Horizontal()
            .Width(Size.Full())
