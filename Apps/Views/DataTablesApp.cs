@@ -84,6 +84,7 @@ public class DataTablesApp : ViewBase
     }, [EffectTrigger.AfterInit(), refresh]);
 
     var selectedIds = UseState<HashSet<string>>([]);
+    var searchQuery = UseState("");
 
     // Filter items based on search
     var filteredItems = tables.Value;
@@ -136,13 +137,16 @@ public class DataTablesApp : ViewBase
                     .Add(filteredItems.Count > 0
                         ? filteredItems.Select(t => new
                         {
-                          Select = new Checkbox(selectedIds.Value.Contains(t.Id), _ =>
+                          Select = new Button("", () =>
                           {
                             var newSet = new HashSet<string>(selectedIds.Value);
                             if (newSet.Contains(t.Id)) newSet.Remove(t.Id);
                             else newSet.Add(t.Id);
                             selectedIds.Set(newSet);
-                          }),
+                          })
+                            .Icon(selectedIds.Value.Contains(t.Id) ? Icons.CheckSquare : Icons.Square)
+                            .Variant(ButtonVariant.Ghost),
+
                           IdButton = new Button(t.Id, () => { }).Variant(ButtonVariant.Ghost),
                           t.Name,
                           t.AnnexedTo,
@@ -157,11 +161,11 @@ public class DataTablesApp : ViewBase
                             .Add(x => x.AnnexedTo)
                             .Add(x => x.LinkedTo)
                             .Add(x => x.Date)
-                            .Header(x => x.Select, new Checkbox(allSelected, _ =>
+                            .Header(x => x.Select, new Button("", () =>
                             {
                               if (allSelected) selectedIds.Set([]);
                               else selectedIds.Set(new HashSet<string>(filteredItems.Select(i => i.Id)));
-                            }))
+                            }).Icon(allSelected ? Icons.CheckSquare : Icons.Square).Variant(ButtonVariant.Ghost))
                             .Header(x => x.IdButton, "ID")
                             .Header(x => x.Name, "Name")
                             .Header(x => x.AnnexedTo, "Annexed To")
