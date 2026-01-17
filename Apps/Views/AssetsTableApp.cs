@@ -12,7 +12,7 @@ using System.Globalization;
 
 namespace ArtistInsightTool.Apps.Views;
 
-[App(icon: Icons.Table, title: "Assets Table", path: ["Data", "Assets"])]
+[App(icon: Icons.Table, title: "Assets Table", path: ["Pages"])]
 public class AssetsTableApp : ViewBase
 {
   public override object Build()

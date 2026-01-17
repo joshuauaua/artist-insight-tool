@@ -10,7 +10,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace ExcelDataReaderExample;
 
-[App(icon: Icons.Sheet, title: "ExcelDataReader", path: ["Examples", "ExcelDataReader"])]
+[App(icon: Icons.Sheet, title: "Excel Data Reader", path: ["Pages"])]
 public class ExcelDataReaderApp : ViewBase
 {
   private enum AnalyzerMode
