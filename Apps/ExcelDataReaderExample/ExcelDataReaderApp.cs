@@ -19,7 +19,9 @@ public class ExcelDataReaderApp : ViewBase
     Analysis,
     TemplateCreation,
     Annex,
-    DataView
+    DataView,
+    Preview,
+    Upload
   }
 
   public record FileAnalysis
@@ -67,7 +69,12 @@ public class ExcelDataReaderApp : ViewBase
     // --- Template Creation State ---
     var newTemplateName = UseState("");
     var newTemplateAssetColumn = UseState<string?>(() => null);
+
     var newTemplateAmountColumn = UseState<string?>(() => null);
+
+    // --- Upload/Save State ---
+    var uploadName = UseState("");
+    var uploadLinkId = UseState<int?>(() => null);
 
     // --- Upload Logic ---
     var uploadState = UseState<FileUpload<byte[]>?>();
@@ -199,7 +206,9 @@ public class ExcelDataReaderApp : ViewBase
            activeMode.Value == AnalyzerMode.TemplateCreation ||
            activeMode.Value == AnalyzerMode.Analysis ||
            activeMode.Value == AnalyzerMode.Annex ||
-           activeMode.Value == AnalyzerMode.DataView);
+           activeMode.Value == AnalyzerMode.DataView ||
+           activeMode.Value == AnalyzerMode.Preview ||
+           activeMode.Value == AnalyzerMode.Upload);
 
       string GetDialogTitle() => activeMode.Value switch
       {
@@ -207,6 +216,8 @@ public class ExcelDataReaderApp : ViewBase
         AnalyzerMode.Analysis => "File Metadata",
         AnalyzerMode.Annex => "Annex Data",
         AnalyzerMode.DataView => "Data Preview",
+        AnalyzerMode.Preview => "Preview File",
+        AnalyzerMode.Upload => "Upload Table",
         _ => matchedTemplate.Value != null ? "Match Found" : "File Analyzed"
       };
 
@@ -227,14 +238,12 @@ public class ExcelDataReaderApp : ViewBase
            showDialog ? new Dialog(
               _ =>
               {
-                // If closing from a sub-mode, just go back to Home (reset dialog content)
                 if (activeMode.Value != AnalyzerMode.Home)
                 {
                   activeMode.Set(AnalyzerMode.Home);
                 }
                 else
                 {
-                  // Otherwise full close
                   fileAnalysis.Set((FileAnalysis?)null);
                   filePath.Set((string?)null);
                   uploadState.Set((FileUpload<byte[]>?)null);
@@ -246,30 +255,26 @@ public class ExcelDataReaderApp : ViewBase
                    activeMode.Value == AnalyzerMode.Analysis ? RenderAnalysisContent() :
                    activeMode.Value == AnalyzerMode.Annex ? RenderAnnexContent() :
                    activeMode.Value == AnalyzerMode.DataView ? RenderDataTableView() :
+                   activeMode.Value == AnalyzerMode.Preview ? RenderPreviewContent() :
+                   activeMode.Value == AnalyzerMode.Upload ? RenderUploadContent() :
                    Layout.Vertical().Gap(20).Align(Align.Center)
                        | (matchedTemplate.Value != null
                           ? Layout.Vertical().Gap(15).Align(Align.Center).Width(Size.Full())
                               | Layout.Horizontal().Gap(5).Align(Align.Center)
                                   | new Icon(Icons.Check).Size(16)
                                   | Text.Small($"Matched Template: {matchedTemplate.Value.Name}")
-                              | (new DropDownMenu(
-                                    DropDownMenu.DefaultSelectHandler(),
-                                    new Button("Actions").Icon(Icons.ChevronDown).Width(Size.Full())
-                                )
-                                  | MenuItem.Default("View File Metadata").Icon(Icons.Info)
-                                      .HandleSelect(() => activeMode.Set(AnalyzerMode.Analysis))
-                                  | MenuItem.Default("View Table").Icon(Icons.Eye)
-                                      .HandleSelect(() =>
-                                      {
-                                        parsedData.Set(ParseCurrentFile());
-                                        activeMode.Set(AnalyzerMode.DataView);
-                                      })
-                                  | MenuItem.Default("Annex to Entry").Icon(Icons.Link)
-                                      .HandleSelect(() =>
-                                      {
-                                        parsedData.Set(ParseCurrentFile());
-                                        activeMode.Set(AnalyzerMode.Annex);
-                                      }))
+                              | Layout.Horizontal().Gap(10).Align(Align.Center).Padding(10, 0)
+                                  | new Button("Preview File", () =>
+                                  {
+                                    parsedData.Set(ParseCurrentFile());
+                                    activeMode.Set(AnalyzerMode.Preview);
+                                  }).Variant(ButtonVariant.Outline).Icon(Icons.Eye).Width(Size.Full())
+                                  | new Button("Upload", () =>
+                                  {
+                                    uploadName.Set(fileAnalysis.Value?.Sheets.FirstOrDefault()?.Name ?? "Untitled");
+                                    parsedData.Set(ParseCurrentFile());
+                                    activeMode.Set(AnalyzerMode.Upload);
+                                  }).Variant(ButtonVariant.Primary).Icon(Icons.Upload).Width(Size.Full())
                           : Layout.Vertical().Gap(15).Align(Align.Center)
                               | Text.Markdown("✨ **New Structure Detected**")
                               | Text.Muted("This file structure is not recognized. Create a new template to import it.")
@@ -545,7 +550,7 @@ public class ExcelDataReaderApp : ViewBase
     }
 
 
-    object RenderDataTableView()
+    object RenderDataTableView(bool isEmbedded = false)
     {
       var tmpl = matchedTemplate.Value;
       var data = parsedData.Value;
@@ -586,7 +591,11 @@ public class ExcelDataReaderApp : ViewBase
         ShowVerticalBorders = true
       };
 
-      // Return content suitable for Dialog Body (no card/padding)
+      if (isEmbedded)
+      {
+        return new DataTableView(dRows, Size.Full(), Size.Units(400), cols, config);
+      }
+
       return Layout.Vertical().Gap(10).Width(Size.Full())
               | Layout.Horizontal().Gap(10).Align(Align.Center)
                   | new Button("Back", () => activeMode.Set(AnalyzerMode.Home)).Variant(ButtonVariant.Link).Icon(Icons.ArrowLeft)
@@ -594,14 +603,178 @@ public class ExcelDataReaderApp : ViewBase
               | new DataTableView(dRows, Size.Full(), Size.Fit(), cols, config);
     }
 
+    object RenderPreviewContent()
+    {
+      return Layout.Vertical().Gap(20).Width(Size.Full())
+          | Text.Label("File Metadata")
+          | RenderAnalysisContent()
+          | Text.Label("Data Preview")
+          | RenderDataTableView(isEmbedded: true);
+    }
+
+    object RenderUploadContent()
+    {
+      var options = annexEntries.Value.Select(e =>
+         new Option<int?>($"{e.Description ?? "No Name"} - {e.RevenueDate:MM/dd/yyyy}", e.Id)
+      ).ToList();
+      options.Insert(0, new Option<int?>("Create New Entry (Default)", null));
+
+      return Layout.Vertical().Gap(15).Width(Size.Full())
+          | Text.Muted("Upload this table to Data Tables.")
+          | Layout.Vertical().Gap(5)
+              | Text.Label("Name")
+              | uploadName.ToTextInput().Placeholder("Table Name")
+          | Layout.Vertical().Gap(5)
+              | Text.Label("Template Used")
+              | Text.Muted(matchedTemplate.Value?.Name ?? "Unknown")
+          | Layout.Vertical().Gap(5)
+              | Text.Label("Link to Entry (Optional)")
+              | uploadLinkId.ToSelectInput(options)
+
+          | new Button("Upload Table", async () =>
+          {
+            if (string.IsNullOrWhiteSpace(uploadName.Value)) { client.Toast("Name required", "Warning"); return; }
+            var data = parsedData.Value;
+            if (data.Count == 0) data = ParseCurrentFile();
+
+            await using var db = factory.CreateDbContext();
+            RevenueEntry targetEntry;
+
+            if (uploadLinkId.Value != null)
+            {
+              // Append to existing
+              targetEntry = await db.RevenueEntries.FindAsync(uploadLinkId.Value);
+              if (targetEntry == null) { client.Toast("Entry not found", "Error"); return; }
+            }
+            else
+            {
+              // Create New
+              var otherSource = await db.RevenueSources.FirstOrDefaultAsync(s => s.DescriptionText == "Other");
+              targetEntry = new RevenueEntry
+              {
+                Description = uploadName.Value,
+                RevenueDate = DateTime.Now,
+                Amount = 0,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+                SourceId = otherSource?.Id ?? 1
+              };
+              db.RevenueEntries.Add(targetEntry);
+            }
+
+            // Logic to append data
+            var existingSheets = new List<object>();
+            if (!string.IsNullOrEmpty(targetEntry.JsonData))
+            {
+              try
+              {
+                using var doc = JsonDocument.Parse(targetEntry.JsonData);
+                if (doc.RootElement.ValueKind == JsonValueKind.Array)
+                {
+                  if (doc.RootElement.GetArrayLength() > 0)
+                  {
+                    var first = doc.RootElement[0];
+                    if (first.ValueKind == JsonValueKind.Object && first.TryGetProperty("FileName", out _))
+                    {
+                      existingSheets = JsonSerializer.Deserialize<List<object>>(targetEntry.JsonData) ?? [];
+                    }
+                    else
+                    {
+                      var rows = JsonSerializer.Deserialize<List<Dictionary<string, object?>>>(targetEntry.JsonData);
+                      existingSheets.Add(new { Title = "Legacy Data", FileName = "Legacy", TemplateName = "Unknown", Rows = rows });
+                    }
+                  }
+                }
+                else if (doc.RootElement.ValueKind == JsonValueKind.Object)
+                {
+                  var obj = JsonSerializer.Deserialize<object>(targetEntry.JsonData);
+                  if (obj != null) existingSheets.Add(obj);
+                }
+              }
+              catch { }
+            }
+
+            var payload = new
+            {
+              Title = uploadName.Value,
+              FileName = fileAnalysis.Value?.FileName ?? "Unknown File",
+              TemplateName = matchedTemplate.Value?.Name ?? "Unknown Template",
+              Rows = data
+            };
+            existingSheets.Add(payload);
+            targetEntry.JsonData = JsonSerializer.Serialize(existingSheets);
+            targetEntry.UpdatedAt = DateTime.UtcNow;
+
+            // --- Asset Extraction ---
+            var tmpl = matchedTemplate.Value;
+            if (tmpl != null && !string.IsNullOrEmpty(tmpl.AssetColumn) && !string.IsNullOrEmpty(tmpl.AmountColumn))
+            {
+              try
+              {
+                var assetCol = tmpl.AssetColumn;
+                var amountCol = tmpl.AmountColumn;
+                var batchAssets = new Dictionary<string, decimal>();
+                foreach (var row in data)
+                {
+                  if (row.TryGetValue(assetCol, out var nameObj) && row.TryGetValue(amountCol, out var amountObj))
+                  {
+                    var name = nameObj?.ToString()?.Trim();
+                    if (!string.IsNullOrEmpty(name) && decimal.TryParse(amountObj?.ToString(), out var amount))
+                    {
+                      if (!batchAssets.ContainsKey(name)) batchAssets[name] = 0;
+                      batchAssets[name] += amount;
+                    }
+                  }
+                }
+
+                if (batchAssets.Count > 0)
+                {
+                  var names = batchAssets.Keys.ToList();
+                  var existingAssets = await db.Assets.Where(a => names.Contains(a.Name)).ToListAsync();
+                  var existingNames = existingAssets.Select(a => a.Name).ToHashSet();
+                  var newAssets = names.Where(n => !existingNames.Contains(n))
+                                         .Select(n => new Asset { Name = n, Type = "Unknown", AmountGenerated = 0 })
+                                         .ToList();
+                  if (newAssets.Count > 0)
+                  {
+                    db.Assets.AddRange(newAssets);
+                    await db.SaveChangesAsync();
+                    existingAssets.AddRange(newAssets);
+                  }
+                  if (targetEntry.Id == 0) await db.SaveChangesAsync();
+
+                  var assetMap = existingAssets.ToDictionary(a => a.Name, a => a.Id);
+                  var revenueRecords = batchAssets.Select(kvp => new AssetRevenue
+                  {
+                    AssetId = assetMap[kvp.Key],
+                    RevenueEntryId = targetEntry.Id,
+                    Amount = kvp.Value
+                  });
+                  db.AssetRevenues.AddRange(revenueRecords);
+                }
+              }
+              catch { }
+            }
+
+            await db.SaveChangesAsync();
+            client.Toast("Uploaded Successfully", "Success");
+            activeMode.Set(AnalyzerMode.Home);
+            fileAnalysis.Set((FileAnalysis?)null);
+            filePath.Set((string?)null);
+            uploadState.Set((FileUpload<byte[]>?)null);
+
+          }).Variant(ButtonVariant.Primary).Width(Size.Full());
+    }
+
     // --- Main Build ---
     return activeMode.Value switch
     {
       AnalyzerMode.Home => RenderHome(),
-      AnalyzerMode.Analysis => RenderHome(), // Now handled in Dialog
-      AnalyzerMode.TemplateCreation => RenderHome(), // Handled in Dialog
-      AnalyzerMode.Annex => RenderHome(), // Handled in Dialog
-      AnalyzerMode.DataView => RenderHome(), // RenderHome handles Dialog
+      AnalyzerMode.Analysis => RenderHome(),
+      AnalyzerMode.TemplateCreation => RenderHome(),
+      AnalyzerMode.DataView => RenderHome(),
+      AnalyzerMode.Preview => RenderHome(),
+      AnalyzerMode.Upload => RenderHome(),
       _ => RenderHome()
     };
   }

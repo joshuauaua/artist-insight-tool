@@ -60,4 +60,6 @@ public partial class RevenueEntry
   [ForeignKey("TrackId")]
   [InverseProperty("RevenueEntries")]
   public virtual Track? Track { get; set; }
+
+  public virtual ICollection<AssetRevenue> AssetRevenues { get; set; } = new List<AssetRevenue>();
 }
