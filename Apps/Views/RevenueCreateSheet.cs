@@ -31,51 +31,54 @@ public class RevenueCreateSheet(Action onClose) : ViewBase
       var sources = await db.RevenueSources.OrderBy(s => s.DescriptionText).ToListAsync();
       revenueSources.Set(sources);
 
-      // Default to "Other" or first available if possible, or just null
-      // Let's try to find "Streams" or something common as default if we want
+      // Default to "Other" or first available
       var defaultSource = sources.FirstOrDefault(s => s.DescriptionText == "Streams") ?? sources.FirstOrDefault();
       if (defaultSource != null) selectedTypeId.Set(defaultSource.Id);
 
     }, []);
 
-    return Layout.Vertical()
-        .Gap(20)
-        .Padding(20)
-        .Add(Layout.Horizontal().Align(Align.Center)
-            .Add(new Button("← Back", _onClose).Variant(ButtonVariant.Primary))
-        )
-        .Add(new Card(
+    var typeOptions = revenueSources.Value.Select(s =>
+    {
+      var label = s.DescriptionText switch
+      {
+        "Live Show" => "Concert",
+        "Merch" => "Merchandise",
+        "Streams" => "Royalties (Streams)",
+        "Sync" => "Royalties (Sync)",
+        "Others" => "Other",
+        _ => s.DescriptionText
+      };
+      return new Option<int?>(label, s.Id);
+    }).OrderBy(o => o.Label).ToList();
+
+    return new Dialog(
+        _ => _onClose(),
+        new DialogHeader("Create New Entry"),
+        new DialogBody(
             Layout.Vertical().Gap(15)
                 .Add(Layout.Vertical().Gap(5)
-                    .Add("Entry Details")
-                    .Add(Layout.Vertical().Gap(5)
-                        .Add("Name")
-                        .Add(descriptionState.ToTextInput().Placeholder("e.g. Monthly Payout"))
-                    )
-                    .Add(Layout.Vertical().Gap(5)
-                         .Add("Type")
-                         .Add(selectedTypeId.ToSelectInput(
-                             revenueSources.Value.Select(s => new Option<int?>(s.DescriptionText, s.Id)).ToList()
-                         ).Placeholder("Select Type"))
-                    )
-                     .Add(Layout.Vertical().Gap(5)
-                         .Add("Source")
-                         .Add(sourceState.ToTextInput().Placeholder("e.g. Spotify, MerchTable"))
-                    )
+                    .Add("Name")
+                    .Add(descriptionState.ToTextInput().Placeholder("e.g. Monthly Payout"))
                 )
-                .Add(Layout.Vertical().Gap(15)
-                    .Add(Layout.Vertical().Gap(5)
-                        .Add("Amount ($)")
-                        .Add(amountState.ToTextInput().Placeholder("0.00"))
-                    )
-                     .Add(Layout.Vertical().Gap(5)
-                        .Add("Date (MM/dd/yyyy)")
-                        .Add(dateStringState.ToTextInput())
-                    )
+                .Add(Layout.Vertical().Gap(5)
+                     .Add("Type")
+                     .Add(selectedTypeId.ToSelectInput(typeOptions).Placeholder("Select Type"))
                 )
-        ).Title("Create New Entry"))
-        .Add(Layout.Horizontal().Width(Size.Full()).Align(Align.Right).Gap(10)
-             .Add(new Button("Cancel", _onClose).Variant(ButtonVariant.Outline))
+                .Add(Layout.Vertical().Gap(5)
+                     .Add("Source")
+                     .Add(sourceState.ToTextInput().Placeholder("e.g. Spotify, MerchTable"))
+                )
+                .Add(Layout.Vertical().Gap(5)
+                    .Add("Amount (kr)")
+                    .Add(amountState.ToTextInput().Placeholder("0.00"))
+                )
+                 .Add(Layout.Vertical().Gap(5)
+                    .Add("Date (MM/dd/yyyy)")
+                    .Add(dateStringState.ToTextInput())
+                )
+        ),
+        new DialogFooter(
+             Layout.Horizontal().Gap(10).Align(Align.Right).Width(Size.Full())
              .Add(new Button("Create Entry", async () =>
              {
                if (string.IsNullOrWhiteSpace(descriptionState.Value))
@@ -132,6 +135,7 @@ public class RevenueCreateSheet(Action onClose) : ViewBase
                  client.Toast("Invalid Amount", "Error");
                }
              }).Variant(ButtonVariant.Primary))
-        );
+        )
+    );
   }
 }
