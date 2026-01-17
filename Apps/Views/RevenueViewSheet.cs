@@ -131,20 +131,10 @@ public class RevenueViewSheet(int id, Action onClose, Action onEdit) : ViewBase
         // 1. Name & Description
         // 1. Name & Description
         .Add(Text.H4(e.Description ?? "-"))
-        // 2. Date & Amount Row
-        .Add(Layout.Horizontal().Gap(10)
-            .Add(Layout.Vertical().Gap(2).Width(Size.Fraction(1))
-                .Add(Text.Label("Date"))
-                .Add(Text.P(e.RevenueDate.ToShortDateString()))
-            )
-            .Add(Layout.Vertical().Gap(2).Width(Size.Fraction(1))
-                .Add(Text.Label("Amount"))
-                .Add(Text.P(e.Amount.ToString("C", CultureInfo.GetCultureInfo("sv-SE"))))
-            )
-        )
-        // 3. Category & Source Info Card
+        // 2. Info Card (Date, Amount, Source, Category)
         .Add(new Card(
-             Layout.Vertical().Gap(5)
+             Layout.Vertical().Gap(10) // Increased gap between rows
+                                       // Row 1: Source & Category
                  .Add(Layout.Horizontal().Gap(10).Align(Align.Center)
                      .Add(Layout.Vertical().Gap(2)
                          .Add(Text.Label("Source"))
@@ -156,6 +146,18 @@ public class RevenueViewSheet(int id, Action onClose, Action onEdit) : ViewBase
                          .Add(Text.Muted(type))
                      )
                  )
+                 // Row 2: Date & Amount
+                 .Add(Layout.Horizontal().Gap(10).Align(Align.Center)
+                    .Add(Layout.Vertical().Gap(2)
+                        .Add(Text.Label("Date"))
+                        .Add(Text.Muted(e.RevenueDate.ToShortDateString()))
+                    )
+                    .Add(new Spacer())
+                    .Add(Layout.Vertical().Gap(2).Align(Align.Center)
+                        .Add(Text.Label("Amount"))
+                        .Add(Text.Muted(e.Amount.ToString("C", CultureInfo.GetCultureInfo("sv-SE"))))
+                    )
+                )
         ))
         // 4. Annexed Data
         // 4. Annexed Data
@@ -173,8 +175,8 @@ public class RevenueViewSheet(int id, Action onClose, Action onEdit) : ViewBase
         )
         // Actions
         .Add(Layout.Horizontal().Align(Align.Right).Gap(10).Padding(10, 0, 0, 0)
-             .Add(new Button("Close", _onClose))
              .Add(new Button("Edit", _onEdit).Variant(ButtonVariant.Primary).Icon(Icons.Pencil))
+             .Add(new Button("Close", _onClose))
         );
   }
 }

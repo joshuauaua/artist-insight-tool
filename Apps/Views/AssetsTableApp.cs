@@ -75,7 +75,7 @@ public class AssetsTableApp : ViewBase
 
     var table = assets.Value.Select(a => new
     {
-      a.Id,
+      Id = $"A{a.Id:D3}",
       a.Name,
       a.Type,
       Amount = a.AmountGenerated.ToString("C", CultureInfo.GetCultureInfo("sv-SE")),
