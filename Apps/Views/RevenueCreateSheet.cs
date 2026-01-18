@@ -99,17 +99,10 @@ public class RevenueCreateSheet(Action onClose) : ViewBase
                  {
                    await using var db = factory.CreateDbContext();
 
-                   // Link to first artist
-                   var artist = await db.Artists.FirstOrDefaultAsync();
-                   if (artist == null)
-                   {
-                     client.Toast("No artist found to link entry to.", "Error");
-                     return;
-                   }
+                   // Fixed redundant db declaration
 
                    var newEntry = new RevenueEntry
                    {
-                     ArtistId = artist.Id, // Required
                      SourceId = selectedTypeId.Value.Value,
                      Integration = sourceState.Value,
                      Description = descriptionState.Value,
