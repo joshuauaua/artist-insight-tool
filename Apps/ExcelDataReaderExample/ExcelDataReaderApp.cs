@@ -672,15 +672,15 @@ public class ExcelDataReaderApp : ViewBase
       ).ToList();
       options.Insert(0, new Option<int?>("Create New Entry (Default)", null));
 
-      return Layout.Vertical().Gap(15).Width(Size.Full())
+      return Layout.Vertical().Gap(10).Width(Size.Full())
           | Text.Muted("Upload this table to Data Tables.")
-          | Layout.Vertical().Gap(5)
+          | Layout.Vertical().Gap(2)
               | Text.Label("Name")
               | uploadName.ToTextInput().Placeholder("Table Name")
-          | Layout.Vertical().Gap(5)
+          | Layout.Vertical().Gap(2)
               | Text.Label("Template Used")
               | Text.Muted(matchedTemplate.Value?.Name ?? "Unknown")
-          | Layout.Vertical().Gap(5)
+          | Layout.Vertical().Gap(2)
               | Text.Label("Link to Entry (Optional)")
               | uploadLinkId.ToSelectInput(options)
 
