@@ -32,7 +32,7 @@ public class DataTablesApp : ViewBase
         var entries = await db.RevenueEntries
             .Include(e => e.AssetRevenues).ThenInclude(ar => ar.Asset)
             .Where(e => e.JsonData != null && e.JsonData != "")
-            .OrderByDescending(e => e.CreatedAt)
+            .OrderBy(e => e.CreatedAt)
             .ToListAsync();
 
         var items = new List<TableItem>();
@@ -71,6 +71,7 @@ public class DataTablesApp : ViewBase
           catch { }
         }
 
+        items.Reverse(); // Show newest first
         tables.Set(items);
       }
       catch (Exception ex)
@@ -110,11 +111,13 @@ public class DataTablesApp : ViewBase
             .Align(Align.Center)
             .Add("Data Tables")
             .Add(new Spacer().Width(Size.Fraction(1)))
-            .Add(selectedIds.Value.Count > 0
-                ? Layout.Horizontal().Gap(10).Align(Align.Center)
-                    .Add(Text.Small($"{selectedIds.Value.Count} selected"))
-                    .Add(new Button("Deselect All", () => selectedIds.Set([])).Variant(ButtonVariant.Ghost))
-                : null
+            .Add(Layout.Horizontal().Gap(10).Align(Align.Center)
+                .Add(new Button(allSelected ? "Deselect All" : "Select All", () =>
+                {
+                  if (allSelected) selectedIds.Set([]);
+                  else selectedIds.Set(new HashSet<string>(filteredItems.Select(i => i.Id)));
+                }).Variant(ButtonVariant.Ghost).Icon(allSelected ? Icons.Check : Icons.Square))
+                .Add(selectedIds.Value.Count > 0 ? Text.Small($"{selectedIds.Value.Count} selected") : null)
             )
        )
        .Add(Layout.Horizontal()
@@ -144,7 +147,7 @@ public class DataTablesApp : ViewBase
                             else newSet.Add(t.Id);
                             selectedIds.Set(newSet);
                           })
-                            .Icon(selectedIds.Value.Contains(t.Id) ? Icons.CheckSquare : Icons.Square)
+                            .Icon(selectedIds.Value.Contains(t.Id) ? Icons.Check : Icons.Square)
                             .Variant(ButtonVariant.Ghost),
 
                           IdButton = new Button(t.Id, () => { }).Variant(ButtonVariant.Ghost),
@@ -161,11 +164,7 @@ public class DataTablesApp : ViewBase
                             .Add(x => x.AnnexedTo)
                             .Add(x => x.LinkedTo)
                             .Add(x => x.Date)
-                            .Header(x => x.Select, new Button("", () =>
-                            {
-                              if (allSelected) selectedIds.Set([]);
-                              else selectedIds.Set(new HashSet<string>(filteredItems.Select(i => i.Id)));
-                            }).Icon(allSelected ? Icons.CheckSquare : Icons.Square).Variant(ButtonVariant.Ghost))
+                            .Header(x => x.Select, "")
                             .Header(x => x.IdButton, "ID")
                             .Header(x => x.Name, "Name")
                             .Header(x => x.AnnexedTo, "Annexed To")

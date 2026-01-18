@@ -643,7 +643,7 @@ public class ExcelDataReaderApp : ViewBase
             if (data.Count == 0) data = ParseCurrentFile();
 
             await using var db = factory.CreateDbContext();
-            RevenueEntry targetEntry;
+            RevenueEntry? targetEntry = null;
 
             if (uploadLinkId.Value != null)
             {
