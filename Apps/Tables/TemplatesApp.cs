@@ -64,15 +64,26 @@ public class TemplatesApp : ViewBase
     }, [EffectTrigger.AfterInit(), refresh]);
 
     // Action: Delete Template
+    // Action: Delete Template
     async Task DeleteTemplate(int id)
     {
       await using var db = factory.CreateDbContext();
+
+      // Check if used
+      var isUsed = await db.RevenueEntries.AnyAsync(e => e.ImportTemplateId == id);
+      if (isUsed)
+      {
+        client.Toast("Cannot delete template because it is assigned to revenue entries.", "Error");
+        return;
+      }
+
       var t = await db.ImportTemplates.FindAsync(id);
       if (t != null)
       {
         db.ImportTemplates.Remove(t);
         await db.SaveChangesAsync();
         refresh.Set(refresh.Value + 1);
+        client.Toast("Template deleted.", "Success");
       }
     }
 
