@@ -47,7 +47,7 @@ public sealed class ArtistInsightToolContextFactory : IDbContextFactory<ArtistIn
 
     var context = new ArtistInsightToolContext(optionsBuilder.Options);
 
-    // Auto-migration for JsonData
+    // Auto-migration for JsonData and ColumnMapping
     if (!_migrationChecked)
     {
       _migrationChecked = true;
@@ -55,10 +55,13 @@ public sealed class ArtistInsightToolContextFactory : IDbContextFactory<ArtistIn
       {
         context.Database.ExecuteSqlRaw("ALTER TABLE revenue_entries ADD COLUMN JsonData TEXT");
       }
-      catch
+      catch { }
+
+      try
       {
-        // Column likely already exists or other error we can't fix here
+        context.Database.ExecuteSqlRaw("ALTER TABLE revenue_entries ADD COLUMN ColumnMapping TEXT");
       }
+      catch { }
     }
 
     return context;

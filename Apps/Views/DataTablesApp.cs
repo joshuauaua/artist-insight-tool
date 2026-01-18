@@ -125,6 +125,24 @@ public class DataTablesApp : ViewBase
                   else selectedIds.Set(new HashSet<string>(filteredItems.Select(i => i.Id)));
                 }).Variant(ButtonVariant.Ghost).Icon(allSelected ? Icons.Check : Icons.Square))
                 .Add(selectedIds.Value.Count > 0 ? Text.Small($"{selectedIds.Value.Count} selected") : null)
+                .Add(selectedIds.Value.Count > 0 ? new Button("Delete", async () =>
+                {
+                  await using var db = factory.CreateDbContext();
+                  var idsToDelete = filteredItems
+                      .Where(i => selectedIds.Value.Contains(i.Id))
+                      .Select(i => i.RealId)
+                      .ToList();
+
+                  if (idsToDelete.Count > 0)
+                  {
+                    var entries = await db.RevenueEntries.Where(e => idsToDelete.Contains(e.Id)).ToListAsync();
+                    db.RevenueEntries.RemoveRange(entries);
+                    await db.SaveChangesAsync();
+
+                    selectedIds.Set([]);
+                    refresh.Set(refresh.Value + 1);
+                  }
+                }).Variant(ButtonVariant.Destructive).Icon(Icons.Trash) : null)
             )
        )
        .Add(Layout.Horizontal()

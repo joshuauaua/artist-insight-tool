@@ -22,24 +22,38 @@ public class HeaderMappingSheet(int entryId, Action onClose) : ViewBase
       {
         try
         {
+          string? templateName = null;
           using var doc = JsonDocument.Parse(entry.JsonData);
+
           if (doc.RootElement.ValueKind == JsonValueKind.Array && doc.RootElement.GetArrayLength() > 0)
           {
             var first = doc.RootElement[0];
-            var props = new List<string>();
-            // Handle simple array of objects
             if (first.ValueKind == JsonValueKind.Object)
             {
-              foreach (var prop in first.EnumerateObject())
+              if (first.TryGetProperty("TemplateName", out var tNameProp))
               {
-                props.Add(prop.Name);
+                templateName = tNameProp.GetString();
               }
-
-              // Handle specific structure where real data might be nested? 
-              // Previous code in DataTablesApp checked for "FileName" etc.
-              // Assuming standard table structure for now based on "headers of a datatable"
             }
-            headers.Set(props);
+          }
+
+          if (!string.IsNullOrEmpty(templateName))
+          {
+            var template = await db.ImportTemplates.FirstOrDefaultAsync(t => t.Name == templateName);
+            if (template != null)
+            {
+              headers.Set(template.GetHeaders());
+            }
+            else
+            {
+              // Fallback to extraction if template not found
+              ExtractHeadersFromData(doc, headers);
+            }
+          }
+          else
+          {
+            // Fallback if no template name
+            ExtractHeadersFromData(doc, headers);
           }
         }
         catch { }
@@ -56,6 +70,32 @@ public class HeaderMappingSheet(int entryId, Action onClose) : ViewBase
       }
       isLoading.Set(false);
     }, []);
+
+    void ExtractHeadersFromData(JsonDocument doc, IState<List<string>> headersState)
+    {
+      if (doc.RootElement.ValueKind == JsonValueKind.Array && doc.RootElement.GetArrayLength() > 0)
+      {
+        var first = doc.RootElement[0];
+        var props = new List<string>();
+
+        if (first.ValueKind == JsonValueKind.Object)
+        {
+          if (first.TryGetProperty("Rows", out var rowsProp) && rowsProp.ValueKind == JsonValueKind.Array && rowsProp.GetArrayLength() > 0)
+          {
+            var firstRow = rowsProp[0];
+            if (firstRow.ValueKind == JsonValueKind.Object)
+            {
+              foreach (var prop in firstRow.EnumerateObject()) { props.Add(prop.Name); }
+            }
+          }
+          else
+          {
+            foreach (var prop in first.EnumerateObject()) { props.Add(prop.Name); }
+          }
+        }
+        headersState.Set(props);
+      }
+    }
 
     var fieldOptions = new[]
     {
@@ -87,8 +127,9 @@ public class HeaderMappingSheet(int entryId, Action onClose) : ViewBase
                     });
                   }
 
-                  return Layout.Horizontal().Align(Align.Center).Gap(10)
-                      .Add(Text.Label(header).Width(150))
+                  return Layout.Horizontal().Align(Align.Center).Gap(10).Width(Size.Full())
+                      .Add(Text.Label(header ?? "Unknown"))
+                      .Add(new Spacer().Width(Size.Fraction(1)))
                       .Add(menu);
                 }))
                 .Add(Layout.Horizontal().Align(Align.Right).Gap(10).Padding(20, 0, 0, 0)
