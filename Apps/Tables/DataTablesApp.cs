@@ -4,10 +4,11 @@ using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
 using System.IO;
 using System.Text; // Added for StringBuilder
+using ArtistInsightTool.Apps.Views;
 
-namespace ArtistInsightTool.Apps.Views;
+namespace ArtistInsightTool.Apps.Tables;
 
-[App(icon: Icons.Database, title: "Data Tables", path: ["Pages"])]
+[App(icon: Icons.Database, title: "Data Tables", path: ["Tables"])]
 public class DataTablesApp : ViewBase
 {
   public record TableItem(int RealId, string Id, string Name, string AnnexedTo, string LinkedTo, string Date);

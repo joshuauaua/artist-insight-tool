@@ -1,8 +1,6 @@
-using ArtistInsightTool.Apps.Views;
+namespace ArtistInsightTool.Apps.Tables;
 
-namespace ArtistInsightTool.Apps;
-
-[App(icon: Icons.Table, path: ["RevenueTable"])]
+[App(icon: Icons.Table, path: ["Tables"])]
 public class RevenueTableApp : ViewBase
 {
   public override object? Build()

@@ -10,9 +10,9 @@ using System.Net.Http.Headers;
 using System.Text.Json;
 using System.Globalization;
 
-namespace ArtistInsightTool.Apps.Views;
+namespace ArtistInsightTool.Apps.Tables;
 
-[App(icon: Icons.Table, title: "Assets Table", path: ["Pages"])]
+[App(icon: Icons.Table, title: "Assets Table", path: ["Tables"])]
 public class AssetsTableApp : ViewBase
 {
   public override object Build()
@@ -75,7 +75,23 @@ public class AssetsTableApp : ViewBase
       }
     }
 
-    var table = assets.Value.Select(a => new
+    // Search State
+    var searchQuery = UseState("");
+
+    // Filter Logic
+    var filteredAssets = assets.Value.AsEnumerable();
+    if (!string.IsNullOrWhiteSpace(searchQuery.Value))
+    {
+      var q = searchQuery.Value.ToLowerInvariant();
+      filteredAssets = filteredAssets.Where(a =>
+          a.Name.ToLowerInvariant().Contains(q) ||
+          a.Category.ToLowerInvariant().Contains(q) ||
+          a.Type.ToLowerInvariant().Contains(q) ||
+          (a.Collection != null && a.Collection.ToLowerInvariant().Contains(q))
+      );
+    }
+
+    var table = filteredAssets.Select(a => new
     {
       Id = $"A{a.Id:D3}",
       a.Name,
@@ -95,30 +111,33 @@ public class AssetsTableApp : ViewBase
     .Header(x => x.Amount, "Amount Generated")
     .Header(x => x.Delete, "Delete");
 
+    var headerContent = Layout.Vertical()
+        .Width(Size.Full())
+        .Height(Size.Fit())
+        .Gap(10)
+        .Padding(20, 20, 20, 5)
+        .Add(Layout.Horizontal().Width(Size.Full()).Height(Size.Fit()).Align(Align.Center)
+             .Add("Assets Table")
+             .Add(new Spacer().Width(Size.Fraction(1)))
+             .Add(new DropDownMenu(
+                     DropDownMenu.DefaultSelectHandler(),
+                     new Button("Create Asset").Icon(Icons.Plus).Variant(ButtonVariant.Primary)
+                 )
+                 | MenuItem.Default("Manual Entry").Icon(Icons.Plus)
+                     .HandleSelect(() => showCreate.Set(true))
+                 | MenuItem.Default("Fetch from Spotify").Icon(Icons.CloudDownload)
+                     .HandleSelect(() => showSpotifyImport.Set(true))
+             )
+        )
+        .Add(Layout.Horizontal().Width(Size.Full()).Height(Size.Fit()).Gap(10)
+             .Add(searchQuery.ToTextInput().Placeholder("Search assets...").Width(300))
+        );
+
     return Layout.Vertical()
         .Height(Size.Full())
-        .Padding(0) // Reset outer padding to control it in sections
         .Gap(0)
-        .Add(Layout.Vertical()
-            .Width(Size.Full())
-            .Height(Size.Fit())
-            .Gap(10)
-            .Padding(20, 20, 20, 5)
-            .Add(Layout.Horizontal().Align(Align.Center).Width(Size.Full())
-                .Add("Assets Table")
-                .Add(new Spacer().Width(Size.Fraction(1)))
-                .Add(new DropDownMenu(
-                        DropDownMenu.DefaultSelectHandler(),
-                        new Button("Create Asset").Icon(Icons.Plus).Variant(ButtonVariant.Primary)
-                    )
-                    | MenuItem.Default("Manual Entry").Icon(Icons.Plus)
-                        .HandleSelect(() => showCreate.Set(true))
-                    | MenuItem.Default("Fetch from Spotify").Icon(Icons.CloudDownload)
-                        .HandleSelect(() => showSpotifyImport.Set(true))
-                )
-            )
-        )
-        .Add(Layout.Vertical().Height(Size.Fraction(1))
+        .Add(headerContent)
+        .Add(Layout.Vertical().Height(Size.Fraction(1)).Padding(20, 0, 20, 50)
              .Add(table)
         );
   }

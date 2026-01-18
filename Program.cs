@@ -1,5 +1,6 @@
 using ArtistInsightTool.Apps;
 using ArtistInsightTool.Apps.Views;
+using ArtistInsightTool.Apps.Tables;
 CultureInfo.DefaultThreadCurrentCulture = CultureInfo.DefaultThreadCurrentUICulture = new CultureInfo("en-US");
 var server = new Server();
 #if DEBUG

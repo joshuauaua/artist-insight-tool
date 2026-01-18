@@ -1,7 +1,8 @@
 using Ivy.Shared;
+using ArtistInsightTool.Apps.Views;
 using System.Globalization;
 
-namespace ArtistInsightTool.Apps.Views;
+namespace ArtistInsightTool.Apps.Tables;
 
 public class RevenueTableView : ViewBase
 {

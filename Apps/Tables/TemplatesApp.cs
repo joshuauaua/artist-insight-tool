@@ -2,9 +2,9 @@ using Ivy.Shared;
 using ArtistInsightTool.Connections.ArtistInsightTool;
 using Microsoft.EntityFrameworkCore;
 
-namespace ArtistInsightTool.Apps.Views;
+namespace ArtistInsightTool.Apps.Tables;
 
-[App(icon: Icons.Sheet, title: "Templates", path: ["Pages"])]
+[App(icon: Icons.Sheet, title: "Templates Table", path: ["Tables"])]
 public class TemplatesApp : ViewBase
 {
   // Define Table Item
@@ -75,8 +75,19 @@ public class TemplatesApp : ViewBase
       }
     }
 
+    // Search State
+    var searchQuery = UseState("");
+
+    // Filter Logic
+    var filteredItems = items.Value.AsEnumerable();
+    if (!string.IsNullOrWhiteSpace(searchQuery.Value))
+    {
+      var q = searchQuery.Value.ToLowerInvariant();
+      filteredItems = filteredItems.Where(t => t.Name.ToLowerInvariant().Contains(q) || t.Category.ToLowerInvariant().Contains(q));
+    }
+
     // Table Data
-    var tableData = items.Value.Select(t => new
+    var tableData = filteredItems.Select(t => new
     {
       t.RealId,
       t.Id,
@@ -86,20 +97,34 @@ public class TemplatesApp : ViewBase
       Actions = new Button("", async () => await DeleteTemplate(t.RealId)).Icon(Icons.Trash).Variant(ButtonVariant.Destructive)
     }).AsQueryable();
 
-    return Layout.Vertical().Height(Size.Full()).Padding(20).Gap(20)
-        .Add(Layout.Horizontal().Align(Align.Center).Width(Size.Full())
-             .Add(Text.H4("Import Templates"))
-             .Add(new Spacer())
+    var headerContent = Layout.Vertical()
+        .Width(Size.Full())
+        .Height(Size.Fit())
+        .Gap(10)
+        .Padding(20, 20, 20, 5)
+        .Add(Layout.Horizontal().Width(Size.Full()).Height(Size.Fit()).Align(Align.Center)
+             .Add("Templates Table")
+             .Add(new Spacer().Width(Size.Fraction(1)))
              .Add(new Button("Refresh", () => refresh.Set(refresh.Value + 1)).Variant(ButtonVariant.Outline))
         )
-        .Add(
-             tableData.ToTable()
-             .Width(Size.Full())
-             .Header(x => x.Id, "ID")
-             .Header(x => x.Name, "Name")
-             .Header(x => x.Category, "Category")
-             .Header(x => x.Files, "Linked Files")
-             .Header(x => x.Actions, "")
+        .Add(Layout.Horizontal().Width(Size.Full()).Height(Size.Fit()).Gap(10)
+             .Add(searchQuery.ToTextInput().Placeholder("Search templates...").Width(300))
         );
+
+    return new Fragment(
+        Layout.Vertical().Height(Size.Full()).Gap(0)
+            .Add(headerContent)
+            .Add(Layout.Vertical().Height(Size.Fraction(1)).Padding(20, 0, 20, 50)
+                .Add(
+                     tableData.ToTable()
+                     .Width(Size.Full())
+                     .Header(x => x.Id, "ID")
+                     .Header(x => x.Name, "Name")
+                     .Header(x => x.Category, "Category")
+                     .Header(x => x.Files, "Linked Files")
+                     .Header(x => x.Actions, "")
+                )
+            )
+    );
   }
 }
