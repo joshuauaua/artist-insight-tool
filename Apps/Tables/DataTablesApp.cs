@@ -119,31 +119,9 @@ public class DataTablesApp : ViewBase
             .Align(Align.Center)
             .Add("Data Tables")
             .Add(new Spacer().Width(Size.Fraction(1)))
-            .Add(Layout.Horizontal().Gap(10).Align(Align.Center)
-                .Add(new Button(allSelected ? "Deselect All" : "Select All", () =>
-                {
-                  if (allSelected) selectedIds.Set([]);
-                  else selectedIds.Set(new HashSet<string>(filteredItems.Select(i => i.Id)));
-                }).Variant(ButtonVariant.Ghost).Icon(allSelected ? Icons.Check : Icons.Square))
-                .Add(selectedIds.Value.Count > 0 ? Text.Small($"{selectedIds.Value.Count} selected") : null)
-                .Add(selectedIds.Value.Count > 0 ? new Button("Delete", async () =>
-                {
-                  await using var db = factory.CreateDbContext();
-                  var idsToDelete = filteredItems
-                      .Where(i => selectedIds.Value.Contains(i.Id))
-                      .Select(i => i.RealId)
-                      .ToList();
-
-                  if (idsToDelete.Count > 0)
-                  {
-                    var entries = await db.RevenueEntries.Where(e => idsToDelete.Contains(e.Id)).ToListAsync();
-                    db.RevenueEntries.RemoveRange(entries);
-                    await db.SaveChangesAsync();
-
-                    selectedIds.Set([]);
-                    refresh.Set(refresh.Value + 1);
-                  }
-                }).Variant(ButtonVariant.Destructive).Icon(Icons.Trash) : null)
+            .Add(new Button("Import Data", () => Console.WriteLine("User clicked Import"))
+                .Icon(Icons.FileUp)
+                .Variant(ButtonVariant.Primary)
             )
        )
        .Add(Layout.Horizontal()
@@ -185,13 +163,11 @@ public class DataTablesApp : ViewBase
                         }).ToArray().ToTable()
                             .Width(Size.Full())
                             // Header checkbox for Select All
-                            .Add(x => x.Select)
                             .Add(x => x.IdButton)
                             .Add(x => x.Name)
                             .Add(x => x.AnnexedTo)
                             .Add(x => x.LinkedTo)
                             .Add(x => x.Date)
-                            .Header(x => x.Select, "")
                             .Header(x => x.IdButton, "ID")
                             .Header(x => x.Name, "Name")
                             .Header(x => x.AnnexedTo, "Annexed To")

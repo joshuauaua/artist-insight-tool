@@ -97,6 +97,16 @@ public class TemplatesApp : ViewBase
       Actions = new Button("", async () => await DeleteTemplate(t.RealId)).Icon(Icons.Trash).Variant(ButtonVariant.Destructive)
     }).AsQueryable();
 
+    var showCreate = UseState(false);
+    if (showCreate.Value)
+    {
+      return new CreateTemplateSheet(() =>
+      {
+        showCreate.Set(false);
+        refresh.Set(refresh.Value + 1);
+      });
+    }
+
     var headerContent = Layout.Vertical()
         .Width(Size.Full())
         .Height(Size.Fit())
@@ -105,7 +115,7 @@ public class TemplatesApp : ViewBase
         .Add(Layout.Horizontal().Width(Size.Full()).Height(Size.Fit()).Align(Align.Center)
              .Add("Templates Table")
              .Add(new Spacer().Width(Size.Fraction(1)))
-             .Add(new Button("Refresh", () => refresh.Set(refresh.Value + 1)).Variant(ButtonVariant.Outline))
+             .Add(new Button("Create Template", () => showCreate.Set(true)).Icon(Icons.Plus).Variant(ButtonVariant.Primary))
         )
         .Add(Layout.Horizontal().Width(Size.Full()).Height(Size.Fit()).Gap(10)
              .Add(searchQuery.ToTextInput().Placeholder("Search templates...").Width(300))
@@ -118,13 +128,54 @@ public class TemplatesApp : ViewBase
                 .Add(
                      tableData.ToTable()
                      .Width(Size.Full())
-                     .Header(x => x.Id, "ID")
                      .Header(x => x.Name, "Name")
                      .Header(x => x.Category, "Category")
                      .Header(x => x.Files, "Linked Files")
                      .Header(x => x.Actions, "")
                 )
             )
+    );
+  }
+}
+
+public class CreateTemplateSheet(Action onClose) : ViewBase
+{
+  public override object Build()
+  {
+    var factory = UseService<ArtistInsightToolContextFactory>();
+    var name = UseState("");
+    var category = UseState("Other");
+
+    return new Dialog(
+        _ => onClose(),
+        new DialogHeader("Create Template"),
+        new DialogBody(
+            Layout.Vertical().Gap(10)
+            .Add(Text.Label("Template Name"))
+            .Add(name.ToTextInput().Placeholder("e.g. Distrokid CSV"))
+            .Add(Text.Label("Category"))
+            .Add(category.ToSelectInput(new[] { "Distributor", "Shop", "Streaming", "Other" }.Select(c => new Option<string>(c, c))))
+            .Add(Layout.Horizontal().Align(Align.Right).Gap(10).Padding(10, 0, 0, 0)
+                .Add(new Button("Cancel", onClose))
+                .Add(new Button("Create", async () =>
+                {
+                  if (string.IsNullOrWhiteSpace(name.Value)) return;
+
+                  await using var db = factory.CreateDbContext();
+                  db.ImportTemplates.Add(new ImportTemplate
+                  {
+                    Name = name.Value,
+                    Category = category.Value,
+                    HeadersJson = "[]",
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                  });
+                  await db.SaveChangesAsync();
+                  onClose();
+                }).Variant(ButtonVariant.Primary))
+            )
+        ),
+        new DialogFooter()
     );
   }
 }
