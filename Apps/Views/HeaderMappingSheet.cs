@@ -112,9 +112,13 @@ public class HeaderMappingSheet(int entryId, Action onClose) : ViewBase
                 .Add(headers.Value.Select(header =>
                 {
                   var currentVal = mappings.Value.TryGetValue(header, out var v) ? v : "Select Field";
+
+                  // Keep button width constrained
+                  var menuBtn = new Button(currentVal, () => { }).Variant(ButtonVariant.Outline).Width(200);
+
                   var menu = new DropDownMenu(
                       DropDownMenu.DefaultSelectHandler(),
-                      new Button(currentVal, () => { }).Variant(ButtonVariant.Outline).Width(150)
+                      menuBtn
                   );
 
                   foreach (var opt in fieldOptions)
@@ -127,9 +131,9 @@ public class HeaderMappingSheet(int entryId, Action onClose) : ViewBase
                     });
                   }
 
-                  return Layout.Horizontal().Align(Align.Center).Gap(10).Width(Size.Full())
-                      .Add(Text.Label(header ?? "Unknown"))
-                      .Add(new Spacer().Width(Size.Fraction(1)))
+                  // Assign Fraction(1) to the Label so it takes all available space
+                  return Layout.Horizontal().Align(Align.Center).Width(Size.Full())
+                      .Add(Text.Label(header ?? "Unknown").Width(Size.Fraction(1)))
                       .Add(menu);
                 }))
                 .Add(Layout.Horizontal().Align(Align.Right).Gap(10).Padding(20, 0, 0, 0)

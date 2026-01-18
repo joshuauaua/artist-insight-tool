@@ -62,6 +62,18 @@ public sealed class ArtistInsightToolContextFactory : IDbContextFactory<ArtistIn
         context.Database.ExecuteSqlRaw("ALTER TABLE revenue_entries ADD COLUMN ColumnMapping TEXT");
       }
       catch { }
+
+      try
+      {
+        context.Database.ExecuteSqlRaw("ALTER TABLE import_templates ADD COLUMN Category TEXT DEFAULT 'Other'");
+      }
+      catch { }
+
+      try
+      {
+        context.Database.ExecuteSqlRaw("ALTER TABLE revenue_entries ADD COLUMN ImportTemplateId INTEGER REFERENCES import_templates(Id)");
+      }
+      catch { }
     }
 
     return context;

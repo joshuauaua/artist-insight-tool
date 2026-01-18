@@ -16,6 +16,8 @@ public partial class ImportTemplate
   [Required]
   public string HeadersJson { get; set; } = "[]";
 
+  public string Category { get; set; } = "Other";
+
   public string? AssetColumn { get; set; }
 
   public string? AmountColumn { get; set; }

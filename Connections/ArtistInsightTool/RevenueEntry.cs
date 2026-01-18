@@ -64,4 +64,7 @@ public partial class RevenueEntry
   public virtual ICollection<AssetRevenue> AssetRevenues { get; set; } = new List<AssetRevenue>();
 
   public string? ColumnMapping { get; set; }
+
+  public int? ImportTemplateId { get; set; }
+  public virtual ImportTemplate? ImportTemplate { get; set; }
 }

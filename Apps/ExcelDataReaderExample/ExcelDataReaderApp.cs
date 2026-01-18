@@ -663,7 +663,8 @@ public class ExcelDataReaderApp : ViewBase
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow,
                 SourceId = otherSource?.Id ?? 1,
-                ArtistId = 1 // Default Artist
+                ArtistId = 1, // Default Artist
+                ImportTemplateId = matchedTemplate.Value?.Id
               };
               db.RevenueEntries.Add(targetEntry);
             }
