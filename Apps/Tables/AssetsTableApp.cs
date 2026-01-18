@@ -63,17 +63,7 @@ public class AssetsTableApp : ViewBase
       });
     }
 
-    async Task DeleteAsset(int id)
-    {
-      await using var db = factory.CreateDbContext();
-      var asset = await db.Assets.FindAsync(id);
-      if (asset != null)
-      {
-        db.Assets.Remove(asset);
-        await db.SaveChangesAsync();
-        refreshToken.Set(refreshToken.Value + 1);
-      }
-    }
+
 
     // Search State
     var searchQuery = UseState("");
@@ -99,7 +89,6 @@ public class AssetsTableApp : ViewBase
       a.Type,
       a.Collection,
       Amount = a.AmountGenerated.ToString("C", CultureInfo.GetCultureInfo("sv-SE")),
-      Delete = new Button("", async () => await DeleteAsset(a.Id)).Icon(Icons.Trash).Variant(ButtonVariant.Destructive)
     }).ToArray()
     .ToTable()
     .Width(Size.Full())
@@ -109,8 +98,7 @@ public class AssetsTableApp : ViewBase
     .Header(x => x.Category, "Category")
     .Header(x => x.Type, "Type")
     .Header(x => x.Collection, "Collection")
-    .Header(x => x.Amount, "Amount Generated")
-    .Header(x => x.Delete, "Delete");
+    .Header(x => x.Amount, "Amount Generated");
 
     var headerContent = Layout.Vertical()
         .Width(Size.Full())

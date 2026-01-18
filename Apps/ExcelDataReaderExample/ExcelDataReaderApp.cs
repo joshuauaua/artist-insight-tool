@@ -276,7 +276,7 @@ public class ExcelDataReaderApp : ViewBase
                                   }).Variant(ButtonVariant.Outline).Icon(Icons.Paperclip).Width(Size.Full())
                                   | new Button("Upload", () =>
                                   {
-                                    uploadName.Set(fileAnalysis.Value?.Sheets.FirstOrDefault()?.Name ?? "Untitled");
+                                    uploadName.Set(fileAnalysis.Value?.FileName ?? "Untitled");
                                     parsedData.Set(ParseCurrentFile());
                                     activeMode.Set(AnalyzerMode.Upload);
                                   }).Variant(ButtonVariant.Primary).Icon(Icons.Upload).Width(Size.Full())

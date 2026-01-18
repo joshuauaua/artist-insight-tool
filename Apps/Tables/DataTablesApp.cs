@@ -148,8 +148,7 @@ public class DataTablesApp : ViewBase
                           t.Name,
                           t.AnnexedTo,
                           t.LinkedTo,
-                          t.Date,
-                          Actions = new Button("Map Headers", () => mappingEntryId.Set(t.RealId)).Variant(ButtonVariant.Ghost)
+                          t.Date
                         }).ToArray().ToTable()
                             .Width(Size.Full())
                             // Header checkbox for Select All
