@@ -10,7 +10,7 @@ namespace ArtistInsightTool.Apps.Views;
 [App(icon: Icons.Database, title: "Data Tables", path: ["Pages"])]
 public class DataTablesApp : ViewBase
 {
-  public record TableItem(string Id, string Name, string AnnexedTo, string LinkedTo, string Date);
+  public record TableItem(int RealId, string Id, string Name, string AnnexedTo, string LinkedTo, string Date);
 
   public override object? Build()
   {
@@ -47,7 +47,7 @@ public class DataTablesApp : ViewBase
             var root = doc.RootElement;
 
             // Logic to parse items... (Compact helper to keep code short)
-            void AddItem(string title) => items.Add(new TableItem($"DT{index++:D3}", title, entry.Description ?? "-", "-", entry.UpdatedAt.ToShortDateString()));
+            void AddItem(string title) => items.Add(new TableItem(entry.Id, $"DT{index++:D3}", title, entry.Description ?? "-", "-", entry.UpdatedAt.ToShortDateString()));
 
             if (root.ValueKind == JsonValueKind.Array && root.GetArrayLength() > 0)
             {
@@ -99,6 +99,13 @@ public class DataTablesApp : ViewBase
     }
 
     bool allSelected = filteredItems.Count > 0 && selectedIds.Value.Count == filteredItems.Count;
+
+    var mappingEntryId = UseState<int?>(initialValue: null);
+
+    if (mappingEntryId.Value.HasValue)
+    {
+      return new HeaderMappingSheet(mappingEntryId.Value.Value, () => mappingEntryId.Set((int?)null));
+    }
 
     var headerContent = Layout.Vertical()
        .Width(Size.Full())
@@ -154,7 +161,8 @@ public class DataTablesApp : ViewBase
                           t.Name,
                           t.AnnexedTo,
                           t.LinkedTo,
-                          t.Date
+                          t.Date,
+                          Actions = new Button("Map Headers", () => mappingEntryId.Set(t.RealId)).Variant(ButtonVariant.Ghost)
                         }).ToArray().ToTable()
                             .Width(Size.Full())
                             // Header checkbox for Select All
