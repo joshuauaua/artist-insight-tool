@@ -8,12 +8,15 @@ namespace ArtistInsightTool.Connections.ArtistInsightTool;
 
 [Table("revenue_entries")]
 [Index("AlbumId", Name = "IX_revenue_entries_AlbumId")]
+[Index("ArtistId", Name = "IX_revenue_entries_ArtistId")]
 [Index("SourceId", Name = "IX_revenue_entries_SourceId")]
 [Index("TrackId", Name = "IX_revenue_entries_TrackId")]
 public partial class RevenueEntry
 {
   [Key]
   public int Id { get; set; }
+
+  public int ArtistId { get; set; }
 
   public int SourceId { get; set; }
 
@@ -40,6 +43,10 @@ public partial class RevenueEntry
   [ForeignKey("AlbumId")]
   [InverseProperty("RevenueEntries")]
   public virtual Album? Album { get; set; }
+
+  [ForeignKey("ArtistId")]
+  [InverseProperty("RevenueEntries")]
+  public virtual Artist Artist { get; set; } = null!;
 
   [ForeignKey("SourceId")]
   [InverseProperty("RevenueEntries")]

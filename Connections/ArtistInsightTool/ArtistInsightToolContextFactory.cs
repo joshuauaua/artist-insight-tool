@@ -74,31 +74,6 @@ public sealed class ArtistInsightToolContextFactory : IDbContextFactory<ArtistIn
         context.Database.ExecuteSqlRaw("ALTER TABLE revenue_entries ADD COLUMN ImportTemplateId INTEGER REFERENCES import_templates(Id)");
       }
       catch { }
-
-      // Cleanup Artist Columns and Table
-      try
-      {
-        context.Database.ExecuteSqlRaw("ALTER TABLE revenue_entries DROP COLUMN ArtistId");
-      }
-      catch { }
-
-      try
-      {
-        context.Database.ExecuteSqlRaw("ALTER TABLE albums DROP COLUMN ArtistId");
-      }
-      catch { }
-
-      try
-      {
-        context.Database.ExecuteSqlRaw("ALTER TABLE tracks DROP COLUMN ArtistId");
-      }
-      catch { }
-
-      try
-      {
-        context.Database.ExecuteSqlRaw("DROP TABLE artists");
-      }
-      catch { }
     }
 
     return context;
