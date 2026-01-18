@@ -68,6 +68,8 @@ public class ExcelDataReaderApp : ViewBase
 
     // --- Template Creation State ---
     var newTemplateName = UseState("");
+    var newTemplateCategory = UseState("Merchandise");
+    var templateCreationStep = UseState(1);
     var newTemplateAssetColumn = UseState<string?>(() => null);
 
     var newTemplateAmountColumn = UseState<string?>(() => null);
@@ -328,81 +330,98 @@ public class ExcelDataReaderApp : ViewBase
       if (fileAnalysis.Value?.Sheets.Count == 0) return Text.Muted("No sheets found.");
       var headers = fileAnalysis.Value!.Sheets[0].Headers;
 
-      return Layout.Vertical().Gap(10).Width(Size.Full())
-          | Text.Muted("Define a name for this data structure.")
-          | Layout.Vertical().Gap(5)
-              | Text.Label("Template Name")
-              | newTemplateName.ToTextInput().Placeholder("e.g. Spotify Report")
-          | Layout.Vertical().Gap(10).Padding(10, 0)
-              | Text.Label("Map Columns")
-              | Text.Muted("Click buttons to map columns to Asset Name and Revenue Amount.")
-              | Layout.Vertical().Gap(5)
-                  | headers.Select(h =>
+      if (templateCreationStep.Value == 1)
+      {
+        return Layout.Vertical().Gap(15).Width(Size.Full())
+            | Text.H4("Step 1: Template Details")
+            | Layout.Vertical().Gap(5)
+                | Text.Label("Template Name")
+                | newTemplateName.ToTextInput().Placeholder("e.g. Spotify Report")
+            | Layout.Vertical().Gap(5)
+                | Text.Label("Category")
+                | newTemplateCategory.ToSelectInput(new[] { "Merchandise", "Royalties", "Concerts", "Other" }.Select(c => new Option<string>(c, c)))
+            | Layout.Horizontal().Align(Align.Right).Padding(20, 0, 0, 0)
+                | new Button("Next", () =>
+                {
+                  if (string.IsNullOrWhiteSpace(newTemplateName.Value)) { client.Toast("Name required", "Warning"); return; }
+                  templateCreationStep.Set(2);
+                }).Variant(ButtonVariant.Primary).Icon(Icons.ArrowRight);
+      }
+      else
+      {
+        return Layout.Vertical().Gap(15).Width(Size.Full())
+            | Layout.Horizontal().Align(Align.Center).Gap(10)
+                | new Button("", () => templateCreationStep.Set(1)).Variant(ButtonVariant.Ghost).Icon(Icons.ArrowLeft)
+                | Text.H4("Step 2: Map Columns")
+            | Text.Muted("Assign columns to 'Asset Name' and 'Revenue Amount'.")
+            | Layout.Vertical().Gap(10).Padding(10, 0)
+                | headers.Select(h =>
+                {
+                  var currentRole = newTemplateAssetColumn.Value == h ? "Asset Name" :
+                                    newTemplateAmountColumn.Value == h ? "Amount" : "Ignore";
+
+                  var options = new List<Option<string>>
                   {
-                    var isAsset = newTemplateAssetColumn.Value == h;
-                    var isAmount = newTemplateAmountColumn.Value == h;
+                        new("Ignore", "Ignore"),
+                        new("Asset Name", "Asset Name"),
+                        new("Amount", "Amount")
+                  };
 
-                    return Layout.Horizontal().Gap(10).Align(Align.Center).Padding(5)
-                        // Header Name
-                        | Layout.Vertical().Width(200)
-                            | Text.Label(h)
-
-                        // Badges / Buttons
-                        | (isAsset
-                            ? new Button("Asset Name").Variant(ButtonVariant.Primary).Icon(Icons.Check).Disabled(true)
-                            : isAmount
-                                ? new Button("Amount").Variant(ButtonVariant.Primary).Icon(Icons.Check).Disabled(true)
-                                : Layout.Horizontal().Gap(5)
-                                    | new Button("Asset", () =>
-                                    {
-                                      if (newTemplateAmountColumn.Value == h) newTemplateAmountColumn.Set((string?)null);
-                                      newTemplateAssetColumn.Set(h);
-                                    }).Variant(ButtonVariant.Outline)
-                                    | new Button("Amount", () =>
-                                    {
-                                      if (newTemplateAssetColumn.Value == h) newTemplateAssetColumn.Set((string?)null);
-                                      newTemplateAmountColumn.Set(h);
-                                    }).Variant(ButtonVariant.Outline)
-                          )
-
-                        // Clear Action (only if mapped)
-                        | ((isAsset || isAmount)
-                            ? new Button("Clear", () =>
-                            {
-                              if (isAsset) newTemplateAssetColumn.Set((string?)null);
-                              if (isAmount) newTemplateAmountColumn.Set((string?)null);
-                            }).Variant(ButtonVariant.Outline).Icon(Icons.X)
-                            : null
-                          );
-                  }).ToArray()
-          | new Button("Save Template", async () =>
-          {
-            if (string.IsNullOrWhiteSpace(newTemplateName.Value)) { client.Toast("Name required", "Warning"); return; }
-
-            await using var db = factory.CreateDbContext();
-            var newT = new ImportTemplate
+                  return Layout.Horizontal().Gap(10).Align(Align.Center)
+                      | Layout.Vertical().Width(Size.Fraction(1))
+                          | Text.Label(h)
+                      | Layout.Vertical().Width(150)
+                          | new DropDownMenu(
+                              DropDownMenu.DefaultSelectHandler(),
+                              new Button(currentRole).Variant(ButtonVariant.Outline).Icon(Icons.ChevronDown).Width(Size.Full())
+                            )
+                            | MenuItem.Default("Ignore").HandleSelect(() =>
+                              {
+                                if (newTemplateAssetColumn.Value == h) newTemplateAssetColumn.Set((string?)null);
+                                if (newTemplateAmountColumn.Value == h) newTemplateAmountColumn.Set((string?)null);
+                              })
+                            | MenuItem.Default("Asset Name").HandleSelect(() =>
+                              {
+                                if (newTemplateAmountColumn.Value == h) newTemplateAmountColumn.Set((string?)null);
+                                newTemplateAssetColumn.Set(h);
+                              })
+                            | MenuItem.Default("Amount").HandleSelect(() =>
+                              {
+                                if (newTemplateAssetColumn.Value == h) newTemplateAssetColumn.Set((string?)null);
+                                newTemplateAmountColumn.Set(h);
+                              })
+                  ;
+                }).ToArray()
+            | new Button("Save Template", async () =>
             {
-              Name = newTemplateName.Value,
-              HeadersJson = JsonSerializer.Serialize(headers),
-              AssetColumn = newTemplateAssetColumn.Value,
-              AmountColumn = newTemplateAmountColumn.Value,
-              CreatedAt = DateTime.UtcNow,
-              UpdatedAt = DateTime.UtcNow
-            };
-            db.ImportTemplates.Add(newT);
-            await db.SaveChangesAsync();
+              await using var db = factory.CreateDbContext();
+              var newT = new ImportTemplate
+              {
+                Name = newTemplateName.Value,
+                Category = newTemplateCategory.Value,
+                HeadersJson = JsonSerializer.Serialize(headers),
+                AssetColumn = newTemplateAssetColumn.Value,
+                AmountColumn = newTemplateAmountColumn.Value,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+              };
+              db.ImportTemplates.Add(newT);
+              await db.SaveChangesAsync();
 
-            var fresh = await db.ImportTemplates.ToListAsync();
-            templates.Set(fresh);
+              var fresh = await db.ImportTemplates.ToListAsync();
+              templates.Set(fresh);
 
-            var jsonHeaders = JsonSerializer.Serialize(headers);
-            var match = fresh.FirstOrDefault(t => t.HeadersJson == jsonHeaders);
-            if (match != null) matchedTemplate.Set(match);
+              var jsonHeaders = JsonSerializer.Serialize(headers);
+              var match = fresh.FirstOrDefault(t => t.HeadersJson == jsonHeaders);
+              if (match != null) matchedTemplate.Set(match);
 
-            isNewTemplate.Set(false);
-            activeMode.Set(AnalyzerMode.Home);
-            client.Toast("Template Created", "Success");
-          }).Variant(ButtonVariant.Primary).Width(Size.Full());
+              isNewTemplate.Set(false);
+              activeMode.Set(AnalyzerMode.Home);
+              // Reset
+              templateCreationStep.Set(1);
+              client.Toast("Template Created", "Success");
+            }).Variant(ButtonVariant.Primary).Width(Size.Full());
+      }
     }
 
 
