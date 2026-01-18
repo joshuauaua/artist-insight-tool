@@ -13,6 +13,7 @@ public class TemplatesApp : ViewBase
   public override object Build()
   {
     var factory = UseService<ArtistInsightToolContextFactory>();
+    var client = UseService<IClientProvider>();
     var items = UseState<List<TemplateItem>>([]);
     var refresh = UseState(0);
 
@@ -24,7 +25,7 @@ public class TemplatesApp : ViewBase
         await Task.Delay(10);
         await using var db = factory.CreateDbContext();
 
-        Console.WriteLine("Templates: Loading...");
+
 
         // Fetch templates with usage count
         // We left join RevenueEntries on ImportTemplateId to count usage
@@ -56,9 +57,9 @@ public class TemplatesApp : ViewBase
 
         items.Set(mapped);
       }
-      catch (Exception ex)
+      catch
       {
-        Console.WriteLine($"Templates Load Error: {ex.Message}");
+
       }
     }, [EffectTrigger.AfterInit(), refresh]);
 
@@ -89,8 +90,7 @@ public class TemplatesApp : ViewBase
     // Table Data
     var tableData = filteredItems.Select(t => new
     {
-      t.RealId,
-      t.Id,
+      IdButton = new Button(t.Id, () => { }).Variant(ButtonVariant.Ghost),
       t.Name,
       t.Category,
       t.Files,
@@ -115,7 +115,15 @@ public class TemplatesApp : ViewBase
         .Add(Layout.Horizontal().Width(Size.Full()).Height(Size.Fit()).Align(Align.Center)
              .Add("Templates Table")
              .Add(new Spacer().Width(Size.Fraction(1)))
-             .Add(new Button("Create Template", () => showCreate.Set(true)).Icon(Icons.Plus).Variant(ButtonVariant.Primary))
+             .Add(new DropDownMenu(
+                     DropDownMenu.DefaultSelectHandler(),
+                     new Button("Create Template").Icon(Icons.Plus).Variant(ButtonVariant.Primary)
+                 )
+                 | MenuItem.Default("Manual Entry").Icon(Icons.Plus)
+                     .HandleSelect(() => showCreate.Set(true))
+                 | MenuItem.Default("From Excel File").Icon(Icons.FileSpreadsheet)
+                     .HandleSelect(() => client.Toast("Please use the 'Excel Data Reader' application to create templates from files.", "Info"))
+             )
         )
         .Add(Layout.Horizontal().Width(Size.Full()).Height(Size.Fit()).Gap(10)
              .Add(searchQuery.ToTextInput().Placeholder("Search templates...").Width(300))
@@ -128,6 +136,8 @@ public class TemplatesApp : ViewBase
                 .Add(
                      tableData.ToTable()
                      .Width(Size.Full())
+                     .Add(x => x.IdButton)
+                     .Header(x => x.IdButton, "ID")
                      .Header(x => x.Name, "Name")
                      .Header(x => x.Category, "Category")
                      .Header(x => x.Files, "Linked Files")

@@ -144,16 +144,6 @@ public class DataTablesApp : ViewBase
                     .Add(filteredItems.Count > 0
                         ? filteredItems.Select(t => new
                         {
-                          Select = new Button("", () =>
-                          {
-                            var newSet = new HashSet<string>(selectedIds.Value);
-                            if (newSet.Contains(t.Id)) newSet.Remove(t.Id);
-                            else newSet.Add(t.Id);
-                            selectedIds.Set(newSet);
-                          })
-                            .Icon(selectedIds.Value.Contains(t.Id) ? Icons.Check : Icons.Square)
-                            .Variant(ButtonVariant.Ghost),
-
                           IdButton = new Button(t.Id, () => { }).Variant(ButtonVariant.Ghost),
                           t.Name,
                           t.AnnexedTo,

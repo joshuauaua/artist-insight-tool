@@ -93,7 +93,7 @@ public class AssetsTableApp : ViewBase
 
     var table = filteredAssets.Select(a => new
     {
-      Id = $"A{a.Id:D3}",
+      IdButton = new Button($"A{a.Id:D3}", () => { }).Variant(ButtonVariant.Ghost),
       a.Name,
       a.Category,
       a.Type,
@@ -103,7 +103,8 @@ public class AssetsTableApp : ViewBase
     }).ToArray()
     .ToTable()
     .Width(Size.Full())
-    .Header(x => x.Id, "ID")
+    .Add(x => x.IdButton)
+    .Header(x => x.IdButton, "ID")
     .Header(x => x.Name, "Asset Name")
     .Header(x => x.Category, "Category")
     .Header(x => x.Type, "Type")

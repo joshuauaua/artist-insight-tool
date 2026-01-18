@@ -1,4 +1,4 @@
-Entries Count: 27
+Entries Count: 18
  - ID: 1, Desc: Rerum ipsam ut et provident., DataLen: 0, Source: Live Show, Created: 9/20/2024 4:40:42 AM
  - ID: 2, Desc: Quaerat consectetur maxime officiis et., DataLen: 0, Source: Other, Created: 3/24/2025 3:33:19 AM
  - ID: 3, Desc: Explicabo et atque quisquam est., DataLen: 0, Source: Streams, Created: 10/26/2025 4:39:28 AM
@@ -11,21 +11,12 @@ Entries Count: 27
  - ID: 12, Desc: Shopify Sale: Limited Edition Vinyl, DataLen: 0, Source: Shopify, Created: 1/1/0001 12:00:00 AM
  - ID: 13, Desc: Shopify Sale: Limited Edition Vinyl, DataLen: 0, Source: Shopify, Created: 1/1/0001 12:00:00 AM
  - ID: 14, Desc: Shopify Sale: Limited Edition Vinyl, DataLen: 0, Source: Shopify, Created: 1/1/0001 12:00:00 AM
- - ID: 15, Desc: Shopify Sale: Limited Edition Vinyl, DataLen: 2523, Source: Shopify, Created: 1/1/0001 12:00:00 AM
  - ID: 16, Desc: Shopify Sale: Limited Edition Vinyl, DataLen: 0, Source: Shopify, Created: 1/1/0001 12:00:00 AM
  - ID: 17, Desc: Shopify Sale: Limited Edition Vinyl, DataLen: 0, Source: Shopify, Created: 1/1/0001 12:00:00 AM
  - ID: 18, Desc: Shopify Sale: Limited Edition Vinyl, DataLen: 0, Source: Merch, Created: 1/1/0001 12:00:00 AM
- - ID: 19, Desc: Shopify Sale: Limited Edition Vinyl, DataLen: 410765, Source: Merch, Created: 1/1/0001 12:00:00 AM
  - ID: 21, Desc: Shopify Sale: Limited Edition Vinyl, DataLen: 0, Source: Merch, Created: 1/1/0001 12:00:00 AM
- - ID: 22, Desc: Royalty Q1, DataLen: 410755, Source: Other, Created: 1/17/2026 4:07:10 PM
- - ID: 23, Desc: Q1 Royalties, DataLen: 410757, Source: Other, Created: 1/17/2026 4:11:55 PM
- - ID: 24, Desc: Q1 Royalties, DataLen: 410757, Source: Other, Created: 1/17/2026 4:13:58 PM
- - ID: 25, Desc: Countries Q1, DataLen: 4145, Source: Other, Created: 1/17/2026 4:21:09 PM
- - ID: 26, Desc: Q1 Royalties Test, DataLen: 2520, Source: Other, Created: 1/17/2026 4:24:05 PM
- - ID: 27, Desc: asdasd, DataLen: 410751, Source: Other, Created: 1/17/2026 4:27:34 PM
- - ID: 28, Desc: Q1 Royalties, DataLen: 2515, Source: Other, Created: 1/17/2026 4:28:19 PM
- - ID: 29, Desc: Royalties Table, DataLen: 410760, Source: Other, Created: 1/18/2026 7:02:20 AM
- - ID: 30, Desc: Q1 Products, DataLen: 655, Source: Other, Created: 1/18/2026 7:02:54 AM
+ - ID: 31, Desc: Q1 Royalties, DataLen: 410757, Source: Other, Created: 1/18/2026 1:16:50 PM
+ - ID: 32, Desc: Products Q1 2023, DataLen: 660, Source: Other, Created: 1/18/2026 1:20:59 PM
 
 Sources Count: 6
  - ID: 0, Desc: Shopify
@@ -39,14 +30,5 @@ Total Assets: 1
  - [004] Bonafide (Single)
 
 --- Data Tables Analysis ---
- - Entry 15: Multi-sheet (1 tables)
- - Entry 19: Multi-sheet (1 tables)
- - Entry 22: Multi-sheet (1 tables)
- - Entry 23: Multi-sheet (1 tables)
- - Entry 24: Multi-sheet (1 tables)
- - Entry 25: Multi-sheet (1 tables)
- - Entry 26: Multi-sheet (1 tables)
- - Entry 27: Multi-sheet (1 tables)
- - Entry 28: Multi-sheet (1 tables)
- - Entry 29: Multi-sheet (1 tables)
- - Entry 30: Multi-sheet (1 tables)
+ - Entry 31: Multi-sheet (1 tables)
+ - Entry 32: Multi-sheet (1 tables)
