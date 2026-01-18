@@ -73,6 +73,9 @@ public class ExcelDataReaderApp : ViewBase
     var newTemplateAssetColumn = UseState<string?>(() => null);
 
     var newTemplateAmountColumn = UseState<string?>(() => null);
+    var newTemplateCollectionColumn = UseState<string?>(() => null);
+    var newTemplateGrossColumn = UseState<string?>(() => null);
+    var newTemplateCurrencyColumn = UseState<string?>(() => null);
 
     // --- Upload/Save State ---
     var uploadName = UseState("");
@@ -332,15 +335,15 @@ public class ExcelDataReaderApp : ViewBase
 
       if (templateCreationStep.Value == 1)
       {
-        return Layout.Vertical().Gap(15).Width(Size.Full())
+        return Layout.Vertical().Gap(10).Width(Size.Full())
             | Text.H4("Step 1: Template Details")
-            | Layout.Vertical().Gap(5)
+            | Layout.Vertical().Gap(2)
                 | Text.Label("Template Name")
                 | newTemplateName.ToTextInput().Placeholder("e.g. Spotify Report")
-            | Layout.Vertical().Gap(5)
+            | Layout.Vertical().Gap(2)
                 | Text.Label("Category")
                 | newTemplateCategory.ToSelectInput(new[] { "Merchandise", "Royalties", "Concerts", "Other" }.Select(c => new Option<string>(c, c)))
-            | Layout.Horizontal().Align(Align.Right).Padding(20, 0, 0, 0)
+            | Layout.Horizontal().Align(Align.Right).Padding(10, 0, 0, 0)
                 | new Button("Next", () =>
                 {
                   if (string.IsNullOrWhiteSpace(newTemplateName.Value)) { client.Toast("Name required", "Warning"); return; }
@@ -349,29 +352,26 @@ public class ExcelDataReaderApp : ViewBase
       }
       else
       {
-        return Layout.Vertical().Gap(15).Width(Size.Full())
+        return Layout.Vertical().Gap(10).Width(Size.Full())
             | Layout.Horizontal().Align(Align.Center).Gap(10)
                 | new Button("", () => templateCreationStep.Set(1)).Variant(ButtonVariant.Ghost).Icon(Icons.ArrowLeft)
                 | Text.H4("Step 2: Map Columns")
-            | Text.Muted("Assign columns to 'Asset Name' and 'Revenue Amount'.")
-            | Layout.Vertical().Gap(10).Padding(10, 0)
+            | Text.Muted("Assign columns to standard fields.")
+            | Layout.Vertical().Gap(2).Padding(10, 0)
                 | headers.Select(h =>
                 {
-                  var currentRole = newTemplateAssetColumn.Value == h ? "Asset Name" :
-                                    newTemplateAmountColumn.Value == h ? "Amount" : "Ignore";
-
-                  var options = new List<Option<string>>
-                  {
-                        new("Ignore", "Ignore"),
-                        new("Asset Name", "Asset Name"),
-                        new("Amount", "Amount")
-                  };
+                  var currentRole = newTemplateAssetColumn.Value == h ? "Asset" :
+                                    newTemplateAmountColumn.Value == h ? "Net" :
+                                    newTemplateCollectionColumn.Value == h ? "Collection" :
+                                    newTemplateGrossColumn.Value == h ? "Gross" :
+                                    newTemplateCurrencyColumn.Value == h ? "Currency" :
+                                    "Ignore";
 
                   return Layout.Horizontal().Gap(10).Align(Align.Center)
                       | Layout.Vertical().Width(Size.Fraction(1))
                           | Text.Label(h)
                       | Layout.Vertical().Width(150)
-                          | new DropDownMenu(
+                          | (new DropDownMenu(
                               DropDownMenu.DefaultSelectHandler(),
                               new Button(currentRole).Variant(ButtonVariant.Outline).Icon(Icons.ChevronDown).Width(Size.Full())
                             )
@@ -379,17 +379,36 @@ public class ExcelDataReaderApp : ViewBase
                               {
                                 if (newTemplateAssetColumn.Value == h) newTemplateAssetColumn.Set((string?)null);
                                 if (newTemplateAmountColumn.Value == h) newTemplateAmountColumn.Set((string?)null);
+                                if (newTemplateCollectionColumn.Value == h) newTemplateCollectionColumn.Set((string?)null);
+                                if (newTemplateGrossColumn.Value == h) newTemplateGrossColumn.Set((string?)null);
+                                if (newTemplateCurrencyColumn.Value == h) newTemplateCurrencyColumn.Set((string?)null);
                               })
-                            | MenuItem.Default("Asset Name").HandleSelect(() =>
+                            | MenuItem.Default("Asset").HandleSelect(() =>
                               {
-                                if (newTemplateAmountColumn.Value == h) newTemplateAmountColumn.Set((string?)null);
+                                ClearColumn(h);
                                 newTemplateAssetColumn.Set(h);
                               })
-                            | MenuItem.Default("Amount").HandleSelect(() =>
+                            | MenuItem.Default("Collection").HandleSelect(() =>
                               {
-                                if (newTemplateAssetColumn.Value == h) newTemplateAssetColumn.Set((string?)null);
+                                ClearColumn(h);
+                                newTemplateCollectionColumn.Set(h);
+                              })
+                            | MenuItem.Default("Gross").HandleSelect(() =>
+                              {
+                                ClearColumn(h);
+                                newTemplateGrossColumn.Set(h);
+                              })
+                            | MenuItem.Default("Net").HandleSelect(() =>
+                              {
+                                ClearColumn(h);
                                 newTemplateAmountColumn.Set(h);
                               })
+                            | MenuItem.Default("Currency").HandleSelect(() =>
+                              {
+                                ClearColumn(h);
+                                newTemplateCurrencyColumn.Set(h);
+                              })
+                            )
                   ;
                 }).ToArray()
             | new Button("Save Template", async () =>
@@ -402,6 +421,7 @@ public class ExcelDataReaderApp : ViewBase
                 HeadersJson = JsonSerializer.Serialize(headers),
                 AssetColumn = newTemplateAssetColumn.Value,
                 AmountColumn = newTemplateAmountColumn.Value,
+                // Note: Collection, Gross, Currency are not yet saved to DB
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
               };
@@ -422,6 +442,15 @@ public class ExcelDataReaderApp : ViewBase
               client.Toast("Template Created", "Success");
             }).Variant(ButtonVariant.Primary).Width(Size.Full());
       }
+    }
+
+    void ClearColumn(string h)
+    {
+      if (newTemplateAssetColumn.Value == h) newTemplateAssetColumn.Set((string?)null);
+      if (newTemplateAmountColumn.Value == h) newTemplateAmountColumn.Set((string?)null);
+      if (newTemplateCollectionColumn.Value == h) newTemplateCollectionColumn.Set((string?)null);
+      if (newTemplateGrossColumn.Value == h) newTemplateGrossColumn.Set((string?)null);
+      if (newTemplateCurrencyColumn.Value == h) newTemplateCurrencyColumn.Set((string?)null);
     }
 
 
