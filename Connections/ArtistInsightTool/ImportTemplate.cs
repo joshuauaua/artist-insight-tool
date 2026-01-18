@@ -5,6 +5,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace ArtistInsightTool.Connections.ArtistInsightTool;
 
+[Table("import_templates")]
 public partial class ImportTemplate
 {
   [Key]

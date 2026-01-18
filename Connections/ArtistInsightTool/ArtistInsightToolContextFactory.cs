@@ -63,6 +63,24 @@ public sealed class ArtistInsightToolContextFactory : IDbContextFactory<ArtistIn
       }
       catch { }
 
+      // Create ImportTemplates table if missing
+      try
+      {
+        context.Database.ExecuteSqlRaw(@"CREATE TABLE IF NOT EXISTS ""import_templates"" (
+            ""Id"" INTEGER NOT NULL CONSTRAINT ""PK_import_templates"" PRIMARY KEY AUTOINCREMENT,
+            ""Name"" TEXT NOT NULL,
+            ""HeadersJson"" TEXT NOT NULL,
+            ""Category"" TEXT DEFAULT 'Other',
+            ""AssetColumn"" TEXT,
+            ""AmountColumn"" TEXT,
+            ""CreatedAt"" TEXT NOT NULL,
+            ""UpdatedAt"" TEXT NOT NULL
+          )");
+        // Seed Template
+        var count = context.Database.ExecuteSqlRaw("INSERT OR IGNORE INTO import_templates (Id, Name, HeadersJson, Category, CreatedAt, UpdatedAt) VALUES (99, 'Example Template', '[\"Date\",\"Description\",\"Amount\"]', 'Other', '2024-01-01', '2024-01-01')");
+      }
+      catch { }
+
       try
       {
         context.Database.ExecuteSqlRaw("ALTER TABLE import_templates ADD COLUMN Category TEXT DEFAULT 'Other'");
@@ -72,6 +90,35 @@ public sealed class ArtistInsightToolContextFactory : IDbContextFactory<ArtistIn
       try
       {
         context.Database.ExecuteSqlRaw("ALTER TABLE revenue_entries ADD COLUMN ImportTemplateId INTEGER REFERENCES import_templates(Id)");
+      }
+      catch { }
+
+      // RESTORE ARTIST SCHEMA (Revert Fix)
+      try
+      {
+        context.Database.ExecuteSqlRaw("CREATE TABLE IF NOT EXISTS \"artists\" (\"Id\" INTEGER NOT NULL CONSTRAINT \"PK_artists\" PRIMARY KEY AUTOINCREMENT, \"Name\" TEXT NOT NULL, \"CreatedAt\" TEXT NOT NULL, \"UpdatedAt\" TEXT NOT NULL)");
+
+        // Ensure default artist exists
+        var artistCount = context.Database.ExecuteSqlRaw("INSERT OR IGNORE INTO artists (Id, Name, CreatedAt, UpdatedAt) VALUES (1, 'Primary Artist', '2024-01-01', '2024-01-01')");
+      }
+      catch { }
+
+      try
+      {
+        // Default ArtistId to 1
+        context.Database.ExecuteSqlRaw("ALTER TABLE revenue_entries ADD COLUMN ArtistId INTEGER DEFAULT 1 REFERENCES artists(Id)");
+      }
+      catch { }
+
+      try
+      {
+        context.Database.ExecuteSqlRaw("ALTER TABLE albums ADD COLUMN ArtistId INTEGER DEFAULT 1 REFERENCES artists(Id)");
+      }
+      catch { }
+
+      try
+      {
+        context.Database.ExecuteSqlRaw("ALTER TABLE tracks ADD COLUMN ArtistId INTEGER DEFAULT 1 REFERENCES artists(Id)");
       }
       catch { }
     }

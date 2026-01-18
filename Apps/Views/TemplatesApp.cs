@@ -19,43 +19,48 @@ public class TemplatesApp : ViewBase
     // Load Data
     UseEffect(async () =>
     {
-      await using var db = factory.CreateDbContext();
+      try
+      {
+        await Task.Delay(10);
+        await using var db = factory.CreateDbContext();
 
-      // Fetch templates with usage count
-      // We left join RevenueEntries on ImportTemplateId to count usage
-      var templates = await db.ImportTemplates
-              .GroupJoin(
-                  db.RevenueEntries,
-                  t => t.Id,
-                  e => e.ImportTemplateId,
-                  (t, entries) => new
-                  {
-                    t.Id,
-                    t.Name,
-                    t.Category,
-                    t.CreatedAt,
-                    Files = entries.Count()
-                  }
-              )
-              .OrderByDescending(t => t.CreatedAt)
-              .ToListAsync();
+        Console.WriteLine("Templates: Loading...");
 
-      var mapped = templates.Select(t => new TemplateItem(
-              t.Id,
-              $"T{t.Id:D3}",
-              t.Name,
-              t.Category ?? "Other",
-              t.Files,
-              t.CreatedAt
-          )).ToList();
+        // Fetch templates with usage count
+        // We left join RevenueEntries on ImportTemplateId to count usage
+        var templates = await db.ImportTemplates
+                .GroupJoin(
+                    db.RevenueEntries,
+                    t => t.Id,
+                    e => e.ImportTemplateId,
+                    (t, entries) => new
+                    {
+                      t.Id,
+                      t.Name,
+                      t.Category,
+                      t.CreatedAt,
+                      Files = entries.Count()
+                    }
+                )
+                .OrderByDescending(t => t.CreatedAt)
+                .ToListAsync();
 
-      // Reverse for display order if desired, or keep as is?
-      // OrderByDescending(CreatedAt) ensures newest is top which is standard.
-      // But matching Data Tables "reverse" logic usually means newest ID is top?
-      // Let's stick to standard sorting for now.
+        var mapped = templates.Select(t => new TemplateItem(
+                t.Id,
+                $"T{t.Id:D3}",
+                t.Name,
+                t.Category ?? "Other",
+                t.Files,
+                t.CreatedAt
+            )).ToList();
 
-      items.Set(mapped);
-    }, [refresh]);
+        items.Set(mapped);
+      }
+      catch (Exception ex)
+      {
+        Console.WriteLine($"Templates Load Error: {ex.Message}");
+      }
+    }, [EffectTrigger.AfterInit(), refresh]);
 
     // Action: Delete Template
     async Task DeleteTemplate(int id)
