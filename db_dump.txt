@@ -1,4 +1,4 @@
-Entries Count: 14
+Entries Count: 10
  - ID: 1, Desc: Rerum ipsam ut et provident., DataLen: 0, Source: Live Show, Created: 9/20/2024 4:40:42 AM
  - ID: 2, Desc: Quaerat consectetur maxime officiis et., DataLen: 0, Source: Other, Created: 3/24/2025 3:33:19 AM
  - ID: 3, Desc: Explicabo et atque quisquam est., DataLen: 0, Source: Streams, Created: 10/26/2025 4:39:28 AM
@@ -9,10 +9,6 @@ Entries Count: 14
  - ID: 8, Desc: Sed et aliquid ducimus sed., DataLen: 0, Source: Other, Created: 11/29/2024 12:15:48 PM
  - ID: 9, Desc: Ea nulla ullam modi minima., DataLen: 0, Source: Live Show, Created: 8/2/2025 11:50:32 PM
  - ID: 10, Desc: Adipisci ut et iste iusto., DataLen: 0, Source: Merch, Created: 2/21/2024 8:46:21 PM
- - ID: 11, Desc: tmpn62iSE.tmp.csv, DataLen: 2502, Source: Other, Created: 1/19/2026 1:19:17 PM
- - ID: 12, Desc: tmpq71wUu.tmp.csv, DataLen: 2093, Source: Other, Created: 1/19/2026 3:03:46 PM
- - ID: 13, Desc: tmpNHLPNj.tmp.csv, DataLen: 2445, Source: Other, Created: 1/19/2026 3:48:08 PM
- - ID: 14, Desc: tmpXFUpDP.tmp.csv, DataLen: 2520, Source: Other, Created: 1/19/2026 3:48:41 PM
 
 Sources Count: 5
  - ID: 1, Desc: Merch
@@ -21,15 +17,6 @@ Sources Count: 5
  - ID: 4, Desc: Streams
  - ID: 5, Desc: Other
 
-Total Assets: 5
- - [001] Sunday (Unknown)
- - [002] Bonafide (Unknown)
- - [003] Runaway (Unknown)
- - [004] Muddy Waters (Unknown)
- - [005] Patience (Revisited) (Unknown)
+Total Assets: 0
 
 --- Data Tables Analysis ---
- - Entry 11: Multi-sheet (1 tables)
- - Entry 12: Multi-sheet (1 tables)
- - Entry 13: Multi-sheet (1 tables)
- - Entry 14: Multi-sheet (1 tables)

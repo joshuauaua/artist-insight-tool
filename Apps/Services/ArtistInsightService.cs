@@ -60,16 +60,23 @@ public class ArtistInsightService
   }
 
   // Revenue Entries
-  public async Task<List<RevenueEntry>> GetRevenueEntriesAsync()
+  public async Task<List<RevenueEntryDto>> GetRevenueEntriesAsync()
   {
+    var url = $"{BaseUrl}/Revenue/entries";
     try
     {
-      return await _httpClient.GetFromJsonAsync<List<RevenueEntry>>($"{BaseUrl}/Revenue") ?? new List<RevenueEntry>();
+      Console.WriteLine($"DEBUG: Requesting GET {url}");
+      return await _httpClient.GetFromJsonAsync<List<RevenueEntryDto>>(url) ?? new List<RevenueEntryDto>();
+    }
+    catch (HttpRequestException ex)
+    {
+      Console.WriteLine($"Error fetching revenue entries: {ex.Message} Status: {ex.StatusCode}");
+      return new List<RevenueEntryDto>();
     }
     catch (Exception ex)
     {
       Console.WriteLine($"Error fetching revenue entries: {ex.Message}");
-      return new List<RevenueEntry>();
+      return new List<RevenueEntryDto>();
     }
   }
 

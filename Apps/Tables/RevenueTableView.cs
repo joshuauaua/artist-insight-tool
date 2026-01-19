@@ -34,8 +34,8 @@ public class RevenueTableView : ViewBase
       {
         e.Id,
         e.RevenueDate,
-        Name = e.Track != null ? e.Track.Title : (e.Album != null ? e.Album.Title : (e.Description ?? "-")),
-        Type = e.Source?.DescriptionText ?? "Unknown",
+        Name = e.TrackTitle ?? (e.AlbumTitle ?? (e.Description ?? "-")),
+        Type = e.Source ?? "Unknown",
 
         e.Amount,
         Source = e.Integration ?? "Manual"

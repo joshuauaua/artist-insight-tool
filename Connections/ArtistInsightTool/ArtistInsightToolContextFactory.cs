@@ -25,9 +25,8 @@ public sealed class ArtistInsightToolContextFactory : IDbContextFactory<ArtistIn
   )
   {
     _args = args;
-    var volume1 = volume ?? new FolderVolume(
-        System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Ivy-Data", "ArtistInsightTool"));
-    _absolutePath = volume1.GetAbsolutePath(_uniqueId + "." + _relativePath);
+    // Use project root DB for consistent access during development
+    _absolutePath = "/Users/joshuang/Desktop/Programming/Ivy/artist-insight-tool/db.sqlite";
     _logger = logger;
   }
 

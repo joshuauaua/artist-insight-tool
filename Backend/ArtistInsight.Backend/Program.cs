@@ -1,11 +1,17 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Builder;
 using ArtistInsight.Backend.Data;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddDbContext<ArtistInsightContext>(options =>
-    options.UseSqlite("Data Source=artist_insight_backend.db"));
+{
+  // Use project root DB for consistent access during development
+  var dbPath = "/Users/joshuang/Desktop/Programming/Ivy/artist-insight-tool/db.sqlite";
+  Console.WriteLine($"DEBUG: Configuring DbContext with Path: {dbPath}");
+  options.UseSqlite($"Data Source={dbPath}");
+});
 
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
