@@ -1,5 +1,6 @@
 using Ivy.Shared;
 using ArtistInsightTool.Connections.ArtistInsightTool;
+using ArtistInsightTool.Apps.Views;
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Linq;
@@ -21,6 +22,7 @@ public class AssetsTableApp : ViewBase
     var assets = UseState<Asset[]>([]);
     var showCreate = UseState(false);
     var showSpotifyImport = UseState(false);
+    var selectedAssetId = UseState<int?>(() => null);
     var refreshToken = UseState(0);
 
     async Task<IDisposable?> LoadData()
@@ -83,7 +85,7 @@ public class AssetsTableApp : ViewBase
 
     var table = filteredAssets.Select(a => new
     {
-      IdButton = new Button($"A{a.Id:D3}", () => { }).Variant(ButtonVariant.Ghost),
+      IdButton = new Button($"A{a.Id:D3}", () => selectedAssetId.Set(a.Id)).Variant(ButtonVariant.Ghost),
       a.Name,
       a.Category,
       a.Type,
@@ -122,13 +124,21 @@ public class AssetsTableApp : ViewBase
              .Add(searchQuery.ToTextInput().Placeholder("Search assets...").Width(300))
         );
 
-    return Layout.Vertical()
-        .Height(Size.Full())
-        .Gap(0)
-        .Add(headerContent)
-        .Add(Layout.Vertical().Height(Size.Fraction(1)).Padding(20, 0, 20, 50)
-             .Add(table)
-        );
+    return new Fragment(
+        Layout.Vertical()
+            .Height(Size.Full())
+            .Gap(0)
+            .Add(headerContent)
+            .Add(Layout.Vertical().Height(Size.Fraction(1)).Padding(20, 0, 20, 50)
+                 .Add(table)
+            ),
+        selectedAssetId.Value != null ? new Dialog(
+            _ => selectedAssetId.Set((int?)null),
+            new DialogHeader("Asset Details"),
+            new DialogBody(new AssetViewSheet(selectedAssetId.Value.Value, () => selectedAssetId.Set((int?)null))),
+            new DialogFooter()
+        ) : null
+    );
   }
 }
 
