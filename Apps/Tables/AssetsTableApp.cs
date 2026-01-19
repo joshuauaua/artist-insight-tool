@@ -1,6 +1,7 @@
 using Ivy.Shared;
 using ArtistInsightTool.Connections.ArtistInsightTool;
 using ArtistInsightTool.Apps.Views;
+using ArtistInsightTool.Apps.Services;
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Linq;
@@ -18,6 +19,7 @@ public class AssetsTableApp : ViewBase
 {
   public override object Build()
   {
+    var service = UseService<ArtistInsightService>();
     var factory = UseService<ArtistInsightToolContextFactory>();
     var assets = UseState<Asset[]>([]);
     var showCreate = UseState(false);
@@ -28,21 +30,8 @@ public class AssetsTableApp : ViewBase
 
     async Task<IDisposable?> LoadData()
     {
-      await using var db = factory.CreateDbContext();
-      var data = await db.Assets
-          .Include(a => a.AssetRevenues)
-          .Select(a => new Asset
-          {
-            Id = a.Id,
-            Name = a.Name,
-            Category = a.Category,
-            Type = a.Type,
-            Collection = a.Collection,
-            AmountGenerated = a.AssetRevenues.Sum(ar => ar.Amount)
-          })
-          .OrderBy(a => a.Id)
-          .ToArrayAsync();
-      assets.Set(data);
+      var data = await service.GetAssetsAsync();
+      assets.Set(data.OrderBy(a => a.Id).ToArray());
       return null;
     }
 
@@ -156,12 +145,9 @@ public class AssetsTableApp : ViewBase
                 new Button("Delete", async () =>
                 {
                   if (confirmDeleteId.Value == null) return;
-                  await using var db = factory.CreateDbContext();
-                  var asset = await db.Assets.FindAsync(confirmDeleteId.Value.Value);
-                  if (asset != null)
+                  var success = await service.DeleteAssetAsync(confirmDeleteId.Value.Value);
+                  if (success)
                   {
-                    db.Assets.Remove(asset);
-                    await db.SaveChangesAsync();
                     refreshToken.Set(refreshToken.Value + 1);
                   }
                   confirmDeleteId.Set((int?)null);

@@ -19,7 +19,20 @@ public class AssetsController : ControllerBase
   [HttpGet]
   public async Task<ActionResult<IEnumerable<Asset>>> GetAssets()
   {
-    return await _context.Assets.ToListAsync();
+    var assets = await _context.Assets
+        .Include(a => a.AssetRevenues)
+        .Select(a => new Asset
+        {
+          Id = a.Id,
+          Name = a.Name,
+          Type = a.Type,
+          Category = a.Category,
+          Collection = a.Collection,
+          AmountGenerated = a.AssetRevenues.Sum(ar => ar.Amount)
+        })
+        .ToListAsync();
+
+    return assets;
   }
 
   [HttpGet("{id}")]
@@ -42,5 +55,20 @@ public class AssetsController : ControllerBase
     await _context.SaveChangesAsync();
 
     return CreatedAtAction(nameof(GetAsset), new { id = asset.Id }, asset);
+  }
+
+  [HttpDelete("{id}")]
+  public async Task<IActionResult> DeleteAsset(int id)
+  {
+    var asset = await _context.Assets.FindAsync(id);
+    if (asset == null)
+    {
+      return NotFound();
+    }
+
+    _context.Assets.Remove(asset);
+    await _context.SaveChangesAsync();
+
+    return NoContent();
   }
 }

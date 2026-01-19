@@ -11,6 +11,9 @@
   </PropertyGroup>
   <ItemGroup>
     <EmbeddedResource Include="Assets/**/*" />
+    <Compile Remove="Backend/**" />
+    <EmbeddedResource Remove="Backend/**" />
+    <None Remove="Backend/**" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="ExcelDataReader" Version="3.8.0" />
