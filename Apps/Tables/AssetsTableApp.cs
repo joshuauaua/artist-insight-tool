@@ -23,6 +23,7 @@ public class AssetsTableApp : ViewBase
     var showCreate = UseState(false);
     var showSpotifyImport = UseState(false);
     var selectedAssetId = UseState<int?>(() => null);
+    var confirmDeleteId = UseState<int?>(() => null);
     var refreshToken = UseState(0);
 
     async Task<IDisposable?> LoadData()
@@ -39,7 +40,7 @@ public class AssetsTableApp : ViewBase
             Collection = a.Collection,
             AmountGenerated = a.AssetRevenues.Sum(ar => ar.Amount)
           })
-          .OrderBy(a => a.Name)
+          .OrderBy(a => a.Id)
           .ToArrayAsync();
       assets.Set(data);
       return null;
@@ -91,16 +92,24 @@ public class AssetsTableApp : ViewBase
       a.Type,
       a.Collection,
       Amount = a.AmountGenerated.ToString("C", CultureInfo.GetCultureInfo("sv-SE")),
+      Actions = new Button("", () => confirmDeleteId.Set(a.Id)).Icon(Icons.Trash).Variant(ButtonVariant.Ghost)
     }).ToArray()
     .ToTable()
     .Width(Size.Full())
     .Add(x => x.IdButton)
+    .Add(x => x.Name)
+    .Add(x => x.Category)
+    .Add(x => x.Type)
+    .Add(x => x.Collection)
+    .Add(x => x.Amount)
+    .Add(x => x.Actions)
     .Header(x => x.IdButton, "ID")
     .Header(x => x.Name, "Asset Name")
     .Header(x => x.Category, "Category")
     .Header(x => x.Type, "Type")
     .Header(x => x.Collection, "Collection")
-    .Header(x => x.Amount, "Amount Generated");
+    .Header(x => x.Amount, "Amount Generated")
+    .Header(x => x.Actions, "");
 
     var headerContent = Layout.Vertical()
         .Width(Size.Full())
@@ -137,6 +146,26 @@ public class AssetsTableApp : ViewBase
             new DialogHeader("Asset Details"),
             new DialogBody(new AssetViewSheet(selectedAssetId.Value.Value, () => selectedAssetId.Set((int?)null))),
             new DialogFooter()
+        ) : null,
+        confirmDeleteId.Value != null ? new Dialog(
+            _ => confirmDeleteId.Set((int?)null),
+            new DialogHeader("Confirm Deletion"),
+            new DialogBody(Text.Label("Are you sure you want to delete this asset? This action cannot be undone.")),
+            new DialogFooter(
+                new Button("Cancel", () => { confirmDeleteId.Set((int?)null); }),
+                new Button("Delete", async () =>
+                {
+                  if (confirmDeleteId.Value == null) return;
+                  await using var db = factory.CreateDbContext();
+                  var asset = await db.Assets.FindAsync(confirmDeleteId.Value.Value);
+                  if (asset != null)
+                  {
+                    db.Assets.Remove(asset);
+                    await db.SaveChangesAsync();
+                    refreshToken.Set(refreshToken.Value + 1);
+                  }
+                  confirmDeleteId.Set((int?)null);
+                }).Variant(ButtonVariant.Destructive))
         ) : null
     );
   }

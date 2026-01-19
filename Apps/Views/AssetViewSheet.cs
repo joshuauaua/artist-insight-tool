@@ -13,6 +13,7 @@ public class AssetViewSheet(int id, Action onClose) : ViewBase
   {
     var factory = UseService<ArtistInsightToolContextFactory>();
     var assetState = UseState<Asset?>(() => null);
+    var isDeleting = UseState(false);
 
     async Task<IDisposable?> LoadAsset()
     {
@@ -68,8 +69,25 @@ public class AssetViewSheet(int id, Action onClose) : ViewBase
                 )
         ))
         // Actions
-        // Actions
         .Add(Layout.Horizontal().Align(Align.Center).Gap(10).Padding(10, 0, 0, 0)
+             .Add(new Button(isDeleting.Value ? "Confirm Delete?" : "Delete", async () =>
+             {
+               if (!isDeleting.Value)
+               {
+                 isDeleting.Set(true);
+                 return;
+               }
+
+               await using var db = factory.CreateDbContext();
+               var assetToDelete = await db.Assets.FindAsync(a.Id);
+               if (assetToDelete != null)
+               {
+                 db.Assets.Remove(assetToDelete);
+                 await db.SaveChangesAsync();
+               }
+               _onClose();
+             }).Variant(ButtonVariant.Destructive))
+             .Add(isDeleting.Value ? new Button("Cancel", () => isDeleting.Set(false)).Variant(ButtonVariant.Ghost) : null)
              .Add(new Button("Extended Details", () => { /* TODO: Implement navigation */ }).Variant(ButtonVariant.Primary))
         );
   }

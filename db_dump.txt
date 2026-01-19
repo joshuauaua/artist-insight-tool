@@ -1,28 +1,18 @@
-Entries Count: 21
+Entries Count: 12
  - ID: 1, Desc: Rerum ipsam ut et provident., DataLen: 0, Source: Live Show, Created: 9/20/2024 4:40:42 AM
  - ID: 2, Desc: Quaerat consectetur maxime officiis et., DataLen: 0, Source: Other, Created: 3/24/2025 3:33:19 AM
  - ID: 3, Desc: Explicabo et atque quisquam est., DataLen: 0, Source: Streams, Created: 10/26/2025 4:39:28 AM
+ - ID: 4, Desc: Modi nesciunt minima earum voluptates., DataLen: 0, Source: Merch, Created: 10/24/2024 3:40:15 PM
  - ID: 5, Desc: Explicabo laborum asperiores porro quia., DataLen: 0, Source: Merch, Created: 3/13/2024 3:40:03 AM
+ - ID: 6, Desc: Non nam sit aut inventore., DataLen: 0, Source: Sync, Created: 8/27/2025 12:32:29 AM
  - ID: 7, Desc: Reiciendis at dolorem iure ut., DataLen: 0, Source: Streams, Created: 10/11/2024 3:27:36 PM
  - ID: 8, Desc: Sed et aliquid ducimus sed., DataLen: 0, Source: Other, Created: 11/29/2024 12:15:48 PM
  - ID: 9, Desc: Ea nulla ullam modi minima., DataLen: 0, Source: Live Show, Created: 8/2/2025 11:50:32 PM
  - ID: 10, Desc: Adipisci ut et iste iusto., DataLen: 0, Source: Merch, Created: 2/21/2024 8:46:21 PM
- - ID: 11, Desc: Shopify Sale: Limited Edition Vinyl, DataLen: 0, Source: Shopify, Created: 1/1/0001 12:00:00 AM
- - ID: 12, Desc: Shopify Sale: Limited Edition Vinyl, DataLen: 0, Source: Shopify, Created: 1/1/0001 12:00:00 AM
- - ID: 13, Desc: Shopify Sale: Limited Edition Vinyl, DataLen: 0, Source: Shopify, Created: 1/1/0001 12:00:00 AM
- - ID: 14, Desc: Shopify Sale: Limited Edition Vinyl, DataLen: 0, Source: Shopify, Created: 1/1/0001 12:00:00 AM
- - ID: 16, Desc: Shopify Sale: Limited Edition Vinyl, DataLen: 0, Source: Shopify, Created: 1/1/0001 12:00:00 AM
- - ID: 17, Desc: Shopify Sale: Limited Edition Vinyl, DataLen: 0, Source: Shopify, Created: 1/1/0001 12:00:00 AM
- - ID: 18, Desc: Shopify Sale: Limited Edition Vinyl, DataLen: 0, Source: Merch, Created: 1/1/0001 12:00:00 AM
- - ID: 21, Desc: Shopify Sale: Limited Edition Vinyl, DataLen: 0, Source: Merch, Created: 1/1/0001 12:00:00 AM
- - ID: 31, Desc: Q1 Royalties, DataLen: 410757, Source: Other, Created: 1/18/2026 1:16:50 PM
- - ID: 32, Desc: Products Q1 2023, DataLen: 660, Source: Other, Created: 1/18/2026 1:20:59 PM
- - ID: 33, Desc: Q1, DataLen: 2078, Source: Other, Created: 1/18/2026 6:27:48 PM
- - ID: 34, Desc: Q2, DataLen: 2078, Source: Other, Created: 1/18/2026 6:33:19 PM
- - ID: 35, Desc: Q3, DataLen: 2493, Source: Other, Created: 1/18/2026 6:33:52 PM
+ - ID: 11, Desc: tmpn62iSE.tmp.csv, DataLen: 2502, Source: Other, Created: 1/19/2026 1:19:17 PM
+ - ID: 12, Desc: tmpq71wUu.tmp.csv, DataLen: 2093, Source: Other, Created: 1/19/2026 3:03:46 PM
 
-Sources Count: 6
- - ID: 0, Desc: Shopify
+Sources Count: 5
  - ID: 1, Desc: Merch
  - ID: 2, Desc: Live Show
  - ID: 3, Desc: Sync
@@ -30,15 +20,12 @@ Sources Count: 6
  - ID: 5, Desc: Other
 
 Total Assets: 5
- - [008] Sunday (Unknown)
- - [009] Bonafide (Unknown)
- - [010] Runaway (Unknown)
- - [011] Patience (Revisited) (Unknown)
- - [012] Muddy Waters (Unknown)
+ - [001] Sunday (Unknown)
+ - [002] Bonafide (Unknown)
+ - [003] Runaway (Unknown)
+ - [004] Muddy Waters (Unknown)
+ - [005] Patience (Revisited) (Unknown)
 
 --- Data Tables Analysis ---
- - Entry 31: Multi-sheet (1 tables)
- - Entry 32: Multi-sheet (1 tables)
- - Entry 33: Multi-sheet (1 tables)
- - Entry 34: Multi-sheet (1 tables)
- - Entry 35: Multi-sheet (1 tables)
+ - Entry 11: Multi-sheet (1 tables)
+ - Entry 12: Multi-sheet (1 tables)

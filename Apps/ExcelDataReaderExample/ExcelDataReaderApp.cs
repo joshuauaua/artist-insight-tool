@@ -187,7 +187,7 @@ public class ExcelDataReaderApp : ViewBase
         await using var db = factory.CreateDbContext();
         var results = await db.RevenueEntries
                .Include(e => e.Source)
-               .OrderByDescending(e => e.RevenueDate)
+               .OrderBy(e => e.Id)
                .Take(1000)
                .ToListAsync();
         annexEntries.Set(results);
@@ -807,7 +807,14 @@ public class ExcelDataReaderApp : ViewBase
                   db.AssetRevenues.AddRange(revenueRecords);
                 }
               }
-              catch { }
+              catch (Exception ex)
+              {
+                client.Toast($"Asset extraction error: {ex.Message}", "Error");
+              }
+            }
+            else
+            {
+              client.Toast("Asset extraction skipped: Template not configured.", "Warning");
             }
 
             await db.SaveChangesAsync();

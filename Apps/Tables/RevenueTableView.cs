@@ -16,8 +16,8 @@ public class RevenueTableView : ViewBase
     var allEntries = UseState<RevenueTableItem[]>([]);
 
     var searchQuery = UseState("");
-    var sortField = UseState("Date");
-    var sortDirection = UseState("Desc");
+    var sortField = UseState("Id");
+    var sortDirection = UseState("Asc");
     // Filter states
     var selectedSource = UseState("All");
 
@@ -33,7 +33,7 @@ public class RevenueTableView : ViewBase
          .Include(e => e.Track).ThenInclude(t => t.Album)
          .Include(e => e.Album)
          .Include(e => e.Source)
-         .OrderByDescending(e => e.RevenueDate)
+         .OrderBy(e => e.Id)
          .Take(1000)
          .Select(e => new
          {
@@ -111,6 +111,8 @@ public class RevenueTableView : ViewBase
     // Apply Sorting (handled by DataTableView mostly, but initial sort useful)
     filteredEntries = (sortField.Value, sortDirection.Value) switch
     {
+      ("Id", "Asc") => filteredEntries.OrderBy(e => e.Id).ToArray(),
+      ("Id", "Desc") => filteredEntries.OrderByDescending(e => e.Id).ToArray(),
       ("Date", "Desc") => filteredEntries.OrderByDescending(e => e.RevenueDate).ToArray(),
       ("Date", "Asc") => filteredEntries.OrderBy(e => e.RevenueDate).ToArray(),
       ("Amount", "Desc") => filteredEntries.OrderByDescending(e => e.Amount).ToArray(),

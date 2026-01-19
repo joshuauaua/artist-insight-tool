@@ -50,6 +50,7 @@ public sealed class ArtistInsightToolContextFactory : IDbContextFactory<ArtistIn
     // Auto-migration for JsonData and ColumnMapping
     if (!_migrationChecked)
     {
+      context.Database.Migrate();
       _migrationChecked = true;
       try
       {
