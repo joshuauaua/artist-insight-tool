@@ -2,6 +2,8 @@ using System;
 using System.IO;
 using System.Text.Json;
 using System.Linq;
+using System.Data;
+using System.Data.Common;
 using Microsoft.EntityFrameworkCore;
 using ArtistInsightTool.Connections.ArtistInsightTool;
 using Ivy.Shared; // Check if needed, probably strictly accessing Context
@@ -91,6 +93,42 @@ public class DbInspectorApp : ViewBase
           catch (Exception ex)
           {
             report += $" - Entry {e.Id}: Error parsing JSON - {ex.Message}\n";
+          }
+        }
+
+        report += "\n--- Database Schema ---\n";
+        var conn = db.Database.GetDbConnection();
+        await conn.OpenAsync();
+
+        var tables = new List<string>();
+        using (var cmd = conn.CreateCommand())
+        {
+          cmd.CommandText = "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name;";
+          using var reader = await cmd.ExecuteReaderAsync();
+          while (await reader.ReadAsync())
+          {
+            tables.Add(reader.GetString(0));
+          }
+        }
+
+        foreach (var table in tables)
+        {
+          report += $"\nTable: {table}\n";
+          report += "| CID | Name | Type | NotNull | Default | PK |\n";
+          report += "|---|---|---|---|---|---|\n";
+
+          using var cmd = conn.CreateCommand();
+          cmd.CommandText = $"PRAGMA table_info({table});";
+          using var reader = await cmd.ExecuteReaderAsync();
+          while (await reader.ReadAsync())
+          {
+            var cid = reader.GetValue(0);
+            var name = reader.GetValue(1);
+            var type = reader.GetValue(2);
+            var notnull = reader.GetValue(3);
+            var dflt = reader.GetValue(4);
+            var pk = reader.GetValue(5);
+            report += $"| {cid} | {name} | {type} | {notnull} | {dflt} | {pk} |\n";
           }
         }
 

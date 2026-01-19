@@ -18,8 +18,7 @@ public partial class Artist
 
   public DateTime UpdatedAt { get; set; }
 
-  [InverseProperty("Artist")]
-  public virtual ICollection<Album> Albums { get; set; } = new List<Album>();
+
 
   [InverseProperty("Artist")]
   public virtual ICollection<RevenueEntry> RevenueEntries { get; set; } = new List<RevenueEntry>();

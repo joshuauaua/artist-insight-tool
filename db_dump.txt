@@ -1,4 +1,4 @@
-Entries Count: 21
+Entries Count: 23
  - ID: 1, Desc: Rerum ipsam ut et provident., DataLen: 0, Source: Live Show, Created: 9/20/2024 4:40:42 AM
  - ID: 2, Desc: Quaerat consectetur maxime officiis et., DataLen: 0, Source: Other, Created: 3/24/2025 3:33:19 AM
  - ID: 3, Desc: Explicabo et atque quisquam est., DataLen: 0, Source: Streams, Created: 10/26/2025 4:39:28 AM
@@ -20,6 +20,8 @@ Entries Count: 21
  - ID: 33, Desc: Q1, DataLen: 2078, Source: Other, Created: 1/18/2026 6:27:48 PM
  - ID: 34, Desc: Q2, DataLen: 2078, Source: Other, Created: 1/18/2026 6:33:19 PM
  - ID: 35, Desc: Q3, DataLen: 2493, Source: Other, Created: 1/18/2026 6:33:52 PM
+ - ID: 36, Desc: Q12024, DataLen: 4379, Source: Other, Created: 1/19/2026 10:09:51 AM
+ - ID: 37, Desc: tmpu1zMAq.tmp.csv, DataLen: 2093, Source: Other, Created: 1/19/2026 11:18:57 AM
 
 Sources Count: 6
  - ID: 0, Desc: Shopify
@@ -42,3 +44,127 @@ Total Assets: 5
  - Entry 33: Multi-sheet (1 tables)
  - Entry 34: Multi-sheet (1 tables)
  - Entry 35: Multi-sheet (1 tables)
+ - Entry 36: Multi-sheet (1 tables)
+ - Entry 37: Multi-sheet (1 tables)
+
+--- Database Schema ---
+
+Table: ImportTemplates
+| CID | Name | Type | NotNull | Default | PK |
+|---|---|---|---|---|---|
+| 0 | Id | INTEGER | 1 |  | 1 |
+| 1 | Name | TEXT | 1 |  | 0 |
+| 2 | HeadersJson | TEXT | 1 |  | 0 |
+| 3 | CreatedAt | TEXT | 1 |  | 0 |
+| 4 | UpdatedAt | TEXT | 1 |  | 0 |
+| 5 | AmountColumn | TEXT | 0 |  | 0 |
+| 6 | AssetColumn | TEXT | 0 |  | 0 |
+
+Table: __EFMigrationsHistory
+| CID | Name | Type | NotNull | Default | PK |
+|---|---|---|---|---|---|
+| 0 | MigrationId | TEXT | 1 |  | 1 |
+| 1 | ProductVersion | TEXT | 1 |  | 0 |
+
+Table: __EFMigrationsLock
+| CID | Name | Type | NotNull | Default | PK |
+|---|---|---|---|---|---|
+| 0 | Id | INTEGER | 1 |  | 1 |
+| 1 | Timestamp | TEXT | 1 |  | 0 |
+
+Table: albums
+| CID | Name | Type | NotNull | Default | PK |
+|---|---|---|---|---|---|
+| 0 | Id | INTEGER | 1 |  | 1 |
+| 1 | ArtistId | INTEGER | 1 |  | 0 |
+| 2 | Title | TEXT | 1 |  | 0 |
+| 3 | ReleaseDate | TEXT | 0 |  | 0 |
+| 4 | CreatedAt | TEXT | 1 |  | 0 |
+| 5 | UpdatedAt | TEXT | 1 |  | 0 |
+| 6 | ReleaseType | TEXT | 1 |  | 0 |
+
+Table: artists
+| CID | Name | Type | NotNull | Default | PK |
+|---|---|---|---|---|---|
+| 0 | Id | INTEGER | 1 |  | 1 |
+| 1 | Name | TEXT | 1 |  | 0 |
+| 2 | CreatedAt | TEXT | 1 |  | 0 |
+| 3 | UpdatedAt | TEXT | 1 |  | 0 |
+
+Table: asset_revenues
+| CID | Name | Type | NotNull | Default | PK |
+|---|---|---|---|---|---|
+| 0 | Id | INTEGER | 1 |  | 1 |
+| 1 | AssetId | INTEGER | 1 |  | 0 |
+| 2 | RevenueEntryId | INTEGER | 1 |  | 0 |
+| 3 | Amount | decimal(18,2) | 1 |  | 0 |
+| 4 | CreatedAt | TEXT | 1 |  | 0 |
+
+Table: assets
+| CID | Name | Type | NotNull | Default | PK |
+|---|---|---|---|---|---|
+| 0 | Id | INTEGER | 1 |  | 1 |
+| 1 | Name | TEXT | 1 |  | 0 |
+| 2 | Type | TEXT | 1 |  | 0 |
+| 3 | AmountGenerated | decimal(18,2) | 1 |  | 0 |
+| 4 | Category | TEXT | 1 | '' | 0 |
+| 5 | Collection | TEXT | 1 | '' | 0 |
+
+Table: campaigns
+| CID | Name | Type | NotNull | Default | PK |
+|---|---|---|---|---|---|
+| 0 | Id | INTEGER | 1 |  | 1 |
+| 1 | ArtistId | INTEGER | 1 |  | 0 |
+| 2 | Name | TEXT | 1 |  | 0 |
+| 3 | StartDate | TEXT | 0 |  | 0 |
+| 4 | EndDate | TEXT | 0 |  | 0 |
+| 5 | CreatedAt | TEXT | 1 |  | 0 |
+| 6 | UpdatedAt | TEXT | 1 |  | 0 |
+
+Table: import_templates
+| CID | Name | Type | NotNull | Default | PK |
+|---|---|---|---|---|---|
+| 0 | Id | INTEGER | 1 |  | 1 |
+| 1 | Name | TEXT | 1 |  | 0 |
+| 2 | HeadersJson | TEXT | 1 |  | 0 |
+| 3 | Category | TEXT | 0 | 'Other' | 0 |
+| 4 | AssetColumn | TEXT | 0 |  | 0 |
+| 5 | AmountColumn | TEXT | 0 |  | 0 |
+| 6 | CreatedAt | TEXT | 1 |  | 0 |
+| 7 | UpdatedAt | TEXT | 1 |  | 0 |
+
+Table: revenue_entries
+| CID | Name | Type | NotNull | Default | PK |
+|---|---|---|---|---|---|
+| 0 | Id | INTEGER | 1 |  | 1 |
+| 1 | ArtistId | INTEGER | 1 |  | 0 |
+| 2 | SourceId | INTEGER | 1 |  | 0 |
+| 3 | Amount | decimal(18,2) | 1 |  | 0 |
+| 4 | RevenueDate | TEXT | 1 |  | 0 |
+| 5 | Description | TEXT | 0 |  | 0 |
+| 6 | TrackId | INTEGER | 0 |  | 0 |
+| 7 | AlbumId | INTEGER | 0 |  | 0 |
+| 8 | CampaignId | INTEGER | 0 |  | 0 |
+| 9 | CreatedAt | TEXT | 1 |  | 0 |
+| 10 | UpdatedAt | TEXT | 1 |  | 0 |
+| 11 | Integration | TEXT | 0 |  | 0 |
+| 12 | JsonData | TEXT | 0 |  | 0 |
+| 13 | ColumnMapping | TEXT | 0 |  | 0 |
+| 14 | ImportTemplateId | INTEGER | 0 |  | 0 |
+
+Table: revenue_sources
+| CID | Name | Type | NotNull | Default | PK |
+|---|---|---|---|---|---|
+| 0 | Id | INTEGER | 1 |  | 1 |
+| 1 | DescriptionText | TEXT | 1 |  | 0 |
+
+Table: tracks
+| CID | Name | Type | NotNull | Default | PK |
+|---|---|---|---|---|---|
+| 0 | Id | INTEGER | 1 |  | 1 |
+| 1 | ArtistId | INTEGER | 1 |  | 0 |
+| 2 | AlbumId | INTEGER | 0 |  | 0 |
+| 3 | Title | TEXT | 1 |  | 0 |
+| 4 | Duration | INTEGER | 0 |  | 0 |
+| 5 | CreatedAt | TEXT | 1 |  | 0 |
+| 6 | UpdatedAt | TEXT | 1 |  | 0 |
