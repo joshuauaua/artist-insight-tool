@@ -29,4 +29,7 @@ public partial class ImportTemplate
   public DateTime CreatedAt { get; set; }
 
   public DateTime UpdatedAt { get; set; }
+
+  [InverseProperty("ImportTemplate")]
+  public virtual ICollection<RevenueEntry> RevenueEntries { get; set; } = new List<RevenueEntry>();
 }

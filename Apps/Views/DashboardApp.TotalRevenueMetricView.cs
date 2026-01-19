@@ -4,55 +4,29 @@ SUM(RevenueEntry.Amount WHERE RevenueEntry.RevenueDate BETWEEN StartDate AND End
 */
 namespace ArtistInsightTool.Apps.Views;
 
+using ArtistInsightTool.Apps.Services;
+
 public class TotalRevenueMetricView(DateTime fromDate, DateTime toDate) : ViewBase
 {
-    public override object Build()
+  public override object Build()
+  {
+    var service = UseService<ArtistInsightService>();
+
+    async Task<MetricRecord> CalculateTotalRevenue()
     {
-        var factory = UseService<ArtistInsightToolContextFactory>();
-
-        async Task<MetricRecord> CalculateTotalRevenue()
-        {
-            await using var db = factory.CreateDbContext();
-
-            var currentPeriodRevenue = await db.RevenueEntries
-                .Where(r => r.RevenueDate >= fromDate && r.RevenueDate <= toDate)
-                .SumAsync(r => (double)r.Amount);
-
-            var periodLength = toDate - fromDate;
-            var previousFromDate = fromDate.AddDays(-periodLength.TotalDays);
-            var previousToDate = fromDate.AddDays(-1);
-
-            var previousPeriodRevenue = await db.RevenueEntries
-                .Where(r => r.RevenueDate >= previousFromDate && r.RevenueDate <= previousToDate)
-                .SumAsync(r => (double)r.Amount);
-
-            if (previousPeriodRevenue == 0)
-            {
-                return new MetricRecord(
-                    MetricFormatted: currentPeriodRevenue.ToString("C0"),
-                    TrendComparedToPreviousPeriod: null,
-                    GoalAchieved: null,
-                    GoalFormatted: null
-                );
-            }
-
-            double? trend = (currentPeriodRevenue - previousPeriodRevenue) / previousPeriodRevenue;
-
-            var goal = previousPeriodRevenue * 1.1;
-            double? goalAchievement = goal > 0 ? (double?)(currentPeriodRevenue / goal ): null;
-
-            return new MetricRecord(
-                MetricFormatted: currentPeriodRevenue.ToString("C0"),
-                TrendComparedToPreviousPeriod: trend,
-                GoalAchieved: goalAchievement,
-                GoalFormatted: goal.ToString("C0")
-            );
-        }
-
-        return new MetricView(
-            "Total Revenue",
-            Icons.DollarSign,
-            CalculateTotalRevenue
-        );
+      var dto = await service.GetTotalRevenueAsync(fromDate, toDate);
+      return dto != null ? new MetricRecord(
+          MetricFormatted: dto.Value,
+          TrendComparedToPreviousPeriod: dto.Trend,
+          GoalAchieved: dto.GoalProgress,
+          GoalFormatted: dto.GoalValue
+      ) : new MetricRecord("0", null, null, null);
     }
+
+    return new MetricView(
+        "Total Revenue",
+        Icons.DollarSign,
+        CalculateTotalRevenue
+    );
+  }
 }

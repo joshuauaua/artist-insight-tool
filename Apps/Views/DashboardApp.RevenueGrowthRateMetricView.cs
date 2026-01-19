@@ -4,55 +4,29 @@ The percentage change in revenue compared to the previous date range.
 */
 namespace ArtistInsightTool.Apps.Views;
 
+using ArtistInsightTool.Apps.Services;
+
 public class RevenueGrowthRateMetricView(DateTime fromDate, DateTime toDate) : ViewBase
 {
-    public override object? Build()
+  public override object? Build()
+  {
+    var service = UseService<ArtistInsightService>();
+
+    async Task<MetricRecord> CalculateRevenueGrowthRate()
     {
-        var factory = UseService<ArtistInsightToolContextFactory>();
-
-        async Task<MetricRecord> CalculateRevenueGrowthRate()
-        {
-            await using var db = factory.CreateDbContext();
-
-            var currentPeriodRevenue = await db.RevenueEntries
-                .Where(re => re.RevenueDate >= fromDate && re.RevenueDate <= toDate)
-                .SumAsync(re => (double)re.Amount);
-
-            var periodLength = toDate - fromDate;
-            var previousFromDate = fromDate.AddDays(-periodLength.TotalDays);
-            var previousToDate = fromDate.AddDays(-1);
-
-            var previousPeriodRevenue = await db.RevenueEntries
-                .Where(re => re.RevenueDate >= previousFromDate && re.RevenueDate <= previousToDate)
-                .SumAsync(re => (double)re.Amount);
-
-            if (previousPeriodRevenue == 0)
-            {
-                return new MetricRecord(
-                    MetricFormatted: currentPeriodRevenue.ToString("N2"),
-                    TrendComparedToPreviousPeriod: null,
-                    GoalAchieved: null,
-                    GoalFormatted: null
-                );
-            }
-
-            double? trend = (currentPeriodRevenue - previousPeriodRevenue) / previousPeriodRevenue * 100;
-
-            var goal = previousPeriodRevenue * 1.1;
-            double? goalAchievement = goal > 0 ? (double?)(currentPeriodRevenue / goal ): null;
-
-            return new MetricRecord(
-                MetricFormatted: currentPeriodRevenue.ToString("N2"),
-                TrendComparedToPreviousPeriod: trend,
-                GoalAchieved: goalAchievement,
-                GoalFormatted: goal.ToString("N2")
-            );
-        }
-
-        return new MetricView(
-            "Revenue Growth Rate",
-            Icons.TrendingUp,
-            CalculateRevenueGrowthRate
-        );
+      var dto = await service.GetGrowthRateAsync(fromDate, toDate);
+      return dto != null ? new MetricRecord(
+          MetricFormatted: dto.Value,
+          TrendComparedToPreviousPeriod: dto.Trend,
+          GoalAchieved: dto.GoalProgress,
+          GoalFormatted: dto.GoalValue
+      ) : new MetricRecord("0.00", null, null, null);
     }
+
+    return new MetricView(
+        "Revenue Growth Rate",
+        Icons.TrendingUp,
+        CalculateRevenueGrowthRate
+    );
+  }
 }

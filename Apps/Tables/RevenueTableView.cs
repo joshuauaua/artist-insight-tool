@@ -1,5 +1,6 @@
 using Ivy.Shared;
 using ArtistInsightTool.Apps.Views;
+using ArtistInsightTool.Apps.Services;
 using System.Globalization;
 
 namespace ArtistInsightTool.Apps.Tables;
@@ -10,7 +11,7 @@ public class RevenueTableView : ViewBase
 
   public override object? Build()
   {
-    var factory = UseService<ArtistInsightToolContextFactory>();
+    var service = UseService<ArtistInsightService>();
     // var blades = UseService<IBladeController>(); // Removed Blade Dependency
     var refreshToken = this.UseRefreshToken();
     var allEntries = UseState<RevenueTableItem[]>([]);
@@ -27,31 +28,23 @@ public class RevenueTableView : ViewBase
 
     async Task<IDisposable?> LoadData()
     {
-      await using var db = factory.CreateDbContext();
-      // Increase limit to enable better client-side search/filter
-      var rawData = await db.RevenueEntries
-         .Include(e => e.Track).ThenInclude(t => t.Album)
-         .Include(e => e.Album)
-         .Include(e => e.Source)
+      var rawData = await service.GetRevenueEntriesAsync();
+
+      var tableData = rawData.Select(e => new
+      {
+        e.Id,
+        e.RevenueDate,
+        Name = e.Track != null ? e.Track.Title : (e.Album != null ? e.Album.Title : (e.Description ?? "-")),
+        Type = e.Source?.DescriptionText ?? "Unknown",
+
+        e.Amount,
+        Source = e.Integration ?? "Manual"
+      })
          .OrderBy(e => e.Id)
          .Take(1000)
-         .Select(e => new
-         {
-           e.Id,
-           e.RevenueDate,
-           Name = e.Track != null ? e.Track.Title : (e.Album != null ? e.Album.Title : (e.Description ?? "-")),
-           Type = e.Source.DescriptionText,
-
-           e.Amount,
-           Source = e.Integration ?? "Manual"
-         })
-         .ToArrayAsync();
-
-      var tableData = rawData.Select(r => new RevenueTableItem(
+         .Select(r => new RevenueTableItem(
          r.Id,
-         // Date (Moved to later position in table, evenly spaced)
          Layout.Horizontal().Width(Size.Fraction(1)).Add(r.RevenueDate.ToShortDateString()),
-         // Name (First column, wider)
          Layout.Horizontal()
              .Width(Size.Fraction(3))
              .Align(Align.Left)
@@ -59,18 +52,14 @@ public class RevenueTableView : ViewBase
              .Add(new Button(r.Name, () => selectedDetailsId.Set(r.Id))
                  .Variant(ButtonVariant.Link)
              ),
-         // Type (Evenly spaced)
          Layout.Horizontal().Width(Size.Fraction(1)).Add(r.Type),
-         // Source (Evenly spaced)
          Layout.Horizontal().Width(Size.Fraction(1)).Add(r.Source),
 
-         // Amount (Right aligned, evenly spaced)
          Layout.Horizontal().Width(Size.Fraction(1)).Align(Align.Right).Add(r.Amount.ToString("C", CultureInfo.GetCultureInfo("sv-SE"))),
          r.RevenueDate,
          r.Name,
          r.Type,
          r.Source,
-
          r.Amount
      )).ToArray();
 

@@ -4,11 +4,13 @@ SELECT RevenueDate, SUM(Amount) FROM RevenueEntries WHERE RevenueDate BETWEEN @S
 */
 namespace ArtistInsightTool.Apps.Views;
 
+using ArtistInsightTool.Apps.Services;
+
 public class DailyRevenueTrendLineChartView(DateTime startDate, DateTime endDate) : ViewBase
 {
   public override object Build()
   {
-    var factory = UseService<ArtistInsightToolContextFactory>();
+    var service = UseService<ArtistInsightService>();
     var chart = UseState<object?>((object?)null);
     var exception = UseState<Exception?>((Exception?)null);
 
@@ -16,16 +18,12 @@ public class DailyRevenueTrendLineChartView(DateTime startDate, DateTime endDate
     {
       try
       {
-        var db = factory.CreateDbContext();
-        var data = await db.RevenueEntries
-                .Where(e => e.RevenueDate >= startDate && e.RevenueDate <= endDate)
-                .GroupBy(e => e.RevenueDate.Date)
-                .Select(g => new
-                {
-                  Date = g.Key.ToString("d MMM"),
-                  TotalRevenue = g.Sum((RevenueEntry e) => (double)e.Amount)
-                })
-                .ToListAsync();
+        var rawData = await service.GetRevenueTrendAsync(startDate, endDate);
+        var data = rawData.Select(d => new
+        {
+          Date = d.Date.ToString("d MMM"),
+          TotalRevenue = d.Value
+        }).ToList();
 
         chart.Set(data.ToLineChart(
                 e => e.Date,

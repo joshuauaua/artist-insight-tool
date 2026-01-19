@@ -1,6 +1,7 @@
 using Ivy.Shared;
 using ArtistInsightTool.Connections.ArtistInsightTool;
 using Microsoft.EntityFrameworkCore;
+using ArtistInsightTool.Apps.Services;
 
 namespace ArtistInsightTool.Apps.Tables;
 
@@ -12,7 +13,7 @@ public class TemplatesApp : ViewBase
 
   public override object Build()
   {
-    var factory = UseService<ArtistInsightToolContextFactory>();
+    var service = UseService<ArtistInsightService>();
     var client = UseService<IClientProvider>();
     var items = UseState<List<TemplateItem>>([]);
     var refresh = UseState(0);
@@ -23,35 +24,15 @@ public class TemplatesApp : ViewBase
       try
       {
         await Task.Delay(10);
-        await using var db = factory.CreateDbContext();
-
-
-
-        // Fetch templates with usage count
-        // We left join RevenueEntries on ImportTemplateId to count usage
-        var templates = await db.ImportTemplates
-                .GroupJoin(
-                    db.RevenueEntries,
-                    t => t.Id,
-                    e => e.ImportTemplateId,
-                    (t, entries) => new
-                    {
-                      t.Id,
-                      t.Name,
-                      t.Category,
-                      t.CreatedAt,
-                      Files = entries.Count()
-                    }
-                )
-                .OrderByDescending(t => t.CreatedAt)
-                .ToListAsync();
+        // Load Data from API
+        var templates = await service.GetTemplatesAsync();
 
         var mapped = templates.Select(t => new TemplateItem(
                 t.Id,
                 $"T{t.Id:D3}",
                 t.Name,
                 t.Category ?? "Other",
-                t.Files,
+                t.RevenueEntries?.Count ?? 0,
                 t.CreatedAt
             )).ToList();
 
@@ -139,7 +120,7 @@ public class CreateTemplateSheet(Action onClose) : ViewBase
 {
   public override object Build()
   {
-    var factory = UseService<ArtistInsightToolContextFactory>();
+    var service = UseService<ArtistInsightService>();
     var name = UseState("");
     var category = UseState("Other");
 
@@ -158,8 +139,7 @@ public class CreateTemplateSheet(Action onClose) : ViewBase
                 {
                   if (string.IsNullOrWhiteSpace(name.Value)) return;
 
-                  await using var db = factory.CreateDbContext();
-                  db.ImportTemplates.Add(new ImportTemplate
+                  await service.CreateTemplateAsync(new ImportTemplate
                   {
                     Name = name.Value,
                     Category = category.Value,
@@ -167,7 +147,6 @@ public class CreateTemplateSheet(Action onClose) : ViewBase
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
                   });
-                  await db.SaveChangesAsync();
                   onClose();
                 }).Variant(ButtonVariant.Primary))
             )

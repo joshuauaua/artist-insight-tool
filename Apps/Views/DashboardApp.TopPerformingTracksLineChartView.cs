@@ -4,11 +4,13 @@ SELECT Track.Title, RevenueDate, SUM(Amount) FROM RevenueEntries JOIN Tracks ON 
 */
 namespace ArtistInsightTool.Apps.Views;
 
+using ArtistInsightTool.Apps.Services;
+
 public class TopPerformingTracksLineChartView(DateTime startDate, DateTime endDate) : ViewBase
 {
   public override object Build()
   {
-    var factory = UseService<ArtistInsightToolContextFactory>();
+    var service = UseService<ArtistInsightService>();
     var chart = UseState<object?>((object?)null);
     var exception = UseState<Exception?>((Exception?)null);
 
@@ -16,21 +18,13 @@ public class TopPerformingTracksLineChartView(DateTime startDate, DateTime endDa
     {
       try
       {
-        var db = factory.CreateDbContext();
-
-        var data = await db.RevenueEntries
-                .Where(re => re.RevenueDate >= startDate && re.RevenueDate <= endDate)
-                .Include(re => re.Track)
-                .GroupBy(re => new { re.Track!.Title, re.RevenueDate })
-                .Select(g => new
-                {
-                  TrackTitle = g.Key.Title,
-                  Date = g.Key.RevenueDate.Date.ToString("d MMM"),
-                  TotalRevenue = g.Sum((RevenueEntry re) => (double)re.Amount)
-                })
-                .OrderByDescending(g => g.TotalRevenue)
-                .Take(5)
-                .ToListAsync();
+        var rawData = await service.GetTopPerformingTracksPointsAsync(startDate, endDate);
+        var data = rawData.Select(d => new
+        {
+          TrackTitle = d.TrackTitle,
+          Date = d.Date.ToString("d MMM"),
+          TotalRevenue = d.Revenue
+        }).ToList();
 
         chart.Set(data.ToLineChart(
                 e => e.Date,

@@ -161,7 +161,7 @@ public class ImportSpotifyAssetSheet(Action onClose) : ViewBase
 {
   public override object Build()
   {
-    var factory = UseService<ArtistInsightToolContextFactory>();
+    var service = UseService<ArtistInsightService>();
     var importType = UseState("Artist");
     var id = UseState("");
     var token = UseState("");
@@ -214,14 +214,12 @@ public class ImportSpotifyAssetSheet(Action onClose) : ViewBase
                       var assetName = nameProp.GetString();
                       if (!string.IsNullOrEmpty(assetName))
                       {
-                        await using var db = factory.CreateDbContext();
-                        db.Assets.Add(new Asset
+                        await service.CreateAssetAsync(new Asset
                         {
                           Name = assetName,
                           Type = importType.Value, // "Artist" or "Song"
                           AmountGenerated = 0
                         });
-                        await db.SaveChangesAsync();
                         onClose();
                       }
                     }
@@ -243,7 +241,7 @@ public class CreateAssetSheet(Action onClose) : ViewBase
 {
   public override object Build()
   {
-    var factory = UseService<ArtistInsightToolContextFactory>();
+    var service = UseService<ArtistInsightService>();
     var name = UseState("");
     var category = UseState("Royalties");
     var type = UseState("");
@@ -290,8 +288,7 @@ public class CreateAssetSheet(Action onClose) : ViewBase
                 {
                   if (string.IsNullOrEmpty(name.Value)) return;
 
-                  await using var db = factory.CreateDbContext();
-                  db.Assets.Add(new Asset
+                  await service.CreateAssetAsync(new Asset
                   {
                     Name = name.Value,
                     Category = category.Value,
@@ -299,7 +296,6 @@ public class CreateAssetSheet(Action onClose) : ViewBase
                     Collection = collection.Value,
                     AmountGenerated = 0 // Calculated dynamically later
                   });
-                  await db.SaveChangesAsync();
                   onClose();
                 }).Variant(ButtonVariant.Primary))
             )

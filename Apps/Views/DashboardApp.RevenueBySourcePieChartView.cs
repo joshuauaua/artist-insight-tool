@@ -4,11 +4,13 @@ SELECT Source.DescriptionText, SUM(Amount) FROM RevenueEntries JOIN RevenueSourc
 */
 namespace ArtistInsightTool.Apps.Views;
 
+using ArtistInsightTool.Apps.Services;
+
 public class RevenueBySourcePieChartView(DateTime startDate, DateTime endDate) : ViewBase
 {
   public override object Build()
   {
-    var factory = UseService<ArtistInsightToolContextFactory>();
+    var service = UseService<ArtistInsightService>();
     var chart = UseState<object?>((object?)null!);
     var exception = UseState<Exception?>((Exception?)null!);
 
@@ -16,24 +18,15 @@ public class RevenueBySourcePieChartView(DateTime startDate, DateTime endDate) :
     {
       try
       {
-        var db = factory.CreateDbContext();
-        var data = await db.RevenueEntries
-                .Where(re => re.RevenueDate >= startDate && re.RevenueDate <= endDate)
-                .GroupBy(re => re.Source.DescriptionText)
-                .Select(g => new
-                {
-                  Source = g.Key,
-                  Revenue = g.Sum((RevenueEntry re) => (double)re.Amount)
-                })
-                .ToListAsync();
+        var data = await service.GetRevenueBySourceAsync(startDate, endDate);
 
-        var totalRevenue = data.Sum(d => d.Revenue);
+        var totalRevenue = data.Sum(d => d.Value);
 
         PieChartTotal total = new(Format.Number(@"[<1000]0;[<10000]0.0,""K"";0,""K""", totalRevenue), "Revenue");
 
         chart.Set(data.ToPieChart(
-                dimension: d => d.Source,
-                measure: d => d.Sum(x => x.Revenue),
+                dimension: d => d.Label,
+                measure: d => d.Sum(x => x.Value),
                 PieChartStyles.Dashboard,
                 total));
       }
