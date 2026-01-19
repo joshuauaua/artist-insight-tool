@@ -357,7 +357,7 @@ public class ExcelDataReaderApp : ViewBase
                 | new Button("", () => templateCreationStep.Set(1)).Variant(ButtonVariant.Ghost).Icon(Icons.ArrowLeft)
                 | Text.H4("Step 2: Map Columns")
             | Text.Muted("Assign columns to standard fields.")
-            | Layout.Vertical().Gap(2).Padding(10, 0)
+            | Layout.Vertical().Gap(0).Padding(0, 0)
                 | headers.Select(h =>
                 {
                   var currentRole = newTemplateAssetColumn.Value == h ? "Asset" :
@@ -368,9 +368,9 @@ public class ExcelDataReaderApp : ViewBase
                                     "Ignore";
 
                   return Layout.Horizontal().Gap(10).Align(Align.Center)
-                      | Layout.Vertical().Width(Size.Fraction(1))
-                          | Text.Label(h)
-                      | Layout.Vertical().Width(150)
+                      | Layout.Vertical().Width(Size.Fraction(1)).Align(Align.Left)
+                          | Text.H5(h)
+                      | Layout.Vertical().Width(120)
                           | (new DropDownMenu(
                               DropDownMenu.DefaultSelectHandler(),
                               new Button(currentRole).Variant(ButtonVariant.Outline).Icon(Icons.ChevronDown).Width(Size.Full())
@@ -672,15 +672,15 @@ public class ExcelDataReaderApp : ViewBase
       ).ToList();
       options.Insert(0, new Option<int?>("Create New Entry (Default)", null));
 
-      return Layout.Vertical().Gap(10).Width(Size.Full())
+      return Layout.Vertical().Gap(5).Width(Size.Full())
           | Text.Muted("Upload this table to Data Tables.")
-          | Layout.Vertical().Gap(2)
+          | Layout.Vertical().Gap(0)
               | Text.Label("Name")
               | uploadName.ToTextInput().Placeholder("Table Name")
-          | Layout.Vertical().Gap(2)
+          | Layout.Vertical().Gap(0)
               | Text.Label("Template Used")
               | Text.Muted(matchedTemplate.Value?.Name ?? "Unknown")
-          | Layout.Vertical().Gap(2)
+          | Layout.Vertical().Gap(0)
               | Text.Label("Link to Entry (Optional)")
               | uploadLinkId.ToSelectInput(options)
 
