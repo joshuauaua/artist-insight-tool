@@ -76,6 +76,12 @@ public class ExcelDataReaderApp : ViewBase
     var newTemplateCollectionColumn = UseState<string?>(() => null);
     var newTemplateGrossColumn = UseState<string?>(() => null);
     var newTemplateCurrencyColumn = UseState<string?>(() => null);
+    // New fields
+    var newTemplateTerritoryColumn = UseState<string?>(() => null);
+    var newTemplateLabelColumn = UseState<string?>(() => null);
+    var newTemplateArtistColumn = UseState<string?>(() => null);
+    var newTemplateStoreColumn = UseState<string?>(() => null);
+    var newTemplateDspColumn = UseState<string?>(() => null);
 
     // --- Upload/Save State ---
     var uploadName = UseState("");
@@ -365,6 +371,11 @@ public class ExcelDataReaderApp : ViewBase
                                     newTemplateCollectionColumn.Value == h ? "Collection" :
                                     newTemplateGrossColumn.Value == h ? "Gross" :
                                     newTemplateCurrencyColumn.Value == h ? "Currency" :
+                                    newTemplateTerritoryColumn.Value == h ? "Territory" :
+                                    newTemplateLabelColumn.Value == h ? "Label" :
+                                    newTemplateArtistColumn.Value == h ? "Artist" :
+                                    newTemplateStoreColumn.Value == h ? "Store" :
+                                    newTemplateDspColumn.Value == h ? "DSP" :
                                     "Ignore";
 
                   return Layout.Horizontal().Gap(10).Align(Align.Center)
@@ -382,32 +393,22 @@ public class ExcelDataReaderApp : ViewBase
                                 if (newTemplateCollectionColumn.Value == h) newTemplateCollectionColumn.Set((string?)null);
                                 if (newTemplateGrossColumn.Value == h) newTemplateGrossColumn.Set((string?)null);
                                 if (newTemplateCurrencyColumn.Value == h) newTemplateCurrencyColumn.Set((string?)null);
+                                if (newTemplateTerritoryColumn.Value == h) newTemplateTerritoryColumn.Set((string?)null);
+                                if (newTemplateLabelColumn.Value == h) newTemplateLabelColumn.Set((string?)null);
+                                if (newTemplateArtistColumn.Value == h) newTemplateArtistColumn.Set((string?)null);
+                                if (newTemplateStoreColumn.Value == h) newTemplateStoreColumn.Set((string?)null);
+                                if (newTemplateDspColumn.Value == h) newTemplateDspColumn.Set((string?)null);
                               })
-                            | MenuItem.Default("Asset").HandleSelect(() =>
-                              {
-                                ClearColumn(h);
-                                newTemplateAssetColumn.Set(h);
-                              })
-                            | MenuItem.Default("Collection").HandleSelect(() =>
-                              {
-                                ClearColumn(h);
-                                newTemplateCollectionColumn.Set(h);
-                              })
-                            | MenuItem.Default("Gross").HandleSelect(() =>
-                              {
-                                ClearColumn(h);
-                                newTemplateGrossColumn.Set(h);
-                              })
-                            | MenuItem.Default("Net").HandleSelect(() =>
-                              {
-                                ClearColumn(h);
-                                newTemplateAmountColumn.Set(h);
-                              })
-                            | MenuItem.Default("Currency").HandleSelect(() =>
-                              {
-                                ClearColumn(h);
-                                newTemplateCurrencyColumn.Set(h);
-                              })
+                            | MenuItem.Default("Asset").HandleSelect(() => { ClearColumn(h); newTemplateAssetColumn.Set(h); })
+                            | MenuItem.Default("Collection").HandleSelect(() => { ClearColumn(h); newTemplateCollectionColumn.Set(h); })
+                            | MenuItem.Default("Territory").HandleSelect(() => { ClearColumn(h); newTemplateTerritoryColumn.Set(h); })
+                            | MenuItem.Default("Label").HandleSelect(() => { ClearColumn(h); newTemplateLabelColumn.Set(h); })
+                            | MenuItem.Default("Artist").HandleSelect(() => { ClearColumn(h); newTemplateArtistColumn.Set(h); })
+                            | MenuItem.Default("Store").HandleSelect(() => { ClearColumn(h); newTemplateStoreColumn.Set(h); })
+                            | MenuItem.Default("DSP").HandleSelect(() => { ClearColumn(h); newTemplateDspColumn.Set(h); })
+                            | MenuItem.Default("Gross").HandleSelect(() => { ClearColumn(h); newTemplateGrossColumn.Set(h); })
+                            | MenuItem.Default("Net").HandleSelect(() => { ClearColumn(h); newTemplateAmountColumn.Set(h); })
+                            | MenuItem.Default("Currency").HandleSelect(() => { ClearColumn(h); newTemplateCurrencyColumn.Set(h); })
                             )
                   ;
                 }).ToArray()
@@ -421,7 +422,14 @@ public class ExcelDataReaderApp : ViewBase
                 HeadersJson = JsonSerializer.Serialize(headers),
                 AssetColumn = newTemplateAssetColumn.Value,
                 AmountColumn = newTemplateAmountColumn.Value,
-                // Note: Collection, Gross, Currency are not yet saved to DB
+                CollectionColumn = newTemplateCollectionColumn.Value,
+                GrossColumn = newTemplateGrossColumn.Value,
+                CurrencyColumn = newTemplateCurrencyColumn.Value,
+                TerritoryColumn = newTemplateTerritoryColumn.Value,
+                LabelColumn = newTemplateLabelColumn.Value,
+                ArtistColumn = newTemplateArtistColumn.Value,
+                StoreColumn = newTemplateStoreColumn.Value,
+                DspColumn = newTemplateDspColumn.Value,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
               };
@@ -451,6 +459,11 @@ public class ExcelDataReaderApp : ViewBase
       if (newTemplateCollectionColumn.Value == h) newTemplateCollectionColumn.Set((string?)null);
       if (newTemplateGrossColumn.Value == h) newTemplateGrossColumn.Set((string?)null);
       if (newTemplateCurrencyColumn.Value == h) newTemplateCurrencyColumn.Set((string?)null);
+      if (newTemplateTerritoryColumn.Value == h) newTemplateTerritoryColumn.Set((string?)null);
+      if (newTemplateLabelColumn.Value == h) newTemplateLabelColumn.Set((string?)null);
+      if (newTemplateArtistColumn.Value == h) newTemplateArtistColumn.Set((string?)null);
+      if (newTemplateStoreColumn.Value == h) newTemplateStoreColumn.Set((string?)null);
+      if (newTemplateDspColumn.Value == h) newTemplateDspColumn.Set((string?)null);
     }
 
 
