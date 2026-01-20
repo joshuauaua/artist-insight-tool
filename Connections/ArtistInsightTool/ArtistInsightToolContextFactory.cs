@@ -47,10 +47,19 @@ public sealed class ArtistInsightToolContextFactory : IDbContextFactory<ArtistIn
     var context = new ArtistInsightToolContext(optionsBuilder.Options);
 
     // Auto-migration for JsonData and ColumnMapping
+    // Auto-migration for JsonData and ColumnMapping
     if (!_migrationChecked)
     {
-      context.Database.Migrate();
-      _migrationChecked = true;
+      _migrationChecked = true; // Set immediately to prevent re-entry loops
+      try
+      {
+        context.Database.Migrate();
+      }
+      catch (Exception ex)
+      {
+        _logger?.LogError(ex, "Failed to migrate database.");
+      }
+
       try
       {
         context.Database.ExecuteSqlRaw("ALTER TABLE revenue_entries ADD COLUMN JsonData TEXT");
@@ -96,7 +105,7 @@ public sealed class ArtistInsightToolContextFactory : IDbContextFactory<ArtistIn
       // RESTORE ARTIST SCHEMA (Revert Fix)
       try
       {
-        context.Database.ExecuteSqlRaw("CREATE TABLE IF NOT EXISTS \"artists\" (\"Id\" INTEGER NOT NULL CONSTRAINT \"PK_artists\" PRIMARY KEY AUTOINCREMENT, \"Name\" TEXT NOT NULL, \"CreatedAt\" TEXT NOT NULL, \"UpdatedAt\" TEXT NOT NULL)");
+        context.Database.ExecuteSqlRaw(@"CREATE TABLE IF NOT EXISTS ""artists"" (""Id"" INTEGER NOT NULL CONSTRAINT ""PK_artists"" PRIMARY KEY AUTOINCREMENT, ""Name"" TEXT NOT NULL, ""CreatedAt"" TEXT NOT NULL, ""UpdatedAt"" TEXT NOT NULL)");
 
         // Ensure default artist exists
         var artistCount = context.Database.ExecuteSqlRaw("INSERT OR IGNORE INTO artists (Id, Name, CreatedAt, UpdatedAt) VALUES (1, 'Primary Artist', '2024-01-01', '2024-01-01')");

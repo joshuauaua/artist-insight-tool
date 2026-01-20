@@ -1,17 +1,5 @@
-Entries Count: 13
- - ID: 1, Desc: Rerum ipsam ut et provident., DataLen: 0, Source: Live Show, Created: 9/20/2024 4:40:42 AM
- - ID: 2, Desc: Quaerat consectetur maxime officiis et., DataLen: 0, Source: Other, Created: 3/24/2025 3:33:19 AM
- - ID: 3, Desc: Explicabo et atque quisquam est., DataLen: 0, Source: Streams, Created: 10/26/2025 4:39:28 AM
- - ID: 4, Desc: Modi nesciunt minima earum voluptates., DataLen: 0, Source: Merch, Created: 10/24/2024 3:40:15 PM
- - ID: 5, Desc: Explicabo laborum asperiores porro quia., DataLen: 0, Source: Merch, Created: 3/13/2024 3:40:03 AM
- - ID: 6, Desc: Non nam sit aut inventore., DataLen: 0, Source: Sync, Created: 8/27/2025 12:32:29 AM
- - ID: 7, Desc: Reiciendis at dolorem iure ut., DataLen: 0, Source: Streams, Created: 10/11/2024 3:27:36 PM
- - ID: 8, Desc: Sed et aliquid ducimus sed., DataLen: 0, Source: Other, Created: 11/29/2024 12:15:48 PM
- - ID: 9, Desc: Ea nulla ullam modi minima., DataLen: 0, Source: Live Show, Created: 8/2/2025 11:50:32 PM
- - ID: 10, Desc: Adipisci ut et iste iusto., DataLen: 0, Source: Merch, Created: 2/21/2024 8:46:21 PM
- - ID: 11, Desc: tmpkmD6Zc.tmp.csv, DataLen: 2520, Source: Other, Created: 1/19/2026 7:56:56 PM
- - ID: 12, Desc: 2024 Q3 Assets, DataLen: 2505, Source: Other, Created: 1/20/2026 10:02:42 AM
- - ID: 13, Desc: 2024 Q1 Assets, DataLen: 2505, Source: Other, Created: 1/20/2026 10:31:17 AM
+Entries Count: 1
+ - ID: 17, Desc: 2026 Q1 Artists, DataLen: 221, Source: Other, Created: 1/20/2026 3:53:38 PM
 
 Sources Count: 5
  - ID: 1, Desc: Merch
@@ -21,13 +9,11 @@ Sources Count: 5
  - ID: 5, Desc: Other
 
 Total Assets: 5
- - [001] Sunday (Unknown)
- - [002] Bonafide (Unknown)
- - [003] Runaway (Unknown)
- - [004] Muddy Waters (Unknown)
- - [005] Patience (Revisited) (Unknown)
+ - [006] Sunday (Unknown)
+ - [007] Bonafide (Unknown)
+ - [008] Runaway (Unknown)
+ - [009] Muddy Waters (Unknown)
+ - [010] Patience (Revisited) (Unknown)
 
 --- Data Tables Analysis ---
- - Entry 11: Multi-sheet (1 tables)
- - Entry 12: Multi-sheet (1 tables)
- - Entry 13: Multi-sheet (1 tables)
+ - Entry 17: Multi-sheet (1 tables)
