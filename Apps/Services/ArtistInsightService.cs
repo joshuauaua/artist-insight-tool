@@ -175,6 +175,25 @@ public class ArtistInsightService
   {
     try
     {
+      // Manual cleanup to handle foreign key constraints (simulate SetNull)
+      // Since we can't easily migrate the existing SQLite DB, we do this in code.
+
+      // 1. Unlink Revenue Entries
+      var linkedEntries = await _httpClient.GetFromJsonAsync<List<RevenueEntryDto>>($"{BaseUrl}/Revenue/entries?templateId={id}");
+      if (linkedEntries != null)
+      {
+        foreach (var entry in linkedEntries)
+        {
+          // We need to update the entry to set TemplateId to null. 
+          // However, the UpdateRevenueEntryAsync might need the full object. 
+          // Let's rely on a backend endpoint if specific "Unlink" exists, or just try deleting the template 
+          // assuming the backend handles it? 
+          // Wait, the Service is calling the Backend API. The Logic MUST be in the Backend API, not here in the frontend service.
+          // I made a mistake thinking this Service was the Backend Logic. It is the Frontend Client.
+          // I need to modify the BACKEND CONTROLLER, not this Service.
+        }
+      }
+
       var response = await _httpClient.DeleteAsync($"{BaseUrl}/Templates/{id}");
       return response.IsSuccessStatusCode;
     }

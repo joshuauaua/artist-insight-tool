@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.IO;
 using System.Text; // Added for StringBuilder
 using ArtistInsightTool.Apps.Views;
+using ArtistInsightTool.Apps.Services;
 
 namespace ArtistInsightTool.Apps.Tables;
 
@@ -101,6 +102,8 @@ public class DataTablesApp : ViewBase
 
     bool allSelected = filteredItems.Count > 0 && selectedIds.Value.Count == filteredItems.Count;
 
+    var service = UseService<ArtistInsightService>();
+    var confirmDeleteId = UseState<int?>(() => null);
     var selectedTableId = UseState<int?>(() => null);
 
     if (selectedTableId.Value != null)
@@ -161,7 +164,8 @@ public class DataTablesApp : ViewBase
                           t.Name,
                           t.AnnexedTo,
                           t.LinkedTo,
-                          t.Date
+                          t.Date,
+                          Actions = new Button("", () => confirmDeleteId.Set(t.RealId)).Icon(Icons.Trash).Variant(ButtonVariant.Ghost)
                         }).ToArray().ToTable()
                             .Width(Size.Full())
                             // Header checkbox for Select All
@@ -170,14 +174,33 @@ public class DataTablesApp : ViewBase
                             .Add(x => x.AnnexedTo)
                             .Add(x => x.LinkedTo)
                             .Add(x => x.Date)
+                            .Add(x => x.Actions)
                             .Header(x => x.IdButton, "ID")
                             .Header(x => x.Name, "Name")
                             .Header(x => x.AnnexedTo, "Annexed To")
                             .Header(x => x.LinkedTo, "Linked To")
                             .Header(x => x.Date, "Uploaded")
+                            .Header(x => x.Actions, "")
                         : Text.Muted("No data tables found.")
                     )
-            )
+            ),
+        confirmDeleteId.Value != null ? new Dialog(
+            _ => confirmDeleteId.Set((int?)null),
+            new DialogHeader("Confirm Deletion"),
+            new DialogBody(Text.Label("Are you sure you want to delete this table? This action cannot be undone.")),
+            new DialogFooter(
+                new Button("Cancel", () => { confirmDeleteId.Set((int?)null); }),
+                new Button("Delete", async () =>
+                {
+                  if (confirmDeleteId.Value == null) return;
+                  var success = await service.DeleteRevenueEntryAsync(confirmDeleteId.Value.Value);
+                  if (success)
+                  {
+                    refresh.Set(refresh.Value + 1);
+                  }
+                  confirmDeleteId.Set((int?)null);
+                }).Variant(ButtonVariant.Destructive))
+        ) : null
     );
   }
 }

@@ -558,9 +558,12 @@ public class ExcelDataReaderApp : ViewBase
                  {
                    var assetCol = tmpl.AssetColumn;
                    var amountCol = tmpl.AmountColumn;
+                   var collectionCol = tmpl.CollectionColumn;
 
                    // 1. Identify Assets in this batch
                    var batchAssets = new Dictionary<string, decimal>();
+                   var assetCollections = new Dictionary<string, string>();
+
                    foreach (var row in data)
                    {
                      if (row.TryGetValue(assetCol, out var nameObj) && row.TryGetValue(amountCol, out var amountObj))
@@ -568,7 +571,19 @@ public class ExcelDataReaderApp : ViewBase
                        var name = nameObj?.ToString()?.Trim();
                        if (!string.IsNullOrEmpty(name) && decimal.TryParse(amountObj?.ToString(), out var amount))
                        {
-                         if (!batchAssets.ContainsKey(name)) batchAssets[name] = 0;
+                         if (!batchAssets.ContainsKey(name))
+                         {
+                           batchAssets[name] = 0;
+                           // Capture collection if available
+                           if (!string.IsNullOrEmpty(collectionCol) && row.TryGetValue(collectionCol, out var colObj))
+                           {
+                             var colStr = colObj?.ToString()?.Trim();
+                             if (!string.IsNullOrEmpty(colStr))
+                             {
+                               assetCollections[name] = colStr;
+                             }
+                           }
+                         }
                          batchAssets[name] += amount;
                        }
                      }
@@ -583,7 +598,14 @@ public class ExcelDataReaderApp : ViewBase
 
                      // 3. Create missing Assets
                      var newAssets = names.Where(n => !existingNames.Contains(n))
-                                          .Select(n => new Asset { Name = n, Type = "Unknown", AmountGenerated = 0 })
+                                          .Select(n => new Asset
+                                          {
+                                            Name = n,
+                                            Type = "Unknown",
+                                            Category = tmpl.Category,
+                                            Collection = assetCollections.GetValueOrDefault(n) ?? "",
+                                            AmountGenerated = 0
+                                          })
                                           .ToList();
 
                      if (newAssets.Count > 0)

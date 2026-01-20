@@ -17,6 +17,7 @@ public class TemplatesApp : ViewBase
     var client = UseService<IClientProvider>();
     var items = UseState<List<TemplateItem>>([]);
     var refresh = UseState(0);
+    var confirmDeleteId = UseState<int?>(() => null);
 
     // Load Data
     UseEffect(async () =>
@@ -34,7 +35,7 @@ public class TemplatesApp : ViewBase
                 t.Category ?? "Other",
                 t.RevenueEntries?.Count ?? 0,
                 t.CreatedAt
-            )).ToList();
+            )).OrderBy(t => t.RealId).ToList();
 
         items.Set(mapped);
       }
@@ -63,7 +64,8 @@ public class TemplatesApp : ViewBase
       IdButton = new Button(t.Id, () => { }).Variant(ButtonVariant.Ghost),
       t.Name,
       t.Category,
-      t.Files
+      t.Files,
+      Actions = new Button("", () => confirmDeleteId.Set(t.RealId)).Icon(Icons.Trash).Variant(ButtonVariant.Ghost)
     }).AsQueryable();
 
     var showCreate = UseState(false);
@@ -110,8 +112,26 @@ public class TemplatesApp : ViewBase
                      .Header(x => x.Name, "Name")
                      .Header(x => x.Category, "Category")
                      .Header(x => x.Files, "Linked Files")
+                     .Header(x => x.Actions, "")
                 )
-            )
+            ),
+        confirmDeleteId.Value != null ? new Dialog(
+            _ => confirmDeleteId.Set((int?)null),
+            new DialogHeader("Confirm Deletion"),
+            new DialogBody(Text.Label("Are you sure you want to delete this template? This action cannot be undone.")),
+            new DialogFooter(
+                new Button("Cancel", () => { confirmDeleteId.Set((int?)null); }),
+                new Button("Delete", async () =>
+                {
+                  if (confirmDeleteId.Value == null) return;
+                  var success = await service.DeleteTemplateAsync(confirmDeleteId.Value.Value);
+                  if (success)
+                  {
+                    refresh.Set(refresh.Value + 1);
+                  }
+                  confirmDeleteId.Set((int?)null);
+                }).Variant(ButtonVariant.Destructive))
+        ) : null
     );
   }
 }

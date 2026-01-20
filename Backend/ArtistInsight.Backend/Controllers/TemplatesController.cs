@@ -55,6 +55,13 @@ public class TemplatesController : ControllerBase
       return NotFound();
     }
 
+    var linkedEntries = await _context.RevenueEntries.Where(e => e.ImportTemplateId == id).ToListAsync();
+    foreach (var entry in linkedEntries)
+    {
+      entry.ImportTemplateId = null;
+    }
+    await _context.SaveChangesAsync();
+
     _context.ImportTemplates.Remove(template);
     await _context.SaveChangesAsync();
 

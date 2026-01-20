@@ -48,6 +48,8 @@ public partial class ArtistInsightToolContext : DbContext
       entity.HasOne(d => d.Artist).WithMany(p => p.RevenueEntries).OnDelete(DeleteBehavior.Restrict);
 
       entity.HasOne(d => d.Source).WithMany(p => p.RevenueEntries).OnDelete(DeleteBehavior.Restrict);
+
+      entity.HasOne(d => d.ImportTemplate).WithMany(p => p.RevenueEntries).OnDelete(DeleteBehavior.SetNull);
     });
 
     modelBuilder.Entity<RevenueSource>(entity =>
