@@ -81,6 +81,19 @@ public class ExcelDataReaderApp : ViewBase
     var uploadName = UseState("");
     var uploadLinkId = UseState<int?>(() => null);
 
+    // --- Smart Naming State (Royalties) ---
+    var uploadYear = UseState(DateTime.Now.Year);
+    var uploadQuarter = UseState("Q1");
+
+    // Auto-name file based on Royalties selection
+    UseEffect(() =>
+    {
+      if (activeMode.Value == AnalyzerMode.Upload && matchedTemplate.Value?.Category == "Royalties")
+      {
+        uploadName.Set($"{uploadYear.Value} {uploadQuarter.Value} {matchedTemplate.Value.Name}");
+      }
+    }, [activeMode, matchedTemplate, uploadYear, uploadQuarter]);
+
     // --- Upload Logic ---
     var uploadState = UseState<FileUpload<byte[]>?>();
     var uploadContext = this.UseUpload(MemoryStreamUploadHandler.Create(uploadState))
@@ -274,11 +287,6 @@ public class ExcelDataReaderApp : ViewBase
                                     parsedData.Set(ParseCurrentFile());
                                     activeMode.Set(AnalyzerMode.Preview);
                                   }).Variant(ButtonVariant.Outline).Icon(Icons.Eye).Width(Size.Full())
-                                  | new Button("Annex to Table", () =>
-                                  {
-                                    parsedData.Set(ParseCurrentFile());
-                                    activeMode.Set(AnalyzerMode.Annex);
-                                  }).Variant(ButtonVariant.Outline).Icon(Icons.Paperclip).Width(Size.Full())
                                   | new Button("Upload", () =>
                                   {
                                     uploadName.Set(fileAnalysis.Value?.FileName ?? "Untitled");
@@ -700,6 +708,17 @@ public class ExcelDataReaderApp : ViewBase
           | Layout.Vertical().Gap(0)
               | Text.Label("Template Used")
               | Text.Muted(matchedTemplate.Value?.Name ?? "Unknown")
+
+          | (matchedTemplate.Value?.Category == "Royalties" ?
+              Layout.Horizontal().Gap(10)
+                | Layout.Vertical().Gap(2).Width(Size.Fraction(1))
+                    | Text.Label("Year")
+                    | uploadYear.ToSelectInput(Enumerable.Range(DateTime.Now.Year - 5, 7).Select(y => new Option<int>(y.ToString(), y)).ToList())
+                | Layout.Vertical().Gap(2).Width(Size.Fraction(1))
+                    | Text.Label("Quarter")
+                    | uploadQuarter.ToSelectInput(new[] { "Q1", "Q2", "Q3", "Q4" }.Select(q => new Option<string>(q, q)).ToList())
+              : null)
+
           | Layout.Vertical().Gap(0)
               | Text.Label("Link to Entry (Optional)")
               | uploadLinkId.ToSelectInput(options)
