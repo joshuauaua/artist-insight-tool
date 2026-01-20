@@ -46,6 +46,35 @@ public class TemplatesController : ControllerBase
     return CreatedAtAction(nameof(GetTemplate), new { id = template.Id }, template);
   }
 
+  [HttpPut("{id}")]
+  public async Task<IActionResult> PutTemplate(int id, ImportTemplate template)
+  {
+    if (id != template.Id)
+    {
+      return BadRequest();
+    }
+
+    _context.Entry(template).State = EntityState.Modified;
+
+    try
+    {
+      await _context.SaveChangesAsync();
+    }
+    catch (DbUpdateConcurrencyException)
+    {
+      if (!_context.ImportTemplates.Any(e => e.Id == id))
+      {
+        return NotFound();
+      }
+      else
+      {
+        throw;
+      }
+    }
+
+    return NoContent();
+  }
+
   [HttpDelete("{id}")]
   public async Task<IActionResult> DeleteTemplate(int id)
   {

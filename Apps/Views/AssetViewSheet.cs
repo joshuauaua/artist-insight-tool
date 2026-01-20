@@ -20,6 +20,7 @@ public class AssetViewSheet(int id, Action onClose) : ViewBase
       await using var db = factory.CreateDbContext();
       var data = await db.Assets
           .Include(a => a.AssetRevenues)
+          .ThenInclude(ar => ar.RevenueEntry)
           .FirstOrDefaultAsync(a => a.Id == _id);
 
       if (data != null)
@@ -68,6 +69,26 @@ public class AssetViewSheet(int id, Action onClose) : ViewBase
                     )
                 )
         ))
+         // 3. Revenues Table
+         .Add(Text.H5("Revenue History"))
+         .Add(
+             a.AssetRevenues
+             .OrderByDescending(ar => ar.RevenueEntry?.RevenueDate)
+             .Select(ar => new
+             {
+               Date = ar.RevenueEntry?.RevenueDate.ToShortDateString() ?? "-",
+               Entry = ar.RevenueEntry?.Description ?? "Unknown Entry",
+               Source = ar.RevenueEntry?.Integration ?? "Direct",
+               Amount = ar.Amount.ToString("C", CultureInfo.GetCultureInfo("sv-SE"))
+             })
+             .ToTable()
+             .Width(Size.Full())
+             .Header(x => x.Date, "Date")
+             .Header(x => x.Entry, "Entry Name")
+             .Header(x => x.Source, "Source")
+             .Header(x => x.Amount, "Amount")
+         )
+
         // Actions
         .Add(Layout.Horizontal().Align(Align.Center).Gap(10).Padding(10, 0, 0, 0)
              .Add(new Button(isDeleting.Value ? "Confirm Delete?" : "Delete", async () =>
@@ -88,7 +109,7 @@ public class AssetViewSheet(int id, Action onClose) : ViewBase
                _onClose();
              }).Variant(ButtonVariant.Destructive))
              .Add(isDeleting.Value ? new Button("Cancel", () => isDeleting.Set(false)).Variant(ButtonVariant.Ghost) : null)
-             .Add(new Button("Extended Details", () => { /* TODO: Implement navigation */ }).Variant(ButtonVariant.Primary))
+             .Add(new Button("Close", _onClose).Variant(ButtonVariant.Primary))
         );
   }
 }

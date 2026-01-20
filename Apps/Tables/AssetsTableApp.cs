@@ -249,7 +249,7 @@ public class CreateAssetSheet(Action onClose) : ViewBase
 
     var typeOptions = category.Value switch
     {
-      "Concert" => new[] { "Single Concert", "Tour" },
+      "Concerts" => new[] { "Single Concert", "Tour" },
       "Merchandise" => new[] { "Item", "Collection" },
       "Royalties" => new[] { "Single", "EP", "Album" },
       _ => Array.Empty<string>()
@@ -275,7 +275,7 @@ public class CreateAssetSheet(Action onClose) : ViewBase
             .Add(Text.Label("Name"))
             .Add(name.ToTextInput().Placeholder("Asset Name"))
             .Add(Text.Label("Category"))
-            .Add(category.ToSelectInput(new[] { "Concert", "Merchandise", "Royalties", "Other" }.Select(c => new Option<string>(c, c))))
+            .Add(category.ToSelectInput(new[] { "Concerts", "Merchandise", "Royalties", "Other" }.Select(c => new Option<string>(c, c))))
             .Add(Text.Label("Type"))
             .Add(category.Value == "Other"
                 ? type.ToTextInput().Placeholder("Type")

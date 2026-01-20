@@ -171,6 +171,20 @@ public class ArtistInsightService
     }
   }
 
+  public async Task<bool> UpdateTemplateAsync(int id, ImportTemplate template)
+  {
+    try
+    {
+      var response = await _httpClient.PutAsJsonAsync($"{BaseUrl}/Templates/{id}", template);
+      return response.IsSuccessStatusCode;
+    }
+    catch (Exception ex)
+    {
+      Console.WriteLine($"Error updating template: {ex.Message}");
+      return false;
+    }
+  }
+
   public async Task<bool> DeleteTemplateAsync(int id)
   {
     try

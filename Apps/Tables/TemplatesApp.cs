@@ -58,6 +58,8 @@ public class TemplatesApp : ViewBase
       filteredItems = filteredItems.Where(t => t.Name.ToLowerInvariant().Contains(q) || t.Category.ToLowerInvariant().Contains(q));
     }
 
+    var editId = UseState<int?>(() => null);
+
     // Table Data
     var tableData = filteredItems.Select(t => new
     {
@@ -65,10 +67,22 @@ public class TemplatesApp : ViewBase
       t.Name,
       t.Category,
       t.Files,
-      Actions = new Button("", () => confirmDeleteId.Set(t.RealId)).Icon(Icons.Trash).Variant(ButtonVariant.Ghost)
+      Actions = Layout.Horizontal().Gap(5)
+              .Add(new Button("", () => editId.Set(t.RealId)).Icon(Icons.Pencil).Variant(ButtonVariant.Ghost))
+              .Add(new Button("", () => confirmDeleteId.Set(t.RealId)).Icon(Icons.Trash).Variant(ButtonVariant.Ghost))
     }).AsQueryable();
 
     var showCreate = UseState(false);
+
+    if (editId.Value != null)
+    {
+      return new EditTemplateSheet(editId.Value.Value, () =>
+      {
+        editId.Set((int?)null);
+        refresh.Set(refresh.Value + 1);
+      });
+    }
+
     if (showCreate.Value)
     {
       return new CreateTemplateSheet(() =>
@@ -152,7 +166,7 @@ public class CreateTemplateSheet(Action onClose) : ViewBase
             .Add(Text.Label("Template Name"))
             .Add(name.ToTextInput().Placeholder("e.g. Distrokid CSV"))
             .Add(Text.Label("Category"))
-            .Add(category.ToSelectInput(new[] { "Distributor", "Shop", "Streaming", "Other" }.Select(c => new Option<string>(c, c))))
+            .Add(category.ToSelectInput(new[] { "Merchandise", "Royalties", "Concerts", "Other" }.Select(c => new Option<string>(c, c))))
             .Add(Layout.Horizontal().Align(Align.Right).Gap(10).Padding(10, 0, 0, 0)
                 .Add(new Button("Cancel", onClose))
                 .Add(new Button("Create", async () =>
@@ -167,6 +181,57 @@ public class CreateTemplateSheet(Action onClose) : ViewBase
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
                   });
+                  onClose();
+                }).Variant(ButtonVariant.Primary))
+            )
+        ),
+        new DialogFooter()
+    );
+  }
+}
+
+public class EditTemplateSheet(int id, Action onClose) : ViewBase
+{
+  public override object Build()
+  {
+    var service = UseService<ArtistInsightService>();
+    var name = UseState("");
+    var category = UseState("");
+    var originalTemplate = UseState<ImportTemplate?>(() => null);
+
+    UseEffect(async () =>
+    {
+      var templates = await service.GetTemplatesAsync();
+      var t = templates.FirstOrDefault(x => x.Id == id);
+      if (t != null)
+      {
+        name.Set(t.Name);
+        category.Set(t.Category ?? "Other");
+        originalTemplate.Set(t);
+      }
+    }, []);
+
+    return new Dialog(
+        _ => onClose(),
+        new DialogHeader("Edit Template"),
+        new DialogBody(
+            Layout.Vertical().Gap(10)
+            .Add(Text.Label("Template Name"))
+            .Add(name.ToTextInput().Placeholder("e.g. Distrokid CSV"))
+            .Add(Text.Label("Category"))
+            .Add(category.ToSelectInput(new[] { "Merchandise", "Royalties", "Concerts", "Other" }.Select(c => new Option<string>(c, c))))
+            .Add(Layout.Horizontal().Align(Align.Right).Gap(10).Padding(10, 0, 0, 0)
+                .Add(new Button("Cancel", onClose))
+                .Add(new Button("Save", async () =>
+                {
+                  if (string.IsNullOrWhiteSpace(name.Value) || originalTemplate.Value == null) return;
+
+                  var t = originalTemplate.Value;
+                  t.Name = name.Value;
+                  t.Category = category.Value;
+                  t.UpdatedAt = DateTime.UtcNow;
+
+                  await service.UpdateTemplateAsync(id, t);
                   onClose();
                 }).Variant(ButtonVariant.Primary))
             )
