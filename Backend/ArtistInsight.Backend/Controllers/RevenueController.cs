@@ -22,8 +22,7 @@ public class RevenueController : ControllerBase
     return await _context.RevenueEntries
         .Include(r => r.Artist)
         .Include(r => r.Source)
-        .Include(r => r.Track)
-        .Include(r => r.Album)
+
         .Include(r => r.ImportTemplate)
         .OrderByDescending(r => r.RevenueDate)
         .Select(r => new RevenueEntryDto(
@@ -33,8 +32,7 @@ public class RevenueController : ControllerBase
             r.Description,
             r.Source.DescriptionText,
             r.Integration,
-            r.Track != null ? r.Track.Title : null,
-            r.Album != null ? r.Album.Title : null,
+
             r.Artist.Name,
             r.ImportTemplate != null ? r.ImportTemplate.Name : null,
             r.JsonData
@@ -48,8 +46,7 @@ public class RevenueController : ControllerBase
     var revenueEntry = await _context.RevenueEntries
         .Include(r => r.Artist)
         .Include(r => r.Source)
-        .Include(r => r.Track)
-        .Include(r => r.Album)
+
         .Include(r => r.ImportTemplate)
         .FirstOrDefaultAsync(r => r.Id == id);
 

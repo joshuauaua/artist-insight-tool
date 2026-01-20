@@ -25,17 +25,14 @@ public partial class RevenueEntry
 
   public string? JsonData { get; set; }
 
-  public int? TrackId { get; set; }
-
-  public int? AlbumId { get; set; }
+  public DateTime? UploadDate { get; set; }
+  public int? Year { get; set; }
+  public string? Quarter { get; set; }
+  public string? FileName { get; set; }
 
   public DateTime CreatedAt { get; set; }
 
   public DateTime UpdatedAt { get; set; }
-
-  [ForeignKey("AlbumId")]
-  [InverseProperty("RevenueEntries")]
-  public virtual Album? Album { get; set; }
 
   [ForeignKey("ArtistId")]
   [InverseProperty("RevenueEntries")]
@@ -44,10 +41,6 @@ public partial class RevenueEntry
   [ForeignKey("SourceId")]
   [InverseProperty("RevenueEntries")]
   public virtual RevenueSource Source { get; set; } = null!;
-
-  [ForeignKey("TrackId")]
-  [InverseProperty("RevenueEntries")]
-  public virtual Track? Track { get; set; }
 
   public virtual ICollection<AssetRevenue> AssetRevenues { get; set; } = new List<AssetRevenue>();
 

@@ -75,7 +75,16 @@ public class ExcelDataReaderApp : ViewBase
     var newTemplateAmountColumn = UseState<string?>(() => null);
     var newTemplateCollectionColumn = UseState<string?>(() => null);
     var newTemplateGrossColumn = UseState<string?>(() => null);
+
     var newTemplateCurrencyColumn = UseState<string?>(() => null);
+
+    // New Mappings
+    var newTemplateTerritoryColumn = UseState<string?>(() => null);
+    var newTemplateLabelColumn = UseState<string?>(() => null);
+    var newTemplateArtistColumn = UseState<string?>(() => null);
+    var newTemplateStoreColumn = UseState<string?>(() => null);
+    var newTemplateDspColumn = UseState<string?>(() => null);
+    var newTemplateNetColumn = UseState<string?>(() => null); // Separate Net column state if needed, though Amount is effectively Net
 
     // --- Upload/Save State ---
     var uploadName = UseState("");
@@ -369,10 +378,15 @@ public class ExcelDataReaderApp : ViewBase
                 | headers.Select(h =>
                 {
                   var currentRole = newTemplateAssetColumn.Value == h ? "Asset" :
-                                    newTemplateAmountColumn.Value == h ? "Net" :
+                                    newTemplateAmountColumn.Value == h ? "Net" : // Using AmountColumn as Net
                                     newTemplateCollectionColumn.Value == h ? "Collection" :
                                     newTemplateGrossColumn.Value == h ? "Gross" :
                                     newTemplateCurrencyColumn.Value == h ? "Currency" :
+                                    newTemplateTerritoryColumn.Value == h ? "Territory" :
+                                    newTemplateLabelColumn.Value == h ? "Label" :
+                                    newTemplateArtistColumn.Value == h ? "Artist" :
+                                    newTemplateStoreColumn.Value == h ? "Store" :
+                                    newTemplateDspColumn.Value == h ? "DSP" :
                                     "Ignore";
 
                   return Layout.Horizontal().Gap(10).Align(Align.Center)
@@ -385,37 +399,18 @@ public class ExcelDataReaderApp : ViewBase
                             )
                             | MenuItem.Default("Ignore").HandleSelect(() =>
                               {
-                                if (newTemplateAssetColumn.Value == h) newTemplateAssetColumn.Set((string?)null);
-                                if (newTemplateAmountColumn.Value == h) newTemplateAmountColumn.Set((string?)null);
-                                if (newTemplateCollectionColumn.Value == h) newTemplateCollectionColumn.Set((string?)null);
-                                if (newTemplateGrossColumn.Value == h) newTemplateGrossColumn.Set((string?)null);
-                                if (newTemplateCurrencyColumn.Value == h) newTemplateCurrencyColumn.Set((string?)null);
-                              })
-                            | MenuItem.Default("Asset").HandleSelect(() =>
-                              {
                                 ClearColumn(h);
-                                newTemplateAssetColumn.Set(h);
                               })
-                            | MenuItem.Default("Collection").HandleSelect(() =>
-                              {
-                                ClearColumn(h);
-                                newTemplateCollectionColumn.Set(h);
-                              })
-                            | MenuItem.Default("Gross").HandleSelect(() =>
-                              {
-                                ClearColumn(h);
-                                newTemplateGrossColumn.Set(h);
-                              })
-                            | MenuItem.Default("Net").HandleSelect(() =>
-                              {
-                                ClearColumn(h);
-                                newTemplateAmountColumn.Set(h);
-                              })
-                            | MenuItem.Default("Currency").HandleSelect(() =>
-                              {
-                                ClearColumn(h);
-                                newTemplateCurrencyColumn.Set(h);
-                              })
+                            | MenuItem.Default("Asset").HandleSelect(() => { ClearColumn(h); newTemplateAssetColumn.Set(h); })
+                            | MenuItem.Default("Territory").HandleSelect(() => { ClearColumn(h); newTemplateTerritoryColumn.Set(h); })
+                            | MenuItem.Default("Label").HandleSelect(() => { ClearColumn(h); newTemplateLabelColumn.Set(h); })
+                            | MenuItem.Default("Collection").HandleSelect(() => { ClearColumn(h); newTemplateCollectionColumn.Set(h); })
+                            | MenuItem.Default("Artist").HandleSelect(() => { ClearColumn(h); newTemplateArtistColumn.Set(h); })
+                            | MenuItem.Default("Store").HandleSelect(() => { ClearColumn(h); newTemplateStoreColumn.Set(h); })
+                            | MenuItem.Default("DSP").HandleSelect(() => { ClearColumn(h); newTemplateDspColumn.Set(h); })
+                            | MenuItem.Default("Gross").HandleSelect(() => { ClearColumn(h); newTemplateGrossColumn.Set(h); })
+                            | MenuItem.Default("Net").HandleSelect(() => { ClearColumn(h); newTemplateAmountColumn.Set(h); })
+                            | MenuItem.Default("Currency").HandleSelect(() => { ClearColumn(h); newTemplateCurrencyColumn.Set(h); })
                             )
                   ;
                 }).ToArray()
@@ -428,8 +423,16 @@ public class ExcelDataReaderApp : ViewBase
                 Category = newTemplateCategory.Value,
                 HeadersJson = JsonSerializer.Serialize(headers),
                 AssetColumn = newTemplateAssetColumn.Value,
-                AmountColumn = newTemplateAmountColumn.Value,
-                // Note: Collection, Gross, Currency are not yet saved to DB
+                AmountColumn = newTemplateAmountColumn.Value, // Net
+                CollectionColumn = newTemplateCollectionColumn.Value,
+                GrossColumn = newTemplateGrossColumn.Value,
+                CurrencyColumn = newTemplateCurrencyColumn.Value,
+                TerritoryColumn = newTemplateTerritoryColumn.Value,
+                LabelColumn = newTemplateLabelColumn.Value,
+                ArtistColumn = newTemplateArtistColumn.Value,
+                StoreColumn = newTemplateStoreColumn.Value,
+                DspColumn = newTemplateDspColumn.Value,
+                NetColumn = newTemplateAmountColumn.Value, // Map Net to Amount for consistency
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
               };
@@ -459,6 +462,12 @@ public class ExcelDataReaderApp : ViewBase
       if (newTemplateCollectionColumn.Value == h) newTemplateCollectionColumn.Set((string?)null);
       if (newTemplateGrossColumn.Value == h) newTemplateGrossColumn.Set((string?)null);
       if (newTemplateCurrencyColumn.Value == h) newTemplateCurrencyColumn.Set((string?)null);
+      if (newTemplateTerritoryColumn.Value == h) newTemplateTerritoryColumn.Set((string?)null);
+      if (newTemplateLabelColumn.Value == h) newTemplateLabelColumn.Set((string?)null);
+      if (newTemplateArtistColumn.Value == h) newTemplateArtistColumn.Set((string?)null);
+      if (newTemplateStoreColumn.Value == h) newTemplateStoreColumn.Set((string?)null);
+      if (newTemplateDspColumn.Value == h) newTemplateDspColumn.Set((string?)null);
+      if (newTemplateNetColumn.Value == h) newTemplateNetColumn.Set((string?)null);
     }
 
 
@@ -797,27 +806,61 @@ public class ExcelDataReaderApp : ViewBase
             };
             existingSheets.Add(payload);
             targetEntry.JsonData = JsonSerializer.Serialize(existingSheets);
+            if (targetEntry.ImportTemplateId == null)
+              targetEntry.ImportTemplateId = matchedTemplate.Value?.Id;
+
             targetEntry.UpdatedAt = DateTime.UtcNow;
+            targetEntry.UploadDate = DateTime.UtcNow;
+            if (matchedTemplate.Value?.Category == "Royalties")
+            {
+              targetEntry.Year = uploadYear.Value;
+              targetEntry.Quarter = uploadQuarter.Value;
+            }
+            targetEntry.FileName = uploadName.Value; // Using upload name as file name reference
 
             // --- Asset Extraction ---
             var tmpl = matchedTemplate.Value;
-            if (tmpl != null && !string.IsNullOrEmpty(tmpl.AssetColumn) && !string.IsNullOrEmpty(tmpl.AmountColumn))
+            // Proceed even if only AssetColumn is defined, we can default amounts to 0
+            if (tmpl != null && !string.IsNullOrEmpty(tmpl.AssetColumn))
             {
               try
               {
                 var assetCol = tmpl.AssetColumn;
-                var amountCol = tmpl.AmountColumn;
-                var batchAssets = new Dictionary<string, decimal>();
+                // AmountColumn is treated as Net
+                var netCol = tmpl.AmountColumn ?? tmpl.NetColumn;
+                var grossCol = tmpl.GrossColumn;
+                var collectionCol = tmpl.CollectionColumn;
+                var category = tmpl.Category; // Template category is Asset category for now? Or just Template category?
+                                              // User requirement: Asset has a Category (Merchandise, Royalties etc) - assume derived from Template Category
+
+                var batchAssets = new Dictionary<string, (decimal Net, decimal Gross, string? Collection)>();
+
                 foreach (var row in data)
                 {
-                  if (row.TryGetValue(assetCol, out var nameObj) && row.TryGetValue(amountCol, out var amountObj))
+                  if (row.TryGetValue(assetCol, out var nameObj))
                   {
                     var name = nameObj?.ToString()?.Trim();
-                    if (!string.IsNullOrEmpty(name) && decimal.TryParse(amountObj?.ToString(), out var amount))
+                    if (string.IsNullOrEmpty(name)) continue;
+
+                    decimal net = 0;
+                    if (!string.IsNullOrEmpty(netCol) && row.TryGetValue(netCol, out var netObj) && decimal.TryParse(netObj?.ToString(), out var nVal))
+                      net = nVal;
+
+                    decimal gross = 0;
+                    if (!string.IsNullOrEmpty(grossCol) && row.TryGetValue(grossCol, out var grossObj) && decimal.TryParse(grossObj?.ToString(), out var gVal))
+                      gross = gVal;
+
+                    string? collection = null;
+                    if (!string.IsNullOrEmpty(collectionCol) && row.TryGetValue(collectionCol, out var colObj))
+                      collection = colObj?.ToString()?.Trim();
+
+                    if (!batchAssets.ContainsKey(name))
                     {
-                      if (!batchAssets.ContainsKey(name)) batchAssets[name] = 0;
-                      batchAssets[name] += amount;
+                      batchAssets[name] = (0, 0, collection);
                     }
+
+                    var current = batchAssets[name];
+                    batchAssets[name] = (current.Net + net, current.Gross + gross, collection ?? current.Collection);
                   }
                 }
 
@@ -825,23 +868,58 @@ public class ExcelDataReaderApp : ViewBase
                 {
                   var names = batchAssets.Keys.ToList();
                   var existingAssets = await db.Assets.Where(a => names.Contains(a.Name)).ToListAsync();
+
+                  // Update Existing Assets with accumulated values?
+                  // Requirement: "Has a gross amount (Amount Generated minus fees)" -> Ambiguous if this is total lifetime or per item. 
+                  // Assuming lifetime accumulation for now similar to AmountGenerated.
+                  foreach (var asset in existingAssets)
+                  {
+                    if (batchAssets.TryGetValue(asset.Name, out var stats))
+                    {
+                      asset.AmountGenerated += stats.Net; // Legacy
+                      asset.NetAmount += stats.Net;
+                      asset.GrossAmount += stats.Gross;
+
+                      // Update metadata if missing
+                      if (string.IsNullOrEmpty(asset.Category)) asset.Category = category;
+                      if (string.IsNullOrEmpty(asset.Collection) && !string.IsNullOrEmpty(stats.Collection)) asset.Collection = stats.Collection;
+                    }
+                  }
+
                   var existingNames = existingAssets.Select(a => a.Name).ToHashSet();
                   var newAssets = names.Where(n => !existingNames.Contains(n))
-                                         .Select(n => new Asset { Name = n, Type = "Unknown", AmountGenerated = 0 })
+                                         .Select(n =>
+                                         {
+                                           var stats = batchAssets[n];
+                                           return new Asset
+                                           {
+                                             Name = n,
+                                             Type = "Unknown", // Default
+                                             Category = category,
+                                             Collection = stats.Collection ?? "",
+                                             AmountGenerated = stats.Net,
+                                             NetAmount = stats.Net,
+                                             GrossAmount = stats.Gross
+                                           };
+                                         })
                                          .ToList();
+
                   if (newAssets.Count > 0)
                   {
                     db.Assets.AddRange(newAssets);
-                    await db.SaveChangesAsync();
-                    existingAssets.AddRange(newAssets);
+                    existingAssets.AddRange(newAssets); // Track for revenue records
                   }
+
+                  // Save Assets first to get IDs
+                  await db.SaveChangesAsync();
+
                   // 4. Create Revenue Records
                   var assetMap = existingAssets.ToDictionary(a => a.Name, a => a.Id);
                   var revenueRecords = batchAssets.Select(kvp => new AssetRevenue
                   {
                     AssetId = assetMap[kvp.Key],
                     RevenueEntry = targetEntry,
-                    Amount = kvp.Value
+                    Amount = kvp.Value.Net // Recording Net amount in revenue link
                   });
                   db.AssetRevenues.AddRange(revenueRecords);
                 }
@@ -853,7 +931,7 @@ public class ExcelDataReaderApp : ViewBase
             }
             else
             {
-              client.Toast("Asset extraction skipped: Template not configured.", "Warning");
+              // client.Toast("Asset extraction skipped: Template not configured.", "Warning");
             }
 
             await db.SaveChangesAsync();

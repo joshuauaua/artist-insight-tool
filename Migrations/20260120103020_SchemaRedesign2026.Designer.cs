@@ -3,6 +3,7 @@ using System;
 using ArtistInsightTool.Connections.ArtistInsightTool;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,12 +11,47 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace ArtistInsightTool.Migrations
 {
     [DbContext(typeof(ArtistInsightToolContext))]
-    partial class ArtistInsightToolContextModelSnapshot : ModelSnapshot
+    [Migration("20260120103020_SchemaRedesign2026")]
+    partial class SchemaRedesign2026
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.1");
+
+            modelBuilder.Entity("ArtistInsightTool.Connections.ArtistInsightTool.Album", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ArtistId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("ReleaseDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ReleaseType")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex(new[] { "ArtistId" }, "IX_albums_ArtistId");
+
+                    b.ToTable("albums");
+                });
 
             modelBuilder.Entity("ArtistInsightTool.Connections.ArtistInsightTool.Artist", b =>
                 {
@@ -187,6 +223,9 @@ namespace ArtistInsightTool.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
+                    b.Property<int?>("AlbumId")
+                        .HasColumnType("INTEGER");
+
                     b.Property<decimal>("Amount")
                         .HasColumnType("decimal(18,2)");
 
@@ -224,6 +263,9 @@ namespace ArtistInsightTool.Migrations
                     b.Property<int>("SourceId")
                         .HasColumnType("INTEGER");
 
+                    b.Property<int?>("TrackId")
+                        .HasColumnType("INTEGER");
+
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("TEXT");
 
@@ -237,9 +279,13 @@ namespace ArtistInsightTool.Migrations
 
                     b.HasIndex("ImportTemplateId");
 
+                    b.HasIndex(new[] { "AlbumId" }, "IX_revenue_entries_AlbumId");
+
                     b.HasIndex(new[] { "ArtistId" }, "IX_revenue_entries_ArtistId");
 
                     b.HasIndex(new[] { "SourceId" }, "IX_revenue_entries_SourceId");
+
+                    b.HasIndex(new[] { "TrackId" }, "IX_revenue_entries_TrackId");
 
                     b.ToTable("revenue_entries");
                 });
@@ -256,6 +302,51 @@ namespace ArtistInsightTool.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("revenue_sources");
+                });
+
+            modelBuilder.Entity("ArtistInsightTool.Connections.ArtistInsightTool.Track", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("AlbumId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ArtistId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("Duration")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex(new[] { "AlbumId" }, "IX_tracks_AlbumId");
+
+                    b.HasIndex(new[] { "ArtistId" }, "IX_tracks_ArtistId");
+
+                    b.ToTable("tracks");
+                });
+
+            modelBuilder.Entity("ArtistInsightTool.Connections.ArtistInsightTool.Album", b =>
+                {
+                    b.HasOne("ArtistInsightTool.Connections.ArtistInsightTool.Artist", "Artist")
+                        .WithMany("Albums")
+                        .HasForeignKey("ArtistId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Artist");
                 });
 
             modelBuilder.Entity("ArtistInsightTool.Connections.ArtistInsightTool.AssetRevenue", b =>
@@ -279,6 +370,11 @@ namespace ArtistInsightTool.Migrations
 
             modelBuilder.Entity("ArtistInsightTool.Connections.ArtistInsightTool.RevenueEntry", b =>
                 {
+                    b.HasOne("ArtistInsightTool.Connections.ArtistInsightTool.Album", "Album")
+                        .WithMany("RevenueEntries")
+                        .HasForeignKey("AlbumId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("ArtistInsightTool.Connections.ArtistInsightTool.Artist", "Artist")
                         .WithMany("RevenueEntries")
                         .HasForeignKey("ArtistId")
@@ -295,16 +391,54 @@ namespace ArtistInsightTool.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("ArtistInsightTool.Connections.ArtistInsightTool.Track", "Track")
+                        .WithMany("RevenueEntries")
+                        .HasForeignKey("TrackId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Album");
+
                     b.Navigation("Artist");
 
                     b.Navigation("ImportTemplate");
 
                     b.Navigation("Source");
+
+                    b.Navigation("Track");
+                });
+
+            modelBuilder.Entity("ArtistInsightTool.Connections.ArtistInsightTool.Track", b =>
+                {
+                    b.HasOne("ArtistInsightTool.Connections.ArtistInsightTool.Album", "Album")
+                        .WithMany("Tracks")
+                        .HasForeignKey("AlbumId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ArtistInsightTool.Connections.ArtistInsightTool.Artist", "Artist")
+                        .WithMany("Tracks")
+                        .HasForeignKey("ArtistId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Album");
+
+                    b.Navigation("Artist");
+                });
+
+            modelBuilder.Entity("ArtistInsightTool.Connections.ArtistInsightTool.Album", b =>
+                {
+                    b.Navigation("RevenueEntries");
+
+                    b.Navigation("Tracks");
                 });
 
             modelBuilder.Entity("ArtistInsightTool.Connections.ArtistInsightTool.Artist", b =>
                 {
+                    b.Navigation("Albums");
+
                     b.Navigation("RevenueEntries");
+
+                    b.Navigation("Tracks");
                 });
 
             modelBuilder.Entity("ArtistInsightTool.Connections.ArtistInsightTool.Asset", b =>
@@ -323,6 +457,11 @@ namespace ArtistInsightTool.Migrations
                 });
 
             modelBuilder.Entity("ArtistInsightTool.Connections.ArtistInsightTool.RevenueSource", b =>
+                {
+                    b.Navigation("RevenueEntries");
+                });
+
+            modelBuilder.Entity("ArtistInsightTool.Connections.ArtistInsightTool.Track", b =>
                 {
                     b.Navigation("RevenueEntries");
                 });

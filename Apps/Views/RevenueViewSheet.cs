@@ -23,10 +23,8 @@ public class RevenueViewSheet(int id, Action onClose, Action onEdit) : ViewBase
     {
       await using var db = factory.CreateDbContext();
       var data = await db.RevenueEntries
-          .Include(e => e.Track).ThenInclude(t => t.Album)
           .Include(e => e.Artist)
           .Include(e => e.Source)
-          .Include(e => e.Album)
           .FirstOrDefaultAsync(e => e.Id == _id);
 
       if (data != null)
@@ -124,8 +122,8 @@ public class RevenueViewSheet(int id, Action onClose, Action onEdit) : ViewBase
       }
     }
 
-    var infoName = e.Track?.Title ?? e.Album?.Title ?? "-";
-    var type = e.Track != null ? "Track" : (e.Album != null ? "Album" : "Other");
+
+    var type = "Other";
 
     return Layout.Vertical().Gap(10)
         // 1. Name & Description

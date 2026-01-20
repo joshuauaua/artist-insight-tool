@@ -21,6 +21,16 @@ public partial class ImportTemplate
 
   public string? AmountColumn { get; set; }
 
+  public string? TerritoryColumn { get; set; }
+  public string? LabelColumn { get; set; }
+  public string? CollectionColumn { get; set; }
+  public string? ArtistColumn { get; set; }
+  public string? StoreColumn { get; set; }
+  public string? DspColumn { get; set; }
+  public string? GrossColumn { get; set; }
+  public string? NetColumn { get; set; }
+  public string? CurrencyColumn { get; set; }
+
   public List<string> GetHeaders()
   {
     return System.Text.Json.JsonSerializer.Deserialize<List<string>>(HeadersJson) ?? [];

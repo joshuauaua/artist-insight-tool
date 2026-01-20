@@ -25,5 +25,11 @@ public class Asset
   [Column(TypeName = "decimal(18,2)")]
   public decimal AmountGenerated { get; set; }
 
+  [Column(TypeName = "decimal(18,2)")]
+  public decimal GrossAmount { get; set; }
+
+  [Column(TypeName = "decimal(18,2)")]
+  public decimal NetAmount { get; set; }
+
   public virtual ICollection<AssetRevenue> AssetRevenues { get; set; } = new List<AssetRevenue>();
 }

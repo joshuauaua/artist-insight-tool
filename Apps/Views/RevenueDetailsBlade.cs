@@ -18,8 +18,7 @@ public class RevenueDetailsBlade(int id) : ViewBase
       var data = await db.RevenueEntries
          .Include(e => e.Artist)
          .Include(e => e.Source)
-         .Include(e => e.Album)
-         .Include(e => e.Track).ThenInclude(t => t.Album)
+
          .FirstOrDefaultAsync(e => e.Id == _id);
       entryState.Set(data);
       return null;
@@ -44,11 +43,11 @@ public class RevenueDetailsBlade(int id) : ViewBase
         )
         .Add(Layout.Vertical().Gap(5)
             .Add("Type")
-            .Add(e.Track != null ? "Track" : (e.Album != null ? "Album" : "Other"))
+            .Add("Other")
         )
         .Add(Layout.Vertical().Gap(5)
             .Add("Name")
-            .Add(e.Track?.Title ?? e.Album?.Title ?? "-")
+            .Add("-")
         )
         .Add(Layout.Vertical().Gap(5)
             .Add("Description")

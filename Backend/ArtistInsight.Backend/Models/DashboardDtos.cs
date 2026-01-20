@@ -22,8 +22,6 @@ public record RevenueEntryDto(
     string? Description,
     string Source, // DescriptionText
     string? Integration,
-    string? TrackTitle,
-    string? AlbumTitle,
     string? ArtistName,
     string? ImportTemplateName,
     string? JsonData // For annex data

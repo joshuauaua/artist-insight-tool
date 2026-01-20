@@ -11,7 +11,7 @@ public partial class ArtistInsightToolContext : DbContext
   {
   }
 
-  public virtual DbSet<Album> Albums { get; set; }
+
 
   public virtual DbSet<Artist> Artists { get; set; }
 
@@ -29,16 +29,12 @@ public partial class ArtistInsightToolContext : DbContext
 
   public virtual DbSet<RevenueSource> RevenueSources { get; set; }
 
-  public virtual DbSet<Track> Tracks { get; set; }
+
 
   public virtual DbSet<ImportTemplate> ImportTemplates { get; set; }
 
   protected override void OnModelCreating(ModelBuilder modelBuilder)
   {
-    modelBuilder.Entity<Album>(entity =>
-    {
-      entity.HasOne(d => d.Artist).WithMany(p => p.Albums).OnDelete(DeleteBehavior.Restrict);
-    });
 
 
 
@@ -49,13 +45,9 @@ public partial class ArtistInsightToolContext : DbContext
 
     modelBuilder.Entity<RevenueEntry>(entity =>
     {
-      entity.HasOne(d => d.Album).WithMany(p => p.RevenueEntries).OnDelete(DeleteBehavior.Restrict);
-
       entity.HasOne(d => d.Artist).WithMany(p => p.RevenueEntries).OnDelete(DeleteBehavior.Restrict);
 
       entity.HasOne(d => d.Source).WithMany(p => p.RevenueEntries).OnDelete(DeleteBehavior.Restrict);
-
-      entity.HasOne(d => d.Track).WithMany(p => p.RevenueEntries).OnDelete(DeleteBehavior.Restrict);
     });
 
     modelBuilder.Entity<RevenueSource>(entity =>
@@ -63,12 +55,7 @@ public partial class ArtistInsightToolContext : DbContext
       entity.Property(e => e.Id).ValueGeneratedNever();
     });
 
-    modelBuilder.Entity<Track>(entity =>
-    {
-      entity.HasOne(d => d.Album).WithMany(p => p.Tracks).OnDelete(DeleteBehavior.Restrict);
 
-      entity.HasOne(d => d.Artist).WithMany(p => p.Tracks).OnDelete(DeleteBehavior.Restrict);
-    });
 
     OnModelCreatingPartial(modelBuilder);
   }

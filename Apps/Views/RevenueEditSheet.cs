@@ -28,10 +28,8 @@ public class RevenueEditSheet(int id, Action onClose) : ViewBase
     {
       await using var db = factory.CreateDbContext();
       var data = await db.RevenueEntries
-          .Include(e => e.Track).ThenInclude(t => t.Album)
           .Include(e => e.Artist)
           .Include(e => e.Source)
-          .Include(e => e.Album)
           .FirstOrDefaultAsync(e => e.Id == _id);
 
       if (data != null)
@@ -138,12 +136,12 @@ public class RevenueEditSheet(int id, Action onClose) : ViewBase
     }
 
     // --- RENDER Edit Form ---
-    var name = e.Track?.Title ?? e.Album?.Title ?? "-";
-    var type = e.Track != null ? "Track" : (e.Album != null ? "Album" : "Other");
+    var name = "-";
+    var type = "Other";
 
     // --- RENDER Edit Form ---
     // infoName was unused in duplication, reusing original logic if helpful or just removing dupes.
-    var infoName = e.Track?.Title ?? e.Album?.Title ?? "-";
+    var infoName = "-";
 
     return Layout.Vertical().Gap(10)
         // 1. Name (Description)
