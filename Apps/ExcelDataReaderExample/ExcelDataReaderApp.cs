@@ -658,11 +658,31 @@ public class ExcelDataReaderApp : ViewBase
 
     object RenderPreviewContent()
     {
-      return Layout.Vertical().Gap(20).Width(Size.Full())
-          | Text.Label("File Metadata")
-          | RenderAnalysisContent()
-          | Text.Label("Data Preview")
-          | RenderDataTableView(isEmbedded: true);
+      if (fileAnalysis.Value == null) return Text.Muted("No analysis available.");
+      var fa = fileAnalysis.Value;
+      var sheet1 = fa.Sheets.FirstOrDefault();
+
+      var sheetRows = "";
+      if (sheet1 != null)
+      {
+        sheetRows = $"""
+                     | **Sheet Name** | `{sheet1.Name}` |
+                     | **Sheet Columns** | `{sheet1.FieldCount}` |
+                     | **Sheet Rows** | `{sheet1.RowCount}` |
+                     | **Sheet Headers** | {string.Join(", ", sheet1.Headers.Select(header => $"`{header}`"))} |
+                     """;
+      }
+
+      return Layout.Vertical().Gap(10).Width(Size.Full())
+           | new Button("Back", () => activeMode.Set(AnalyzerMode.Home)).Variant(ButtonVariant.Link).Icon(Icons.ArrowLeft)
+           | new Markdown($"""
+                             | Property | Value |
+                             |----------|-------|
+                             | **File Name** | `{fa.FileName}` |
+                             | **File Type** | `{fa.FileType}` |
+                             | **File Size** | `{FormatFileSize(fa.FileSize)}` |
+                             {sheetRows}
+                             """);
     }
 
     object RenderUploadContent()
