@@ -12,7 +12,7 @@ namespace ArtistInsightTool.Apps.Tables;
 [App(icon: Icons.Database, title: "Data Tables", path: ["Tables"])]
 public class DataTablesApp : ViewBase
 {
-  public record TableItem(int RealId, string Id, string Name, string AnnexedTo, string LinkedTo, string Date);
+  public record TableItem(int RealId, string Id, string Name, string AnnexedTo, string Category, string TemplateName, string Range, string Date);
 
   public override object? Build()
   {
@@ -33,6 +33,7 @@ public class DataTablesApp : ViewBase
         await using var db = factory.CreateDbContext();
         var entries = await db.RevenueEntries
             .Include(e => e.AssetRevenues).ThenInclude(ar => ar.Asset)
+            .Include(e => e.ImportTemplate) // Include Template for Category
             .Where(e => e.JsonData != null && e.JsonData != "")
             .OrderBy(e => e.CreatedAt)
             .ToListAsync();
@@ -48,8 +49,23 @@ public class DataTablesApp : ViewBase
             using var doc = JsonDocument.Parse(entry.JsonData);
             var root = doc.RootElement;
 
+            string category = entry.ImportTemplate?.Category ?? "Other";
+            string templateName = entry.ImportTemplate?.Name ?? "-";
+            string range = entry.Year.HasValue
+                ? (entry.Quarter != null ? $"{entry.Quarter} {entry.Year}" : $"{entry.Year}")
+                : entry.RevenueDate.ToString("MMM yyyy");
+
             // Logic to parse items... (Compact helper to keep code short)
-            void AddItem(string title) => items.Add(new TableItem(entry.Id, $"DT{index++:D3}", title, entry.Description ?? "-", "-", entry.UpdatedAt.ToShortDateString()));
+            void AddItem(string title) => items.Add(new TableItem(
+                entry.Id,
+                $"DT{index++:D3}",
+                title,
+                entry.Description ?? "-",
+                category,
+                templateName,
+                range,
+                entry.UpdatedAt.ToShortDateString()
+            ));
 
             if (root.ValueKind == JsonValueKind.Array && root.GetArrayLength() > 0)
             {
@@ -161,7 +177,9 @@ public class DataTablesApp : ViewBase
                           IdButton = new Button(t.Id, () => selectedTableId.Set(t.RealId)).Variant(ButtonVariant.Ghost),
                           t.Name,
                           t.AnnexedTo,
-                          t.LinkedTo,
+                          t.Category,
+                          t.TemplateName,
+                          t.Range,
                           t.Date,
                           Actions = new Button("", () => confirmDeleteId.Set(t.RealId)).Icon(Icons.Trash).Variant(ButtonVariant.Ghost)
                         }).ToArray().ToTable()
@@ -170,13 +188,17 @@ public class DataTablesApp : ViewBase
                             .Add(x => x.IdButton)
                             .Add(x => x.Name)
                             .Add(x => x.AnnexedTo)
-                            .Add(x => x.LinkedTo)
+                            .Add(x => x.Category)
+                            .Add(x => x.TemplateName)
+                            .Add(x => x.Range)
                             .Add(x => x.Date)
                             .Add(x => x.Actions)
                             .Header(x => x.IdButton, "ID")
                             .Header(x => x.Name, "Name")
                             .Header(x => x.AnnexedTo, "Annexed To")
-                            .Header(x => x.LinkedTo, "Linked To")
+                            .Header(x => x.Category, "Category")
+                            .Header(x => x.TemplateName, "Template")
+                            .Header(x => x.Range, "Range")
                             .Header(x => x.Date, "Uploaded")
                             .Header(x => x.Actions, "")
                         : Text.Muted("No data tables found.")
