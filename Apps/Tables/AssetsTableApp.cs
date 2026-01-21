@@ -12,10 +12,12 @@ using System.Net.Http.Headers;
 using System.Text.Json;
 using System.Globalization;
 
+using Ivy.Hooks;
+
 namespace ArtistInsightTool.Apps.Tables;
 
 [App(icon: Icons.Table, title: "Assets Table", path: ["Tables"])]
-public class AssetsTableApp : WrapperViewBase
+public class AssetsTableApp : ViewBase
 {
   public override object Build()
   {
@@ -23,13 +25,13 @@ public class AssetsTableApp : WrapperViewBase
     var factory = UseService<ArtistInsightToolContextFactory>();
 
     // Hooks
-    var assetsQuery = UseQuery("assets", async () => (await service.GetAssetsAsync()).OrderBy(a => a.Id).ToArray());
-    var templatesQuery = UseQuery("templates", async () => await service.GetTemplatesAsync());
+    var assetsQuery = UseQuery("assets", async (ct) => (await service.GetAssetsAsync()).OrderBy(a => a.Id).ToArray());
+    var templatesQuery = UseQuery("templates", async (ct) => await service.GetTemplatesAsync());
 
-    var assets = assetsQuery.Data ?? [];
+    var assets = assetsQuery.Value ?? [];
 
     // Dynamic Header Logic
-    var templates = templatesQuery.Data ?? [];
+    var templates = templatesQuery.Value ?? [];
     var assetTemplate = templates.FirstOrDefault(t => t.Name.Equals("Assets Template", StringComparison.OrdinalIgnoreCase));
 
     // Default Headers
@@ -50,7 +52,7 @@ public class AssetsTableApp : WrapperViewBase
       return new CreateAssetSheet(() =>
       {
         showCreate.Set(false);
-        assetsQuery.Refetch();
+        assetsQuery.Mutator.Revalidate();
       });
     }
 
@@ -59,7 +61,7 @@ public class AssetsTableApp : WrapperViewBase
       return new ImportSpotifyAssetSheet(() =>
       {
         showSpotifyImport.Set(false);
-        assetsQuery.Refetch();
+        assetsQuery.Mutator.Revalidate();
       });
     }
 
@@ -142,7 +144,7 @@ public class AssetsTableApp : WrapperViewBase
             new DialogBody(new AssetViewSheet(selectedAssetId.Value.Value, () =>
             {
               selectedAssetId.Set((int?)null);
-              assetsQuery.Refetch();
+              assetsQuery.Mutator.Revalidate();
             })),
             new DialogFooter()
         ) : null,
@@ -158,7 +160,7 @@ public class AssetsTableApp : WrapperViewBase
                   var success = await service.DeleteAssetAsync(confirmDeleteId.Value.Value);
                   if (success)
                   {
-                    assetsQuery.Refetch();
+                    assetsQuery.Mutator.Revalidate();
                   }
                   confirmDeleteId.Set((int?)null);
                 }).Variant(ButtonVariant.Destructive))

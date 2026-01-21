@@ -1,4 +1,5 @@
 using Ivy.Shared;
+using Ivy.Hooks;
 using ArtistInsightTool.Connections.ArtistInsightTool;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
@@ -17,9 +18,6 @@ public class DataTablesApp : ViewBase
   public override object? Build()
   {
     var factory = UseService<ArtistInsightToolContextFactory>();
-    var refresh = UseState(0);
-    var tables = UseState<List<TableItem>>([]);
-    var isLoading = UseState(true);
     var debug = UseState<string>("");
     var showImportSheet = UseState(false);
 
@@ -28,79 +26,72 @@ public class DataTablesApp : ViewBase
       return new ExcelDataReaderExample.ExcelDataReaderSheet(() =>
       {
         showImportSheet.Set(false);
-        refresh.Set(refresh.Value + 1);
+        // refresh will be handled by UseQuery Revalidate
       });
     }
 
-    UseEffect(async () =>
+    var tablesQuery = UseQuery("datatables_list", async (ct) =>
     {
-      isLoading.Set(true);
-      try
+      // Small delay to ensure UI renders loading state (if needed, though UseQuery handles it)
+      await Task.Delay(10);
+
+      await using var db = factory.CreateDbContext();
+      var entries = await db.RevenueEntries
+          .Include(e => e.AssetRevenues).ThenInclude(ar => ar.Asset)
+          .Where(e => e.JsonData != null && e.JsonData != "")
+          .OrderBy(e => e.CreatedAt)
+          .ToListAsync();
+
+      var items = new List<TableItem>();
+      int index = 1;
+
+      foreach (var entry in entries)
       {
-        // Small delay to ensure UI renders loading state first
-        await Task.Delay(10);
-
-        await using var db = factory.CreateDbContext();
-        var entries = await db.RevenueEntries
-            .Include(e => e.AssetRevenues).ThenInclude(ar => ar.Asset)
-            .Where(e => e.JsonData != null && e.JsonData != "")
-            .OrderBy(e => e.CreatedAt)
-            .ToListAsync();
-
-        var items = new List<TableItem>();
-        int index = 1;
-
-        foreach (var entry in entries)
+        try
         {
-          try
+          if (string.IsNullOrWhiteSpace(entry.JsonData)) continue;
+          using var doc = JsonDocument.Parse(entry.JsonData);
+          var root = doc.RootElement;
+
+          // Logic to parse items... (Compact helper to keep code short)
+          void AddItem(string title) => items.Add(new TableItem(entry.Id, $"DT{index++:D3}", title, entry.Description ?? "-", "-", entry.UpdatedAt.ToShortDateString()));
+
+          if (root.ValueKind == JsonValueKind.Array && root.GetArrayLength() > 0)
           {
-            if (string.IsNullOrWhiteSpace(entry.JsonData)) continue;
-            using var doc = JsonDocument.Parse(entry.JsonData);
-            var root = doc.RootElement;
+            var first = root[0];
+            bool isObj = first.ValueKind == JsonValueKind.Object;
+            bool hasFile = isObj && (first.TryGetProperty("FileName", out _) || first.TryGetProperty("fileName", out _));
 
-            // Logic to parse items... (Compact helper to keep code short)
-            void AddItem(string title) => items.Add(new TableItem(entry.Id, $"DT{index++:D3}", title, entry.Description ?? "-", "-", entry.UpdatedAt.ToShortDateString()));
-
-            if (root.ValueKind == JsonValueKind.Array && root.GetArrayLength() > 0)
+            if (isObj && hasFile)
             {
-              var first = root[0];
-              bool isObj = first.ValueKind == JsonValueKind.Object;
-              bool hasFile = isObj && (first.TryGetProperty("FileName", out _) || first.TryGetProperty("fileName", out _));
-
-              if (isObj && hasFile)
+              foreach (var el in root.EnumerateArray())
               {
-                foreach (var el in root.EnumerateArray())
-                {
-                  string t = "Untitled";
-                  if (el.TryGetProperty("Title", out var p) || el.TryGetProperty("title", out p)) t = p.GetString() ?? "Untitled";
-                  AddItem(t);
-                }
+                string t = "Untitled";
+                if (el.TryGetProperty("Title", out var p) || el.TryGetProperty("title", out p)) t = p.GetString() ?? "Untitled";
+                AddItem(t);
               }
-              else AddItem("Legacy Data");
             }
-            else if (root.ValueKind == JsonValueKind.Object) AddItem("Single Sheet");
+            else AddItem("Legacy Data");
           }
-          catch { }
+          else if (root.ValueKind == JsonValueKind.Object) AddItem("Single Sheet");
         }
+        catch { }
+      }
 
-        items.Reverse(); // Show newest first
-        tables.Set(items);
-      }
-      catch (Exception ex)
-      {
-        debug.Set($"Error: {ex.Message}");
-      }
-      finally
-      {
-        isLoading.Set(false);
-      }
-    }, [refresh]);
+      items.Reverse(); // Show newest first
+      return items;
+    });
+
+    var tablesData = tablesQuery.Value ?? [];
+    var isLoading = tablesQuery.Loading;
+    var refetch = tablesQuery.Mutator.Revalidate;
+
 
     var selectedIds = UseState<HashSet<string>>([]);
     var searchQuery = UseState("");
 
     // Filter items based on search
-    var filteredItems = tables.Value;
+    var filteredItems = tablesData;
     if (!string.IsNullOrWhiteSpace(searchQuery.Value))
     {
       var q = searchQuery.Value.ToLowerInvariant();
@@ -157,11 +148,12 @@ public class DataTablesApp : ViewBase
             .Height(Size.Full())
             .Gap(0)
             .Add(headerContent)
-            .Add(isLoading.Value
+            .Add(isLoading
                 ? Layout.Center().Padding(50).Add(Text.Label("Loading..."))
                 : Layout.Vertical()
                     .Height(Size.Fraction(1))
                     .Padding(20, 0, 20, 50)
+                    .Add(!string.IsNullOrEmpty(debug.Value) ? Text.Label(debug.Value).Color(Colors.Red) : null)
                     .Add(filteredItems.Count > 0
                         ? filteredItems.Select(t => new
                         {
@@ -200,9 +192,10 @@ public class DataTablesApp : ViewBase
                   if (confirmDeleteId.Value == null) return;
                   var success = await service.DeleteRevenueEntryAsync(confirmDeleteId.Value.Value);
                   if (success)
-                  {
-                    refresh.Set(refresh.Value + 1);
-                  }
+                    if (success)
+                    {
+                      refetch();
+                    }
                   confirmDeleteId.Set((int?)null);
                 }).Variant(ButtonVariant.Destructive))
         ) : null

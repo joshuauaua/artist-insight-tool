@@ -4,6 +4,8 @@ using Microsoft.EntityFrameworkCore;
 using ArtistInsightTool.Apps.Services;
 using ExcelDataReaderExample;
 
+using Ivy.Hooks;
+
 namespace ArtistInsightTool.Apps.Tables;
 
 [App(icon: Icons.Sheet, title: "Templates Table", path: ["Tables"])]
@@ -16,35 +18,24 @@ public class TemplatesApp : ViewBase
   {
     var service = UseService<ArtistInsightService>();
     var client = UseService<IClientProvider>();
-    var items = UseState<List<TemplateItem>>([]);
-    var refresh = UseState(0);
     var confirmDeleteId = UseState<int?>(() => null);
 
-    // Load Data
-    UseEffect(async () =>
+    // Load Data with UseQuery
+    var templatesQuery = UseQuery("templates_list", async (ct) =>
     {
-      try
-      {
-        await Task.Delay(10);
-        // Load Data from API
-        var templates = await service.GetTemplatesAsync();
+      var templates = await service.GetTemplatesAsync();
+      return templates.Select(t => new TemplateItem(
+              t.Id,
+              $"T{t.Id:D3}",
+              t.Name,
+              t.Category ?? "Other",
+              t.RevenueEntries?.Count ?? 0,
+              t.CreatedAt
+          )).OrderBy(t => t.RealId).ToList();
+    });
 
-        var mapped = templates.Select(t => new TemplateItem(
-                t.Id,
-                $"T{t.Id:D3}",
-                t.Name,
-                t.Category ?? "Other",
-                t.RevenueEntries?.Count ?? 0,
-                t.CreatedAt
-            )).OrderBy(t => t.RealId).ToList();
-
-        items.Set(mapped);
-      }
-      catch
-      {
-
-      }
-    }, [refresh]);
+    var items = templatesQuery.Value ?? [];
+    var refetch = templatesQuery.Mutator.Revalidate;
 
 
 
@@ -57,7 +48,7 @@ public class TemplatesApp : ViewBase
     var showImportExcel = UseState(false);
 
     // Filter Logic
-    var filteredItems = items.Value.AsEnumerable();
+    var filteredItems = items.AsEnumerable();
     if (!string.IsNullOrWhiteSpace(searchQuery.Value))
     {
       var q = searchQuery.Value.ToLowerInvariant();
@@ -113,7 +104,7 @@ public class TemplatesApp : ViewBase
       if (!createOpen.Value)
       {
         showCreate.Set(false);
-        refresh.Set(refresh.Value + 1);
+        refetch();
       }
       else
       {
@@ -122,7 +113,7 @@ public class TemplatesApp : ViewBase
         // But for consistency let's try to wrap it or just leave it as Diagram for Create?
         // Let's keep Create as Dialog for now to minimize risk, or adapt it.
         // Existing CreateTemplateSheet is a Dialog. I'll leave it.
-        sheets = new CreateTemplateSheet(() => { showCreate.Set(false); refresh.Set(refresh.Value + 1); });
+        sheets = new CreateTemplateSheet(() => { showCreate.Set(false); refetch(); });
       }
     }
     else if (showImportExcel.Value)
@@ -130,7 +121,7 @@ public class TemplatesApp : ViewBase
       sheets = new ExcelDataReaderSheet(() =>
       {
         showImportExcel.Set(false);
-        refresh.Set(refresh.Value + 1);
+        refetch();
       });
     }
 
@@ -161,7 +152,7 @@ public class TemplatesApp : ViewBase
                   var success = await service.DeleteTemplateAsync(confirmDeleteId.Value.Value);
                   if (success)
                   {
-                    refresh.Set(refresh.Value + 1);
+                    refetch();
                   }
                   confirmDeleteId.Set((int?)null);
                 }).Variant(ButtonVariant.Destructive))

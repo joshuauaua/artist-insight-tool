@@ -1,4 +1,5 @@
 using Ivy.Shared;
+using Ivy.Hooks;
 using ArtistInsightTool.Apps.Views;
 using ArtistInsightTool.Apps.Services;
 using System.Globalization;
@@ -12,25 +13,15 @@ public class RevenueTableView : ViewBase
   public override object? Build()
   {
     var service = UseService<ArtistInsightService>();
-    // var blades = UseService<IBladeController>(); // Removed Blade Dependency
-    var refreshToken = this.UseRefreshToken();
-    var allEntries = UseState<RevenueTableItem[]>([]);
-
-    var searchQuery = UseState("");
-    var sortField = UseState("Id");
-    var sortDirection = UseState("Asc");
-    // Filter states
-    var selectedSource = UseState("All");
-
-    // State for Details
+    // State for Details (Must be declared before query to be used in lambda)
     var selectedDetailsId = UseState<int?>(() => null);
     var isEditingDetails = UseState(false);
 
-    async Task<IDisposable?> LoadData()
+    // UseQuery for Revenue Entries
+    var revenueQuery = UseQuery("revenue_entries", async (ct) =>
     {
       var rawData = await service.GetRevenueEntriesAsync();
-
-      var tableData = rawData.Select(e => new
+      return rawData.Select(e => new
       {
         e.Id,
         e.RevenueDate,
@@ -40,34 +31,40 @@ public class RevenueTableView : ViewBase
         e.Amount,
         Source = e.Integration ?? "Manual"
       })
-         .OrderBy(e => e.Id)
-         .Take(1000)
-         .Select(r => new RevenueTableItem(
-         r.Id,
-         Layout.Horizontal().Width(Size.Fraction(1)).Add(r.RevenueDate.ToShortDateString()),
-         Layout.Horizontal()
-             .Width(Size.Fraction(3))
-             .Align(Align.Left)
-             .Gap(0)
-             .Add(new Button(r.Name, () => selectedDetailsId.Set(r.Id))
-                 .Variant(ButtonVariant.Link)
-             ),
-         Layout.Horizontal().Width(Size.Fraction(1)).Add(r.Type),
-         Layout.Horizontal().Width(Size.Fraction(1)).Add(r.Source),
+     .OrderBy(e => e.Id)
+     .Take(1000)
+     .Select(r => new RevenueTableItem(
+        r.Id,
+        Layout.Horizontal().Width(Size.Fraction(1)).Add(r.RevenueDate.ToShortDateString()),
+        Layout.Horizontal()
+            .Width(Size.Fraction(3))
+            .Align(Align.Left)
+            .Gap(0)
+            .Add(new Button(r.Name, () => selectedDetailsId.Set(r.Id))
+                .Variant(ButtonVariant.Link)
+            ),
+        Layout.Horizontal().Width(Size.Fraction(1)).Add(r.Type),
+        Layout.Horizontal().Width(Size.Fraction(1)).Add(r.Source),
 
-         Layout.Horizontal().Width(Size.Fraction(1)).Align(Align.Right).Add(r.Amount.ToString("C", CultureInfo.GetCultureInfo("sv-SE"))),
-         r.RevenueDate,
-         r.Name,
-         r.Type,
-         r.Source,
-         r.Amount
+        Layout.Horizontal().Width(Size.Fraction(1)).Align(Align.Right).Add(r.Amount.ToString("C", CultureInfo.GetCultureInfo("sv-SE"))),
+        r.RevenueDate,
+        r.Name,
+        r.Type,
+        r.Source,
+        r.Amount
      )).ToArray();
+    });
 
-      allEntries.Set(tableData);
-      return null;
-    }
+    var allEntries = revenueQuery.Value ?? [];
+    var refetch = revenueQuery.Mutator.Revalidate;
 
-    UseEffect(LoadData, [refreshToken]);
+    var searchQuery = UseState("");
+    var sortField = UseState("Id");
+    var sortDirection = UseState("Asc");
+    // Filter states
+    var selectedSource = UseState("All");
+
+    // UseEffect replaced by UseQuery
 
     // Handle "Sheet" Views
 
@@ -76,11 +73,15 @@ public class RevenueTableView : ViewBase
     var showCreateSheet = UseState(false);
     if (showCreateSheet.Value)
     {
-      return new RevenueCreateSheet(() => showCreateSheet.Set(false));
+      return new RevenueCreateSheet(() =>
+      {
+        showCreateSheet.Set(false);
+        refetch();
+      });
     }
 
     // Apply Filters and Search
-    var filteredEntries = allEntries.Value;
+    var filteredEntries = allEntries;
 
     if (!string.IsNullOrWhiteSpace(searchQuery.Value))
     {
