@@ -24,7 +24,7 @@ public class RevenueDetailsBlade(int id) : ViewBase
       return null;
     }
 
-    UseEffect(LoadEntry, [EffectTrigger.AfterInit()]);
+    UseEffect(LoadEntry, []);
 
     if (entryState.Value is null) return "Loading...";
 

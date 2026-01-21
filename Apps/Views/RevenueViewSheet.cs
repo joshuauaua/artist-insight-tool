@@ -34,7 +34,7 @@ public class RevenueViewSheet(int id, Action onClose, Action onEdit) : ViewBase
       return null;
     }
 
-    UseEffect(LoadEntry, [EffectTrigger.AfterInit()]);
+    UseEffect(LoadEntry, []);
 
     if (entryState.Value is null) return Layout.Vertical().Gap(10).Add(Text.Muted("Loading..."));
 

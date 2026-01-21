@@ -26,7 +26,7 @@ public class TotalRevenueMetricView(DateTime fromDate, DateTime toDate) : ViewBa
     return new MetricView(
         "Total Revenue",
         Icons.DollarSign,
-        CalculateTotalRevenue
+        _ => UseQuery("dashboard_total_revenue", _ => CalculateTotalRevenue())
     );
   }
 }

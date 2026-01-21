@@ -67,7 +67,7 @@ public class RevenueTableView : ViewBase
       return null;
     }
 
-    UseEffect(LoadData, [EffectTrigger.AfterInit(), refreshToken]);
+    UseEffect(LoadData, [refreshToken]);
 
     // Handle "Sheet" Views
 

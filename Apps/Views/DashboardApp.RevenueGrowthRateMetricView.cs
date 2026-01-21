@@ -26,7 +26,7 @@ public class RevenueGrowthRateMetricView(DateTime fromDate, DateTime toDate) : V
     return new MetricView(
         "Revenue Growth Rate",
         Icons.TrendingUp,
-        CalculateRevenueGrowthRate
+        _ => UseQuery("dashboard_growth_rate", _ => CalculateRevenueGrowthRate())
     );
   }
 }

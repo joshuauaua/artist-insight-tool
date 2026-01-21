@@ -245,22 +245,18 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
         _ => matchedTemplate.Value != null ? "Match Found" : "File Analyzed"
       };
 
-      return new Fragment(
-           Layout.Center()
-           | Layout.Vertical()
-               .Gap(20)
-               .Padding(50)
-               .Align(Align.Center)
-               .Add(new Icon(Icons.Sheet).Size(48))
-               .Add(Layout.Vertical().Gap(5).Align(Align.Center)
-                   .Add(Text.H3("Excel Sheet Import"))
-                   .Add(Text.Muted("Upload analyzed financial data files."))
-               )
-               .Add(uploadState.ToFileInput(uploadContext).Placeholder("Select File").Width(200))
-               .Add(isAnalyzing.Value ? Text.Label("Processing...") : null)
-               .Add(new Button("Close", _onClose).Variant(ButtonVariant.Ghost)),
-
-           showDialog ? new Dialog(
+      return new Sheet(
+          _ => { _onClose(); return ValueTask.CompletedTask; },
+          Layout.Vertical().Height(Size.Full()).Width(Size.Full()).Align(Align.Center).Padding(20)
+            .Add(
+                Layout.Vertical()
+                .Gap(20)
+                .Align(Align.Center)
+                .Add(new Icon(Icons.Sheet).Size(48))
+                .Add(uploadState.ToFileInput(uploadContext).Placeholder("Select File").Width(300))
+                .Add(isAnalyzing.Value ? Text.Label("Processing...") : null)
+             )
+             .Add(showDialog ? new Dialog(
               _ =>
               {
                 if (activeMode.Value != AnalyzerMode.Home)
@@ -287,7 +283,7 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
                           ? Layout.Vertical().Gap(15).Align(Align.Center).Width(Size.Full())
                               | Layout.Horizontal().Gap(5).Align(Align.Center)
                                   | new Icon(Icons.Check).Size(16)
-                                  | Text.Small($"Matched Template: {matchedTemplate.Value.Name}")
+                                  | Text.Muted($"Matched Template: {matchedTemplate.Value.Name}")
                               | Layout.Horizontal().Gap(10).Align(Align.Center).Padding(10, 0)
                                   | new Button("Preview File", () =>
                                   {
@@ -309,8 +305,10 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
                          )
               ),
               new DialogFooter()
-            ) : null
-        );
+            ) : null),
+          "Excel Data Import",
+          "Upload analyzed financial data files."
+      );
     }
 
     object RenderAnalysisContent()

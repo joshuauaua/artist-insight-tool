@@ -1,5 +1,8 @@
-Entries Count: 1
+Entries Count: 4
  - ID: 17, Desc: 2026 Q1 Artists, DataLen: 221, Source: Other, Created: 1/20/2026 3:53:38 PM
+ - ID: 18, Desc: 2026 Q1 Extended, DataLen: 123526, Source: Other, Created: 1/21/2026 8:19:45 AM
+ - ID: 19, Desc: 2026 Q1 Assets, DataLen: 2505, Source: Other, Created: 1/21/2026 8:20:24 AM
+ - ID: 20, Desc: 2026 Q1 Countries, DataLen: 2152, Source: Other, Created: 1/21/2026 1:57:26 PM
 
 Sources Count: 5
  - ID: 1, Desc: Merch
@@ -17,3 +20,6 @@ Total Assets: 5
 
 --- Data Tables Analysis ---
  - Entry 17: Multi-sheet (1 tables)
+ - Entry 18: Multi-sheet (1 tables)
+ - Entry 19: Multi-sheet (1 tables)
+ - Entry 20: Multi-sheet (1 tables)

@@ -148,8 +148,8 @@ public sealed class ArtistInsightToolContextFactory : IDbContextFactory<ArtistIn
 
       System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(_absolutePath)!);
 
-      var appDir = AppContext.BaseDirectory;
-      var templatePath = System.IO.Path.Combine(appDir, _relativePath);
+      var dbPath = System.IO.Path.Join(System.AppContext.BaseDirectory, "db.sqlite");
+      var templatePath = System.IO.Path.Combine(System.AppContext.BaseDirectory, _relativePath);
 
       if (!System.IO.File.Exists(templatePath))
       {

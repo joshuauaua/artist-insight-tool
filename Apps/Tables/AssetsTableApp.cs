@@ -15,34 +15,42 @@ using System.Globalization;
 namespace ArtistInsightTool.Apps.Tables;
 
 [App(icon: Icons.Table, title: "Assets Table", path: ["Tables"])]
-public class AssetsTableApp : ViewBase
+public class AssetsTableApp : WrapperViewBase
 {
   public override object Build()
   {
     var service = UseService<ArtistInsightService>();
     var factory = UseService<ArtistInsightToolContextFactory>();
-    var assets = UseState<Asset[]>([]);
+
+    // Hooks
+    var assetsQuery = UseQuery("assets", async () => (await service.GetAssetsAsync()).OrderBy(a => a.Id).ToArray());
+    var templatesQuery = UseQuery("templates", async () => await service.GetTemplatesAsync());
+
+    var assets = assetsQuery.Data ?? [];
+
+    // Dynamic Header Logic
+    var templates = templatesQuery.Data ?? [];
+    var assetTemplate = templates.FirstOrDefault(t => t.Name.Equals("Assets Template", StringComparison.OrdinalIgnoreCase));
+
+    // Default Headers
+    var collectionHeader = "Collection";
+
+    if (assetTemplate != null)
+    {
+      if (!string.IsNullOrEmpty(assetTemplate.CollectionColumn)) collectionHeader = assetTemplate.CollectionColumn;
+    }
+
     var showCreate = UseState(false);
     var showSpotifyImport = UseState(false);
     var selectedAssetId = UseState<int?>(() => null);
     var confirmDeleteId = UseState<int?>(() => null);
-    var refreshToken = UseState(0);
-
-    async Task<IDisposable?> LoadData()
-    {
-      var data = await service.GetAssetsAsync();
-      assets.Set(data.OrderBy(a => a.Id).ToArray());
-      return null;
-    }
-
-    UseEffect(LoadData, [EffectTrigger.AfterInit(), refreshToken]);
 
     if (showCreate.Value)
     {
       return new CreateAssetSheet(() =>
       {
         showCreate.Set(false);
-        refreshToken.Set(refreshToken.Value + 1);
+        assetsQuery.Refetch();
       });
     }
 
@@ -51,17 +59,15 @@ public class AssetsTableApp : ViewBase
       return new ImportSpotifyAssetSheet(() =>
       {
         showSpotifyImport.Set(false);
-        refreshToken.Set(refreshToken.Value + 1);
+        assetsQuery.Refetch();
       });
     }
-
-
 
     // Search State
     var searchQuery = UseState("");
 
     // Filter Logic
-    var filteredAssets = assets.Value.AsEnumerable();
+    var filteredAssets = assets.AsEnumerable();
     if (!string.IsNullOrWhiteSpace(searchQuery.Value))
     {
       var q = searchQuery.Value.ToLowerInvariant();
@@ -95,8 +101,8 @@ public class AssetsTableApp : ViewBase
     .Header(x => x.IdButton, "ID")
     .Header(x => x.Name, "Asset Name")
     .Header(x => x.Category, "Category")
-    .Header(x => x.Type, "Type")
-    .Header(x => x.Collection, "Collection")
+    .Header(x => x.Type, "Collection Type")
+    .Header(x => x.Collection, collectionHeader)
     .Header(x => x.Amount, "Amount Generated")
     .Header(x => x.Actions, "");
 
@@ -133,7 +139,11 @@ public class AssetsTableApp : ViewBase
         selectedAssetId.Value != null ? new Dialog(
             _ => selectedAssetId.Set((int?)null),
             new DialogHeader("Asset Details"),
-            new DialogBody(new AssetViewSheet(selectedAssetId.Value.Value, () => selectedAssetId.Set((int?)null))),
+            new DialogBody(new AssetViewSheet(selectedAssetId.Value.Value, () =>
+            {
+              selectedAssetId.Set((int?)null);
+              assetsQuery.Refetch();
+            })),
             new DialogFooter()
         ) : null,
         confirmDeleteId.Value != null ? new Dialog(
@@ -148,7 +158,7 @@ public class AssetsTableApp : ViewBase
                   var success = await service.DeleteAssetAsync(confirmDeleteId.Value.Value);
                   if (success)
                   {
-                    refreshToken.Set(refreshToken.Value + 1);
+                    assetsQuery.Refetch();
                   }
                   confirmDeleteId.Set((int?)null);
                 }).Variant(ButtonVariant.Destructive))
@@ -249,8 +259,8 @@ public class CreateAssetSheet(Action onClose) : ViewBase
 
     var typeOptions = category.Value switch
     {
-      "Concerts" => new[] { "Single Concert", "Tour" },
-      "Merchandise" => new[] { "Item", "Collection" },
+      "Concerts" => new[] { "Ticket" },
+      "Merchandise" => new[] { "Single Item", "Merchandise Collection" },
       "Royalties" => new[] { "Single", "EP", "Album" },
       _ => Array.Empty<string>()
     };
@@ -276,9 +286,9 @@ public class CreateAssetSheet(Action onClose) : ViewBase
             .Add(name.ToTextInput().Placeholder("Asset Name"))
             .Add(Text.Label("Category"))
             .Add(category.ToSelectInput(new[] { "Concerts", "Merchandise", "Royalties", "Other" }.Select(c => new Option<string>(c, c))))
-            .Add(Text.Label("Type"))
+            .Add(Text.Label("Collection Type"))
             .Add(category.Value == "Other"
-                ? type.ToTextInput().Placeholder("Type")
+                ? type.ToTextInput().Placeholder("Collection Type")
                 : type.ToSelectInput(typeOptions.Select(t => new Option<string>(t, t))))
             .Add(Text.Label("Collection"))
             .Add(collection.ToTextInput().Placeholder("Collection Name"))

@@ -289,7 +289,7 @@ public class ExcelDataReaderApp : ViewBase
                           ? Layout.Vertical().Gap(15).Align(Align.Center).Width(Size.Full())
                               | Layout.Horizontal().Gap(5).Align(Align.Center)
                                   | new Icon(Icons.Check).Size(16)
-                                  | Text.Small($"Matched Template: {matchedTemplate.Value.Name}")
+                                  | Text.Muted($"Matched Template: {matchedTemplate.Value.Name}")
                               | Layout.Horizontal().Gap(10).Align(Align.Center).Padding(10, 0)
                                   | new Button("Preview File", () =>
                                   {

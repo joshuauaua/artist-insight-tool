@@ -94,7 +94,7 @@ public class DataTablesApp : ViewBase
       {
         isLoading.Set(false);
       }
-    }, [EffectTrigger.AfterInit(), refresh]);
+    }, [refresh]);
 
     var selectedIds = UseState<HashSet<string>>([]);
     var searchQuery = UseState("");

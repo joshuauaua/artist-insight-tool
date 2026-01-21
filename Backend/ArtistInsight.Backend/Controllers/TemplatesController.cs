@@ -54,7 +54,28 @@ public class TemplatesController : ControllerBase
       return BadRequest();
     }
 
-    _context.Entry(template).State = EntityState.Modified;
+    var existingTemplate = await _context.ImportTemplates.FindAsync(id);
+    if (existingTemplate == null)
+    {
+      return NotFound();
+    }
+
+    // Update scalar properties
+    existingTemplate.Name = template.Name;
+    existingTemplate.Category = template.Category;
+    existingTemplate.HeadersJson = template.HeadersJson;
+    existingTemplate.AssetColumn = template.AssetColumn;
+    existingTemplate.NetColumn = template.NetColumn;
+    existingTemplate.AmountColumn = template.AmountColumn;
+    existingTemplate.LabelColumn = template.LabelColumn;
+    existingTemplate.CollectionColumn = template.CollectionColumn;
+    existingTemplate.CurrencyColumn = template.CurrencyColumn;
+    existingTemplate.GrossColumn = template.GrossColumn;
+    existingTemplate.TerritoryColumn = template.TerritoryColumn;
+    existingTemplate.ArtistColumn = template.ArtistColumn;
+    existingTemplate.StoreColumn = template.StoreColumn;
+    existingTemplate.DspColumn = template.DspColumn;
+    existingTemplate.UpdatedAt = DateTime.UtcNow;
 
     try
     {

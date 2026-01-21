@@ -30,7 +30,7 @@ public class AssetViewSheet(int id, Action onClose) : ViewBase
       return null;
     }
 
-    UseEffect(LoadAsset, [EffectTrigger.AfterInit()]);
+    UseEffect(LoadAsset, []);
 
     if (assetState.Value is null) return Layout.Vertical().Gap(10).Add(Text.Muted("Loading..."));
 

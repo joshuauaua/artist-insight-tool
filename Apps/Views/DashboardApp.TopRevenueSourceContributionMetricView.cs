@@ -26,7 +26,7 @@ public class TopRevenueSourceContributionMetricView(DateTime fromDate, DateTime 
     return new MetricView(
         "Top Revenue Source Contribution",
         null,
-        CalculateTopRevenueSourceContribution
+        _ => UseQuery("dashboard_top_source", _ => CalculateTopRevenueSourceContribution())
     );
   }
 }

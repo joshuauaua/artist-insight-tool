@@ -2,6 +2,7 @@ using Ivy.Shared;
 using ArtistInsightTool.Connections.ArtistInsightTool;
 using Microsoft.EntityFrameworkCore;
 using ArtistInsightTool.Apps.Services;
+using ExcelDataReaderExample;
 
 namespace ArtistInsightTool.Apps.Tables;
 
@@ -43,7 +44,7 @@ public class TemplatesApp : ViewBase
       {
 
       }
-    }, [EffectTrigger.AfterInit(), refresh]);
+    }, [refresh]);
 
 
 
@@ -53,6 +54,7 @@ public class TemplatesApp : ViewBase
     // Sheet State
     var editId = UseState<int?>(() => null);
     var showCreate = UseState(false);
+    var showImportExcel = UseState(false);
 
     // Filter Logic
     var filteredItems = items.Value.AsEnumerable();
@@ -89,7 +91,7 @@ public class TemplatesApp : ViewBase
                  | MenuItem.Default("Manual Entry").Icon(Icons.Plus)
                      .HandleSelect(() => showCreate.Set(true))
                  | MenuItem.Default("From Excel File").Icon(Icons.FileSpreadsheet)
-                     .HandleSelect(() => client.Toast("Please use the 'Excel Data Reader' application to create templates from files.", "Info"))
+                     .HandleSelect(() => showImportExcel.Set(true))
              )
         )
         .Add(Layout.Horizontal().Width(Size.Full()).Height(Size.Fit()).Gap(10)
@@ -122,6 +124,14 @@ public class TemplatesApp : ViewBase
         // Existing CreateTemplateSheet is a Dialog. I'll leave it.
         sheets = new CreateTemplateSheet(() => { showCreate.Set(false); refresh.Set(refresh.Value + 1); });
       }
+    }
+    else if (showImportExcel.Value)
+    {
+      sheets = new ExcelDataReaderSheet(() =>
+      {
+        showImportExcel.Set(false);
+        refresh.Set(refresh.Value + 1);
+      });
     }
 
     return new Fragment(
@@ -253,7 +263,7 @@ public class TemplateEditSheet : ViewBase
       return null;
     }
 
-    UseEffect(LoadTemplate, [EffectTrigger.AfterInit()]);
+    UseEffect(LoadTemplate, []);
 
     async Task Save()
     {
@@ -268,6 +278,7 @@ public class TemplateEditSheet : ViewBase
       t.CurrencyColumn = currencyColumn.Value;
       t.UpdatedAt = DateTime.UtcNow;
 
+      t.RevenueEntries = []; // Prevent cycle/payload issues
       var success = await service.UpdateTemplateAsync(_templateId, t);
       if (success)
       {
