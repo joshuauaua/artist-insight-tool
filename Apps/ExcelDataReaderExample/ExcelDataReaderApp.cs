@@ -67,24 +67,7 @@ public class ExcelDataReaderApp : ViewBase
     var annexTitle = UseState("");
 
     // --- Template Creation State ---
-    var newTemplateName = UseState("");
-    var newTemplateCategory = UseState("Merchandise");
-    var templateCreationStep = UseState(1);
-    var newTemplateAssetColumn = UseState<string?>(() => null);
 
-    var newTemplateAmountColumn = UseState<string?>(() => null);
-    var newTemplateCollectionColumn = UseState<string?>(() => null);
-    var newTemplateGrossColumn = UseState<string?>(() => null);
-
-    var newTemplateCurrencyColumn = UseState<string?>(() => null);
-
-    // New Mappings
-    var newTemplateTerritoryColumn = UseState<string?>(() => null);
-    var newTemplateLabelColumn = UseState<string?>(() => null);
-    var newTemplateArtistColumn = UseState<string?>(() => null);
-    var newTemplateStoreColumn = UseState<string?>(() => null);
-    var newTemplateDspColumn = UseState<string?>(() => null);
-    var newTemplateNetColumn = UseState<string?>(() => null); // Separate Net column state if needed, though Amount is effectively Net
 
     // --- Upload/Save State ---
     var uploadName = UseState("");
@@ -225,12 +208,65 @@ public class ExcelDataReaderApp : ViewBase
 
     // --- Render Methods ---
 
+    // Sheets
+    object? sheets = null;
+    if (activeMode.Value == AnalyzerMode.TemplateCreation && fileAnalysis.Value?.Sheets.Count > 0)
+    {
+      sheets = new CreateTemplateSheet(
+          () =>
+          {
+            // On Close / Success: Go back to Home (which triggers re-analysis/match check)
+            // But we probably want to re-run the match check since we just created a template.
+            // The original logic did: isNewTemplate.Set(false); activeMode.Set(AnalyzerMode.Home);
+            // And effectively re-parsed.
+            // We'll mimic this:
+            activeMode.Set(AnalyzerMode.Home);
+            // We might need to trigger a re-match. The Effect on 'filePath' handles analysis, but if file stays same, we need to manually trigger match check?
+            // The 'Refresh' is handled by the effect on 'templates' or 'activeMode'?
+            // Actually, simply setting activeMode to Home will trigger RenderHome which detects matchedTemplate.
+            // We need to ensure 'matchedTemplate' is updated.
+            // We can rely on 'templates' update in Save() in CreateTemplateSheet? No, CreateTemplateSheet saves to DB, we need to reload templates here.
+            // Let's pass a callback to reload templates?
+            // Actually, 'templates' state in Build is loaded once. We should add a refresh trigger.
+            // For simplicity, let's just force a reload or rely on the fact that we stay on the same file path.
+            // In CreateTemplateSheet, we are creating a new context, so this view's templates state won't know unless we tell it.
+            // Let's add a refreshTemplates callback or exposed state?
+            // Simpler: reload templates when returning.
+            // We can add a 'refreshTemplates' state to ExcelDataReaderApp and pass it?
+            // Or just reload in the onClose callback here:
+            Task.Run(async () =>
+            {
+              try
+              {
+                await using var db = factory.CreateDbContext();
+                var loaded = await db.ImportTemplates.ToListAsync();
+                templates.Set(loaded);
+
+                // Re-check match
+                if (fileAnalysis.Value != null && fileAnalysis.Value.Sheets.Count > 0)
+                {
+                  var firstSheetHeaders = fileAnalysis.Value.Sheets[0].Headers;
+                  var jsonHeaders = JsonSerializer.Serialize(firstSheetHeaders);
+                  var match = loaded.FirstOrDefault(t => t.HeadersJson == jsonHeaders);
+                  if (match != null) matchedTemplate.Set(match);
+                }
+              }
+              catch { }
+            });
+          },
+          fileAnalysis.Value.Sheets[0].Headers,
+          factory,
+          client
+      );
+    }
+
     object RenderHome()
     {
       // Show dialog if analysis is ready AND (we are at Home or entered a sub-mode)
+      // Exclude TemplateCreation because it's now a Sheet
       var showDialog = fileAnalysis.Value != null &&
           (activeMode.Value == AnalyzerMode.Home ||
-           activeMode.Value == AnalyzerMode.TemplateCreation ||
+           // activeMode.Value == AnalyzerMode.TemplateCreation || // Removed
            activeMode.Value == AnalyzerMode.Analysis ||
            activeMode.Value == AnalyzerMode.Annex ||
            activeMode.Value == AnalyzerMode.DataView ||
@@ -239,7 +275,7 @@ public class ExcelDataReaderApp : ViewBase
 
       string GetDialogTitle() => activeMode.Value switch
       {
-        AnalyzerMode.TemplateCreation => "Create Import Template",
+        // AnalyzerMode.TemplateCreation => "Create Import Template", // Removed
         AnalyzerMode.Analysis => "File Metadata",
         AnalyzerMode.Annex => "Annex Data",
         AnalyzerMode.DataView => "Data Preview",
@@ -278,7 +314,7 @@ public class ExcelDataReaderApp : ViewBase
               },
               new DialogHeader(GetDialogTitle()),
               new DialogBody(
-                   activeMode.Value == AnalyzerMode.TemplateCreation ? RenderTemplateCreationContent() :
+                   // activeMode.Value == AnalyzerMode.TemplateCreation ? RenderTemplateCreationContent() : // Removed
                    activeMode.Value == AnalyzerMode.Analysis ? RenderAnalysisContent() :
                    activeMode.Value == AnalyzerMode.Annex ? RenderAnnexContent() :
                    activeMode.Value == AnalyzerMode.DataView ? RenderDataTableView() :
@@ -311,7 +347,8 @@ public class ExcelDataReaderApp : ViewBase
                          )
               ),
               new DialogFooter()
-            ) : null
+            ) : null,
+            sheets
         );
     }
 
@@ -345,130 +382,9 @@ public class ExcelDataReaderApp : ViewBase
            );
     }
 
-    object RenderTemplateCreationContent()
-    {
-      if (fileAnalysis.Value?.Sheets.Count == 0) return Text.Muted("No sheets found.");
-      var headers = fileAnalysis.Value!.Sheets[0].Headers;
 
-      if (templateCreationStep.Value == 1)
-      {
-        return Layout.Vertical().Gap(10).Width(Size.Full())
-            | Text.H4("Step 1: Template Details")
-            | Layout.Vertical().Gap(2)
-                | Text.Label("Template Name")
-                | newTemplateName.ToTextInput().Placeholder("e.g. Spotify Report")
-            | Layout.Vertical().Gap(2)
-                | Text.Label("Category")
-                | newTemplateCategory.ToSelectInput(new[] { "Merchandise", "Royalties", "Concerts", "Other" }.Select(c => new Option<string>(c, c)))
-            | Layout.Horizontal().Align(Align.Right).Padding(10, 0, 0, 0)
-                | new Button("Next", () =>
-                {
-                  if (string.IsNullOrWhiteSpace(newTemplateName.Value)) { client.Toast("Name required", "Warning"); return; }
-                  templateCreationStep.Set(2);
-                }).Variant(ButtonVariant.Primary).Icon(Icons.ArrowRight);
-      }
-      else
-      {
-        return Layout.Vertical().Gap(10).Width(Size.Full())
-            | Layout.Horizontal().Align(Align.Center).Gap(10)
-                | new Button("", () => templateCreationStep.Set(1)).Variant(ButtonVariant.Ghost).Icon(Icons.ArrowLeft)
-                | Text.H4("Step 2: Map Columns")
-            | Text.Muted("Assign columns to standard fields.")
-            | Layout.Vertical().Gap(0).Padding(0, 0)
-                | headers.Select(h =>
-                {
-                  var currentRole = newTemplateAssetColumn.Value == h ? "Asset" :
-                                    newTemplateAmountColumn.Value == h ? "Net" : // Using AmountColumn as Net
-                                    newTemplateCollectionColumn.Value == h ? "Collection" :
-                                    newTemplateGrossColumn.Value == h ? "Gross" :
-                                    newTemplateCurrencyColumn.Value == h ? "Currency" :
-                                    newTemplateTerritoryColumn.Value == h ? "Territory" :
-                                    newTemplateLabelColumn.Value == h ? "Label" :
-                                    newTemplateArtistColumn.Value == h ? "Artist" :
-                                    newTemplateStoreColumn.Value == h ? "Store" :
-                                    newTemplateDspColumn.Value == h ? "DSP" :
-                                    "Ignore";
 
-                  return Layout.Horizontal().Gap(10).Align(Align.Center)
-                      | Layout.Vertical().Width(Size.Fraction(1)).Align(Align.Left)
-                          | Text.H5(h)
-                      | Layout.Vertical().Width(120)
-                          | (new DropDownMenu(
-                              DropDownMenu.DefaultSelectHandler(),
-                              new Button(currentRole).Variant(ButtonVariant.Outline).Icon(Icons.ChevronDown).Width(Size.Full())
-                            )
-                            | MenuItem.Default("Ignore").HandleSelect(() =>
-                              {
-                                ClearColumn(h);
-                              })
-                            | MenuItem.Default("Asset").HandleSelect(() => { ClearColumn(h); newTemplateAssetColumn.Set(h); })
-                            | MenuItem.Default("Territory").HandleSelect(() => { ClearColumn(h); newTemplateTerritoryColumn.Set(h); })
-                            | MenuItem.Default("Label").HandleSelect(() => { ClearColumn(h); newTemplateLabelColumn.Set(h); })
-                            | MenuItem.Default("Collection").HandleSelect(() => { ClearColumn(h); newTemplateCollectionColumn.Set(h); })
-                            | MenuItem.Default("Artist").HandleSelect(() => { ClearColumn(h); newTemplateArtistColumn.Set(h); })
-                            | MenuItem.Default("Store").HandleSelect(() => { ClearColumn(h); newTemplateStoreColumn.Set(h); })
-                            | MenuItem.Default("DSP").HandleSelect(() => { ClearColumn(h); newTemplateDspColumn.Set(h); })
-                            | MenuItem.Default("Gross").HandleSelect(() => { ClearColumn(h); newTemplateGrossColumn.Set(h); })
-                            | MenuItem.Default("Net").HandleSelect(() => { ClearColumn(h); newTemplateAmountColumn.Set(h); })
-                            | MenuItem.Default("Currency").HandleSelect(() => { ClearColumn(h); newTemplateCurrencyColumn.Set(h); })
-                            )
-                  ;
-                }).ToArray()
-            | new Button("Save Template", async () =>
-            {
-              await using var db = factory.CreateDbContext();
-              var newT = new ImportTemplate
-              {
-                Name = newTemplateName.Value,
-                Category = newTemplateCategory.Value,
-                HeadersJson = JsonSerializer.Serialize(headers),
-                AssetColumn = newTemplateAssetColumn.Value,
-                AmountColumn = newTemplateAmountColumn.Value, // Net
-                CollectionColumn = newTemplateCollectionColumn.Value,
-                GrossColumn = newTemplateGrossColumn.Value,
-                CurrencyColumn = newTemplateCurrencyColumn.Value,
-                TerritoryColumn = newTemplateTerritoryColumn.Value,
-                LabelColumn = newTemplateLabelColumn.Value,
-                ArtistColumn = newTemplateArtistColumn.Value,
-                StoreColumn = newTemplateStoreColumn.Value,
-                DspColumn = newTemplateDspColumn.Value,
-                NetColumn = newTemplateAmountColumn.Value, // Map Net to Amount for consistency
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-              };
-              db.ImportTemplates.Add(newT);
-              await db.SaveChangesAsync();
 
-              var fresh = await db.ImportTemplates.ToListAsync();
-              templates.Set(fresh);
-
-              var jsonHeaders = JsonSerializer.Serialize(headers);
-              var match = fresh.FirstOrDefault(t => t.HeadersJson == jsonHeaders);
-              if (match != null) matchedTemplate.Set(match);
-
-              isNewTemplate.Set(false);
-              activeMode.Set(AnalyzerMode.Home);
-              // Reset
-              templateCreationStep.Set(1);
-              client.Toast("Template Created", "Success");
-            }).Variant(ButtonVariant.Primary).Width(Size.Full());
-      }
-    }
-
-    void ClearColumn(string h)
-    {
-      if (newTemplateAssetColumn.Value == h) newTemplateAssetColumn.Set((string?)null);
-      if (newTemplateAmountColumn.Value == h) newTemplateAmountColumn.Set((string?)null);
-      if (newTemplateCollectionColumn.Value == h) newTemplateCollectionColumn.Set((string?)null);
-      if (newTemplateGrossColumn.Value == h) newTemplateGrossColumn.Set((string?)null);
-      if (newTemplateCurrencyColumn.Value == h) newTemplateCurrencyColumn.Set((string?)null);
-      if (newTemplateTerritoryColumn.Value == h) newTemplateTerritoryColumn.Set((string?)null);
-      if (newTemplateLabelColumn.Value == h) newTemplateLabelColumn.Set((string?)null);
-      if (newTemplateArtistColumn.Value == h) newTemplateArtistColumn.Set((string?)null);
-      if (newTemplateStoreColumn.Value == h) newTemplateStoreColumn.Set((string?)null);
-      if (newTemplateDspColumn.Value == h) newTemplateDspColumn.Set((string?)null);
-      if (newTemplateNetColumn.Value == h) newTemplateNetColumn.Set((string?)null);
-    }
 
 
 
@@ -1052,5 +968,164 @@ public class ExcelDataReaderApp : ViewBase
     int order = 0;
     while (len >= 1024 && order < sizes.Length - 1) { order++; len /= 1024; }
     return $"{len:0.##} {sizes[order]}";
+  }
+}
+public class CreateTemplateSheet : ViewBase
+{
+  private readonly Action _onClose;
+  private readonly List<string> _headers;
+  private readonly ArtistInsightToolContextFactory _factory;
+  private readonly IClientProvider _client;
+
+  public CreateTemplateSheet(Action onClose, List<string> headers, ArtistInsightToolContextFactory factory, IClientProvider client)
+  {
+    _onClose = onClose;
+    _headers = headers;
+    _factory = factory;
+    _client = client;
+  }
+
+  public override object Build()
+  {
+    var name = UseState("");
+    var category = UseState("Merchandise");
+
+    // Column Mappings
+    var assetColumn = UseState<string?>(() => null);
+    var amountColumn = UseState<string?>(() => null);
+    var sourceColumn = UseState<string?>(() => null);
+    var collectionColumn = UseState<string?>(() => null);
+    var currencyColumn = UseState<string?>(() => null);
+    var territoryColumn = UseState<string?>(() => null);
+    var artistColumn = UseState<string?>(() => null);
+    var dspColumn = UseState<string?>(() => null);
+    var storeColumn = UseState<string?>(() => null);
+
+
+    async Task Save()
+    {
+      if (string.IsNullOrWhiteSpace(name.Value))
+      {
+        _client.Toast("Template Name is required", "Warning");
+        return;
+      }
+
+      try
+      {
+        await using var db = _factory.CreateDbContext();
+        var newT = new ImportTemplate
+        {
+          Name = name.Value,
+          Category = category.Value,
+          HeadersJson = JsonSerializer.Serialize(_headers),
+          AssetColumn = assetColumn.Value,
+          AmountColumn = amountColumn.Value, // Net
+          CollectionColumn = collectionColumn.Value,
+          CurrencyColumn = currencyColumn.Value,
+          TerritoryColumn = territoryColumn.Value,
+          LabelColumn = sourceColumn.Value,
+          ArtistColumn = artistColumn.Value,
+          StoreColumn = storeColumn.Value,
+          DspColumn = dspColumn.Value,
+          NetColumn = amountColumn.Value, // Map Net to Amount for consistency
+          CreatedAt = DateTime.UtcNow,
+          UpdatedAt = DateTime.UtcNow
+        };
+        db.ImportTemplates.Add(newT);
+        await db.SaveChangesAsync();
+
+        _client.Toast("Template Created Successfully", "Success");
+        _onClose();
+      }
+      catch (Exception ex)
+      {
+        _client.Toast($"Failed to create template: {ex.Message}", "Error");
+      }
+    }
+
+    void ClearColumn(string header)
+    {
+      if (assetColumn.Value == header) assetColumn.Set((string?)null);
+      if (amountColumn.Value == header) amountColumn.Set((string?)null);
+      if (sourceColumn.Value == header) sourceColumn.Set((string?)null);
+      if (collectionColumn.Value == header) collectionColumn.Set((string?)null);
+      if (currencyColumn.Value == header) currencyColumn.Set((string?)null);
+      if (territoryColumn.Value == header) territoryColumn.Set((string?)null);
+      if (artistColumn.Value == header) artistColumn.Set((string?)null);
+      if (dspColumn.Value == header) dspColumn.Set((string?)null);
+      if (storeColumn.Value == header) storeColumn.Set((string?)null);
+    }
+
+    var mappingSection = Layout.Vertical().Gap(12).Align(Align.Stretch);
+    if (_headers.Count > 0)
+    {
+      foreach (var header in _headers)
+      {
+        var currentRole = "Ignore";
+        if (assetColumn.Value == header) currentRole = "Asset";
+        else if (amountColumn.Value == header) currentRole = "Net (Amount)";
+        else if (sourceColumn.Value == header) currentRole = "Source/Label";
+        else if (collectionColumn.Value == header) currentRole = "Collection";
+        else if (currencyColumn.Value == header) currentRole = "Currency";
+        else if (territoryColumn.Value == header) currentRole = "Territory";
+        else if (artistColumn.Value == header) currentRole = "Artist";
+        else if (dspColumn.Value == header) currentRole = "DSP";
+        else if (storeColumn.Value == header) currentRole = "Store";
+
+        mappingSection.Add(Layout.Horizontal().Gap(10).Align(Align.Center)
+            .Add(Layout.Vertical().Width(Size.Fraction(1)).Align(Align.Left)
+                .Add(Text.Label(header)))
+            .Add(Layout.Vertical().Width(150)
+                .Add(new DropDownMenu(
+                    DropDownMenu.DefaultSelectHandler(),
+                    new Button(currentRole).Variant(ButtonVariant.Outline).Icon(Icons.ChevronDown).Width(Size.Full())
+                )
+                | MenuItem.Default("Ignore").HandleSelect(() => ClearColumn(header))
+                | MenuItem.Default("Asset").HandleSelect(() => { ClearColumn(header); assetColumn.Set(header); })
+                | MenuItem.Default("Net (Amount)").HandleSelect(() => { ClearColumn(header); amountColumn.Set(header); })
+                | MenuItem.Default("Source/Label").HandleSelect(() => { ClearColumn(header); sourceColumn.Set(header); })
+                | MenuItem.Default("Collection").HandleSelect(() => { ClearColumn(header); collectionColumn.Set(header); })
+                | MenuItem.Default("Currency").HandleSelect(() => { ClearColumn(header); currencyColumn.Set(header); })
+                | MenuItem.Default("Territory").HandleSelect(() => { ClearColumn(header); territoryColumn.Set(header); })
+                | MenuItem.Default("Artist").HandleSelect(() => { ClearColumn(header); artistColumn.Set(header); })
+                | MenuItem.Default("DSP").HandleSelect(() => { ClearColumn(header); dspColumn.Set(header); })
+                | MenuItem.Default("Store").HandleSelect(() => { ClearColumn(header); storeColumn.Set(header); })
+                )
+            )
+        );
+      }
+    }
+    else
+    {
+      mappingSection.Add(Text.Muted("No headers found in this file."));
+    }
+
+    var content = Layout.Vertical().Gap(10).Padding(40, 10).Align(Align.Stretch)
+        .Add(new Card(
+            Layout.Vertical().Gap(15)
+                .Add(Layout.Vertical().Gap(5)
+                    .Add(Text.Label("Template Name"))
+                    .Add(name.ToTextInput().Placeholder("e.g. Distrokid CSV")))
+                .Add(Layout.Vertical().Gap(5)
+                    .Add(Text.Label("Category"))
+                    .Add(category.ToSelectInput(new[] { "Merchandise", "Royalties", "Concerts", "Other" }.Select(c => new Option<string>(c, c)))))
+            ).Title("Template Details")
+        )
+        .Add(new Card(
+            mappingSection
+            ).Title("Column Mappings")
+        );
+
+    var footer = Layout.Horizontal().Gap(10).Align(Align.Right).Padding(6)
+        .Add(new Button("Cancel", () => _onClose()).Variant(ButtonVariant.Ghost))
+        .Add(new Button("Create Template", async () => await Save()).Variant(ButtonVariant.Primary));
+
+
+    return new Sheet(
+        _ => _onClose(),
+        new FooterLayout(footer, content),
+        "Create Template",
+        "Define a new template for this file structure."
+    ).Width(Size.Full());
   }
 }
