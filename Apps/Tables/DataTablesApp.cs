@@ -12,7 +12,7 @@ namespace ArtistInsightTool.Apps.Tables;
 [App(icon: Icons.Database, title: "Data Tables", path: ["Tables"])]
 public class DataTablesApp : ViewBase
 {
-  public record TableItem(int RealId, string Id, string Name, string AnnexedTo, string Category, string TemplateName, string Range, string Date);
+  public record TableItem(int RealId, string Id, string Name, string AnnexedTo, string LinkedTo, string Date);
 
   public override object? Build()
   {
@@ -33,7 +33,6 @@ public class DataTablesApp : ViewBase
         await using var db = factory.CreateDbContext();
         var entries = await db.RevenueEntries
             .Include(e => e.AssetRevenues).ThenInclude(ar => ar.Asset)
-            .Include(e => e.ImportTemplate) // Include Template for Category
             .Where(e => e.JsonData != null && e.JsonData != "")
             .OrderBy(e => e.CreatedAt)
             .ToListAsync();
@@ -49,23 +48,8 @@ public class DataTablesApp : ViewBase
             using var doc = JsonDocument.Parse(entry.JsonData);
             var root = doc.RootElement;
 
-            string category = entry.ImportTemplate?.Category ?? "Other";
-            string templateName = entry.ImportTemplate?.Name ?? "-";
-            string range = entry.Year.HasValue
-                ? (entry.Quarter != null ? $"{entry.Quarter} {entry.Year}" : $"{entry.Year}")
-                : entry.RevenueDate.ToString("MMM yyyy");
-
             // Logic to parse items... (Compact helper to keep code short)
-            void AddItem(string title) => items.Add(new TableItem(
-                entry.Id,
-                $"DT{index++:D3}",
-                title,
-                entry.Description ?? "-",
-                category,
-                templateName,
-                range,
-                entry.UpdatedAt.ToShortDateString()
-            ));
+            void AddItem(string title) => items.Add(new TableItem(entry.Id, $"DT{index++:D3}", title, entry.Description ?? "-", "-", entry.UpdatedAt.ToShortDateString()));
 
             if (root.ValueKind == JsonValueKind.Array && root.GetArrayLength() > 0)
             {
@@ -122,6 +106,24 @@ public class DataTablesApp : ViewBase
     var confirmDeleteId = UseState<int?>(() => null);
     var selectedTableId = UseState<int?>(() => null);
 
+    if (selectedTableId.Value != null)
+    {
+      return new Dialog(
+          _ => selectedTableId.Set((int?)null),
+          new DialogHeader("Table View"),
+          new DialogBody(new DataTableViewSheet(selectedTableId.Value.Value, () => selectedTableId.Set((int?)null))),
+          new DialogFooter()
+      );
+    }
+
+
+    var mappingEntryId = UseState<int?>(initialValue: null);
+
+    if (mappingEntryId.Value.HasValue)
+    {
+      return new HeaderMappingSheet(mappingEntryId.Value.Value, () => mappingEntryId.Set((int?)null));
+    }
+
     var headerContent = Layout.Vertical()
        .Width(Size.Full())
        .Height(Size.Fit())
@@ -145,22 +147,6 @@ public class DataTablesApp : ViewBase
            .Add(searchQuery.ToTextInput().Placeholder("Search tables...").Width(300))
        );
 
-    var mappingEntryId = UseState<int?>(initialValue: null);
-
-    // Sheets
-    object? sheets = null;
-    if (selectedTableId.Value != null)
-    {
-      sheets = new DataTableViewSheet(selectedTableId.Value.Value, () => selectedTableId.Set((int?)null));
-    }
-    else if (mappingEntryId.Value.HasValue)
-    {
-      // Keep existing logic for HeaderMappingSheet but wrap/assign if needed. 
-      // The original code returned HeaderMappingSheet directly.
-      // Let's integrate it into sheets as well.
-      sheets = new HeaderMappingSheet(mappingEntryId.Value.Value, () => mappingEntryId.Set((int?)null));
-    }
-
     return new Fragment(
         Layout.Vertical()
             .Height(Size.Full())
@@ -177,9 +163,7 @@ public class DataTablesApp : ViewBase
                           IdButton = new Button(t.Id, () => selectedTableId.Set(t.RealId)).Variant(ButtonVariant.Ghost),
                           t.Name,
                           t.AnnexedTo,
-                          t.Category,
-                          t.TemplateName,
-                          t.Range,
+                          t.LinkedTo,
                           t.Date,
                           Actions = new Button("", () => confirmDeleteId.Set(t.RealId)).Icon(Icons.Trash).Variant(ButtonVariant.Ghost)
                         }).ToArray().ToTable()
@@ -188,17 +172,13 @@ public class DataTablesApp : ViewBase
                             .Add(x => x.IdButton)
                             .Add(x => x.Name)
                             .Add(x => x.AnnexedTo)
-                            .Add(x => x.Category)
-                            .Add(x => x.TemplateName)
-                            .Add(x => x.Range)
+                            .Add(x => x.LinkedTo)
                             .Add(x => x.Date)
                             .Add(x => x.Actions)
                             .Header(x => x.IdButton, "ID")
                             .Header(x => x.Name, "Name")
                             .Header(x => x.AnnexedTo, "Annexed To")
-                            .Header(x => x.Category, "Category")
-                            .Header(x => x.TemplateName, "Template")
-                            .Header(x => x.Range, "Range")
+                            .Header(x => x.LinkedTo, "Linked To")
                             .Header(x => x.Date, "Uploaded")
                             .Header(x => x.Actions, "")
                         : Text.Muted("No data tables found.")
@@ -220,8 +200,7 @@ public class DataTablesApp : ViewBase
                   }
                   confirmDeleteId.Set((int?)null);
                 }).Variant(ButtonVariant.Destructive))
-        ) : null,
-        sheets
+        ) : null
     );
   }
 }
@@ -253,6 +232,7 @@ public class DataTableViewSheet(int entryId, Action onClose) : ViewBase
         var root = doc.RootElement;
         List<Dictionary<string, object?>> dataRows = [];
 
+        // Parsing logic adapted from DataTablesApp/ExcelDataReader
         if (root.ValueKind == JsonValueKind.Array && root.GetArrayLength() > 0)
         {
           var first = root[0];
@@ -261,6 +241,21 @@ public class DataTableViewSheet(int entryId, Action onClose) : ViewBase
 
           if (isObj && hasFile)
           {
+            // It's a list of sheets, get the last one (most recent) or just the first one?
+            // Since "Data Tables" lists multiple "Entries" but a RevenueEntry might have multiple sheets annexed...
+            // DataTablesApp lists individual "TableItem"s but they map to RealId (RevenueEntry Id).
+            // If a RevenueEntry has multiple sheets, DataTablesApp logic (line 61) iterates them.
+            // But wait, RealId is SAME for all sheets in one ID?
+            // DataTablesApp.cs line 51: AddItem(entry.Id, ...)
+            // If multiple sheets, it generates multiple "TableItem"s but all point to "entry.Id".
+            // We need to know WHICH sheet to show.
+            // Ah, DataTablesApp currently iterates sheets but only passes "entry.Id".
+            // So if I click one, I load the RevenueEntry.
+            // I should probably show all sheets or tabs?
+            // For now, let's just show the LAST sheet or all data merged?
+            // Let's assume the user clicked a specific "Table Item" which corresponds to *one* sheet ideally if we tracked it.
+            // But we only track `entry.Id`.
+            // Simple approach: Show the last attached sheet (as that's usually the "table" context).
             var lastSheet = root.EnumerateArray().LastOrDefault();
             if (lastSheet.ValueKind == JsonValueKind.Object && (lastSheet.TryGetProperty("Rows", out var rowsProp) || lastSheet.TryGetProperty("rows", out rowsProp)))
             {
@@ -269,11 +264,14 @@ public class DataTableViewSheet(int entryId, Action onClose) : ViewBase
           }
           else
           {
+            // Legacy Array of Rows
             dataRows = JsonSerializer.Deserialize<List<Dictionary<string, object?>>>(entry.JsonData) ?? [];
           }
         }
         else if (root.ValueKind == JsonValueKind.Object)
         {
+          // Single Sheet Object? Or maybe "Rows" property inside?
+          // If it's the old single object format, check if it has "Rows"
           if (root.TryGetProperty("Rows", out var r) || root.TryGetProperty("rows", out r))
             dataRows = JsonSerializer.Deserialize<List<Dictionary<string, object?>>>(r.GetRawText()) ?? [];
         }
@@ -285,6 +283,7 @@ public class DataTableViewSheet(int entryId, Action onClose) : ViewBase
           return;
         }
 
+        // Extract Columns
         var firstRow = dataRows[0];
         var headers = firstRow.Keys.ToList();
 
@@ -323,41 +322,27 @@ public class DataTableViewSheet(int entryId, Action onClose) : ViewBase
       }
     }, []);
 
-    object content;
-    if (isLoading.Value)
-    {
-      content = Layout.Center().Height(Size.Full()).Add(Text.Label("Loading Table..."));
-    }
-    else if (!string.IsNullOrEmpty(error.Value))
-    {
-      content = Layout.Center().Height(Size.Full()).Add(Text.Label(error.Value).Color(Colors.Red));
-    }
-    else
-    {
-      var config = new DataTableConfig
-      {
-        FreezeColumns = 1,
-        ShowGroups = false,
-        ShowIndexColumn = true,
-        ShowSearch = true,
-        AllowSorting = true,
-        AllowFiltering = true,
-        ShowVerticalBorders = true
-      };
-      // Use fit height or fraction logic. If Sheet uses FooterLayout, content often needs to fill remaining space.
-      // Wrap in a vertical layout with Fraction(1) to ensure it takes available space.
-      content = Layout.Vertical().Height(Size.Fraction(1)).Gap(0).Padding(0)
-          .Add(new DataTableView(rows.Value.AsQueryable(), Size.Full(), Size.Full(), columns.Value, config));
-    }
+    if (isLoading.Value) return Layout.Center().Add(Text.Label("Loading Table..."));
+    if (!string.IsNullOrEmpty(error.Value)) return Layout.Center().Add(Text.Label(error.Value).Color(Colors.Red));
 
-    var footer = Layout.Horizontal().Align(Align.Right).Padding(6)
-        .Add(new Button("Close", onClose).Variant(ButtonVariant.Primary));
+    var config = new DataTableConfig
+    {
+      FreezeColumns = 1,
+      ShowGroups = false,
+      ShowIndexColumn = true,
+      ShowSearch = true,
+      AllowSorting = true,
+      AllowFiltering = true,
+      ShowVerticalBorders = true
+    };
 
-    return new Sheet(
-        _ => onClose(),
-        new FooterLayout(footer, content),
-        "Table Viewer",
-        $"Viewing data table."
-    ).Width(Size.Full());
+    return Layout.Vertical()
+        .Height(Size.Full())
+        .Gap(10)
+        .Add(Layout.Horizontal().Gap(10).Align(Align.Center).Padding(10)
+             .Add(new Button("Back", onClose).Variant(ButtonVariant.Link).Icon(Icons.ArrowLeft))
+             .Add(Text.H4($"Table Data: {rows.Value.Count} Rows"))
+        )
+        .Add(new DataTableView(rows.Value.AsQueryable(), Size.Full(), Size.Full(), columns.Value, config));
   }
 }
