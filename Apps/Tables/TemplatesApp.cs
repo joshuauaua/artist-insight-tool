@@ -90,31 +90,15 @@ public class TemplatesApp : ViewBase
         );
 
     // Sheets
+    // Sheets
     object? sheets = null;
     if (editId.Value != null)
     {
-      var editOpen = UseState(true);
-      // Sync State: if editOpen becomes false, clear editId
-      if (!editOpen.Value) editId.Set((int?)null);
-      else sheets = new TemplateEditSheet(editOpen, editId.Value.Value, client);
+      sheets = new TemplateEditSheet(() => editId.Set((int?)null), editId.Value.Value, client);
     }
     else if (showCreate.Value)
     {
-      var createOpen = UseState(true);
-      if (!createOpen.Value)
-      {
-        showCreate.Set(false);
-        refetch();
-      }
-      else
-      {
-        // We can reuse CreateTemplateSheet but it needs to be adapted to be a Sheet or just wrapped?
-        // The user asked for "Edit Template should be in a sheet". They didn't explicitly say Create must be.
-        // But for consistency let's try to wrap it or just leave it as Diagram for Create?
-        // Let's keep Create as Dialog for now to minimize risk, or adapt it.
-        // Existing CreateTemplateSheet is a Dialog. I'll leave it.
-        sheets = new CreateTemplateSheet(() => { showCreate.Set(false); refetch(); });
-      }
+      sheets = new CreateTemplateSheet(() => { showCreate.Set(false); refetch(); });
     }
     else if (showImportExcel.Value)
     {
@@ -205,13 +189,13 @@ public class CreateTemplateSheet(Action onClose) : ViewBase
 
 public class TemplateEditSheet : ViewBase
 {
-  private readonly IState<bool> _isOpen;
+  private readonly Action _onClose;
   private readonly int _templateId;
   private readonly IClientProvider _client;
 
-  public TemplateEditSheet(IState<bool> isOpen, int templateId, IClientProvider client)
+  public TemplateEditSheet(Action onClose, int templateId, IClientProvider client)
   {
-    _isOpen = isOpen;
+    _onClose = onClose;
     _templateId = templateId;
     _client = client;
   }
@@ -274,7 +258,7 @@ public class TemplateEditSheet : ViewBase
       if (success)
       {
         _client.Toast("Template updated successfully");
-        _isOpen.Set(false);
+        _onClose();
       }
       else
       {
@@ -346,12 +330,12 @@ public class TemplateEditSheet : ViewBase
         );
 
     var footer = Layout.Horizontal().Gap(10).Align(Align.Right).Padding(6)
-        .Add(new Button("Cancel", () => _isOpen.Set(false)).Variant(ButtonVariant.Ghost))
+        .Add(new Button("Cancel", _onClose).Variant(ButtonVariant.Ghost))
         .Add(new Button("Save Changes", async () => await Save()).Variant(ButtonVariant.Primary));
 
 
     return new Sheet(
-        _ => _isOpen.Set(false),
+        _ => _onClose(),
         new FooterLayout(footer, content),
         "Edit Template",
         "Modify template details and column mappings."
