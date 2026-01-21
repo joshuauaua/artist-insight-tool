@@ -21,6 +21,16 @@ public class DataTablesApp : ViewBase
     var tables = UseState<List<TableItem>>([]);
     var isLoading = UseState(true);
     var debug = UseState<string>("");
+    var showImportSheet = UseState(false);
+
+    if (showImportSheet.Value)
+    {
+      return new ExcelDataReaderExample.ExcelDataReaderSheet(() =>
+      {
+        showImportSheet.Set(false);
+        refresh.Set(refresh.Value + 1);
+      });
+    }
 
     UseEffect(async () =>
     {
@@ -108,12 +118,7 @@ public class DataTablesApp : ViewBase
 
     if (selectedTableId.Value != null)
     {
-      return new Dialog(
-          _ => selectedTableId.Set((int?)null),
-          new DialogHeader("Table View"),
-          new DialogBody(new DataTableViewSheet(selectedTableId.Value.Value, () => selectedTableId.Set((int?)null))),
-          new DialogFooter()
-      );
+      return new DataTableViewSheet(selectedTableId.Value.Value, () => selectedTableId.Set((int?)null));
     }
 
 
@@ -135,7 +140,7 @@ public class DataTablesApp : ViewBase
             .Align(Align.Center)
             .Add("Data Tables")
             .Add(new Spacer().Width(Size.Fraction(1)))
-            .Add(new Button("Import Data", () => Console.WriteLine("User clicked Import"))
+            .Add(new Button("Import Data", () => showImportSheet.Set(true))
                 .Icon(Icons.FileUp)
                 .Variant(ButtonVariant.Primary)
             )
@@ -213,7 +218,9 @@ public class DataTableViewSheet(int entryId, Action onClose) : ViewBase
     var rows = UseState<List<DynamicRow>>([]);
     var columns = UseState<DataTableColumn[]>([]);
     var isLoading = UseState(true);
+
     var error = UseState("");
+    var entryTitle = UseState("");
 
     UseEffect(async () =>
     {
@@ -224,9 +231,12 @@ public class DataTableViewSheet(int entryId, Action onClose) : ViewBase
         if (entry == null || string.IsNullOrEmpty(entry.JsonData))
         {
           error.Set("Entry not found or empty.");
+          entryTitle.Set("Unknown Table");
           isLoading.Set(false);
           return;
         }
+
+        entryTitle.Set(entry.Description ?? "Untitled Table");
 
         using var doc = JsonDocument.Parse(entry.JsonData);
         var root = doc.RootElement;
@@ -339,10 +349,15 @@ public class DataTableViewSheet(int entryId, Action onClose) : ViewBase
     return Layout.Vertical()
         .Height(Size.Full())
         .Gap(10)
-        .Add(Layout.Horizontal().Gap(10).Align(Align.Center).Padding(10)
-             .Add(new Button("Back", onClose).Variant(ButtonVariant.Link).Icon(Icons.ArrowLeft))
-             .Add(Text.H4($"Table Data: {rows.Value.Count} Rows"))
-        )
+        .Add(new Card(
+              Layout.Horizontal().Gap(10).Align(Align.Center).Padding(5)
+                  .Add(new Button("Back", onClose).Variant(ButtonVariant.Ghost).Icon(Icons.ArrowLeft))
+                  .Add(Layout.Vertical().Gap(2)
+                      .Add(Text.H4(entryTitle.Value))
+                      .Add(Text.Muted($"{rows.Value.Count} Rows"))
+                  )
+
+        ))
         .Add(new DataTableView(rows.Value.AsQueryable(), Size.Full(), Size.Full(), columns.Value, config));
   }
 }
