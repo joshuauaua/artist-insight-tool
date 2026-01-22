@@ -67,30 +67,27 @@ public class TemplatesApp : ViewBase
               .Add(new Button("", () => confirmDeleteId.Set(t.RealId)).Icon(Icons.Trash).Variant(ButtonVariant.Ghost))
     }).AsQueryable();
 
-    var headerContent = Layout.Vertical()
-        .Width(Size.Full())
-        .Height(Size.Fit())
-        .Gap(10)
-        .Padding(20, 20, 20, 5)
-        .Add(Layout.Horizontal().Width(Size.Full()).Height(Size.Fit()).Align(Align.Center)
-             .Add("Templates Table")
-             .Add(new Spacer().Width(Size.Fraction(1)))
-             .Add(new DropDownMenu(
-                     DropDownMenu.DefaultSelectHandler(),
-                     new Button("Create Template").Icon(Icons.Plus).Variant(ButtonVariant.Primary)
+    var headerCard = new Card(
+        Layout.Vertical().Gap(10)
+            .Add(Layout.Horizontal().Align(Align.Center).Width(Size.Full())
+                 .Add(Text.H4("Templates Table"))
+                 .Add(new Spacer().Width(Size.Fraction(1)))
+                 .Add(new DropDownMenu(
+                         DropDownMenu.DefaultSelectHandler(),
+                         new Button("Create Template").Icon(Icons.Plus).Variant(ButtonVariant.Primary)
+                     )
+                     | MenuItem.Default("Manual Entry").Icon(Icons.Plus)
+                         .HandleSelect(() => showCreate.Set(true))
+                     | MenuItem.Default("From Excel File").Icon(Icons.FileSpreadsheet)
+                         .HandleSelect(() => showImportExcel.Set(true))
                  )
-                 | MenuItem.Default("Manual Entry").Icon(Icons.Plus)
-                     .HandleSelect(() => showCreate.Set(true))
-                 | MenuItem.Default("From Excel File").Icon(Icons.FileSpreadsheet)
-                     .HandleSelect(() => showImportExcel.Set(true))
-             )
-        )
-        .Add(Layout.Horizontal().Width(Size.Full()).Height(Size.Fit()).Gap(10)
-             .Add(searchQuery.ToTextInput().Placeholder("Search templates...").Width(300))
-        );
+            )
+            .Add(Layout.Horizontal().Width(Size.Full()).Gap(10)
+                 .Add(searchQuery.ToTextInput().Placeholder("Search templates...").Width(300))
+            )
+    );
 
-    // Sheets
-    // Sheets
+    // Sheets (Logic remains same)
     object? sheets = null;
     if (editId.Value != null)
     {
@@ -109,10 +106,7 @@ public class TemplatesApp : ViewBase
       });
     }
 
-    return new Fragment(
-        Layout.Vertical().Height(Size.Full()).Gap(0)
-            .Add(headerContent)
-            .Add(Layout.Vertical().Height(Size.Fraction(1)).Padding(20, 0, 20, 50)
+    var content = Layout.Vertical().Height(Size.Full()).Padding(20, 0, 20, 50)
                 .Add(
                      tableData.ToTable()
                      .Width(Size.Full())
@@ -122,8 +116,10 @@ public class TemplatesApp : ViewBase
                      .Header(x => x.Category, "Category")
                      .Header(x => x.Files, "Linked Files")
                      .Header(x => x.Actions, "")
-                )
-            ),
+                );
+
+    return new Fragment(
+        new HeaderLayout(headerCard, content),
         confirmDeleteId.Value != null ? new Dialog(
             _ => confirmDeleteId.Set((int?)null),
             new DialogHeader("Confirm Deletion"),

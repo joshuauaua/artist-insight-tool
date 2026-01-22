@@ -108,36 +108,30 @@ public class AssetsTableApp : ViewBase
     .Header(x => x.Amount, "Amount Generated")
     .Header(x => x.Actions, "");
 
-    var headerContent = Layout.Vertical()
-        .Width(Size.Full())
-        .Height(Size.Fit())
-        .Gap(10)
-        .Padding(20, 20, 20, 5)
-        .Add(Layout.Horizontal().Width(Size.Full()).Height(Size.Fit()).Align(Align.Center)
-             .Add("Assets Table")
-             .Add(new Spacer().Width(Size.Fraction(1)))
-             .Add(new DropDownMenu(
-                     DropDownMenu.DefaultSelectHandler(),
-                     new Button("Create Asset").Icon(Icons.Plus).Variant(ButtonVariant.Primary)
+    var headerCard = new Card(
+        Layout.Vertical().Gap(10)
+            .Add(Layout.Horizontal().Align(Align.Center).Width(Size.Full())
+                 .Add(Text.H4("Assets Table"))
+                 .Add(new Spacer().Width(Size.Fraction(1)))
+                 .Add(new DropDownMenu(
+                         DropDownMenu.DefaultSelectHandler(),
+                         new Button("Create Asset").Icon(Icons.Plus).Variant(ButtonVariant.Primary)
+                     )
+                     | MenuItem.Default("Manual Entry").Icon(Icons.Plus)
+                         .HandleSelect(() => showCreate.Set(true))
+                     | MenuItem.Default("Fetch from Spotify").Icon(Icons.CloudDownload)
+                         .HandleSelect(() => showSpotifyImport.Set(true))
                  )
-                 | MenuItem.Default("Manual Entry").Icon(Icons.Plus)
-                     .HandleSelect(() => showCreate.Set(true))
-                 | MenuItem.Default("Fetch from Spotify").Icon(Icons.CloudDownload)
-                     .HandleSelect(() => showSpotifyImport.Set(true))
-             )
-        )
-        .Add(Layout.Horizontal().Width(Size.Full()).Height(Size.Fit()).Gap(10)
-             .Add(searchQuery.ToTextInput().Placeholder("Search assets...").Width(300))
-        );
+            )
+            .Add(Layout.Horizontal().Width(Size.Full()).Gap(10)
+                 .Add(searchQuery.ToTextInput().Placeholder("Search assets...").Width(300))
+            )
+    );
+
+    var content = Layout.Vertical().Height(Size.Full()).Padding(20, 0, 20, 50).Add(table);
 
     return new Fragment(
-        Layout.Vertical()
-            .Height(Size.Full())
-            .Gap(0)
-            .Add(headerContent)
-            .Add(Layout.Vertical().Height(Size.Fraction(1)).Padding(20, 0, 20, 50)
-                 .Add(table)
-            ),
+        new HeaderLayout(headerCard, content),
         selectedAssetId.Value != null ? new Dialog(
             _ => selectedAssetId.Set((int?)null),
             new DialogHeader("Asset Details"),

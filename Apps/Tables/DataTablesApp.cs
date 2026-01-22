@@ -120,67 +120,57 @@ public class DataTablesApp : ViewBase
       return new HeaderMappingSheet(mappingEntryId.Value.Value, () => mappingEntryId.Set((int?)null));
     }
 
-    var headerContent = Layout.Vertical()
-       .Width(Size.Full())
-       .Height(Size.Fit())
-       .Gap(10)
-       .Padding(20, 20, 20, 5)
-       .Add(Layout.Horizontal()
-            .Width(Size.Full())
-            .Height(Size.Fit())
-            .Align(Align.Center)
-            .Add("Data Tables")
-            .Add(new Spacer().Width(Size.Fraction(1)))
-            .Add(new Button("Import Data", () => showImportSheet.Set(true))
-                .Icon(Icons.FileUp)
-                .Variant(ButtonVariant.Primary)
+    var headerCard = new Card(
+        Layout.Vertical().Gap(10)
+            .Add(Layout.Horizontal().Align(Align.Center).Width(Size.Full())
+                 .Add(Text.H4("Data Tables"))
+                 .Add(new Spacer().Width(Size.Fraction(1)))
+                 .Add(new Button("Import Data", () => showImportSheet.Set(true))
+                     .Icon(Icons.FileUp)
+                     .Variant(ButtonVariant.Primary)
+                 )
             )
-       )
-       .Add(Layout.Horizontal()
-           .Width(Size.Full())
-           .Height(Size.Fit())
-           .Gap(10)
-           .Add(searchQuery.ToTextInput().Placeholder("Search tables...").Width(300))
-       );
+            .Add(Layout.Horizontal().Width(Size.Full()).Gap(10)
+                 .Add(searchQuery.ToTextInput().Placeholder("Search tables...").Width(300))
+            )
+    );
+
+    var content = Layout.Vertical()
+        .Height(Size.Full())
+        .Padding(20, 0, 20, 50)
+        .Add(isLoading
+            ? Layout.Center().Add(Text.Label("Loading..."))
+            : Layout.Vertical().Height(Size.Fraction(1))
+                .Add(!string.IsNullOrEmpty(debug.Value) ? Text.Label(debug.Value).Color(Colors.Red) : null)
+                .Add(filteredItems.Count > 0
+                    ? filteredItems.Select(t => new
+                    {
+                      IdButton = new Button(t.Id, () => selectedTableId.Set(t.RealId)).Variant(ButtonVariant.Ghost),
+                      t.Name,
+                      t.AnnexedTo,
+                      t.LinkedTo,
+                      t.Date,
+                      Actions = new Button("", () => confirmDeleteId.Set(t.RealId)).Icon(Icons.Trash).Variant(ButtonVariant.Ghost)
+                    }).ToArray().ToTable()
+                        .Width(Size.Full())
+                        .Add(x => x.IdButton)
+                        .Add(x => x.Name)
+                        .Add(x => x.AnnexedTo)
+                        .Add(x => x.LinkedTo)
+                        .Add(x => x.Date)
+                        .Add(x => x.Actions)
+                        .Header(x => x.IdButton, "ID")
+                        .Header(x => x.Name, "Name")
+                        .Header(x => x.AnnexedTo, "Annexed To")
+                        .Header(x => x.LinkedTo, "Linked To")
+                        .Header(x => x.Date, "Uploaded")
+                        .Header(x => x.Actions, "")
+                    : Text.Muted("No data tables found.")
+                )
+        );
 
     return new Fragment(
-        Layout.Vertical()
-            .Height(Size.Full())
-            .Gap(0)
-            .Add(headerContent)
-            .Add(isLoading
-                ? Layout.Center().Padding(50).Add(Text.Label("Loading..."))
-                : Layout.Vertical()
-                    .Height(Size.Fraction(1))
-                    .Padding(20, 0, 20, 50)
-                    .Add(!string.IsNullOrEmpty(debug.Value) ? Text.Label(debug.Value).Color(Colors.Red) : null)
-                    .Add(filteredItems.Count > 0
-                        ? filteredItems.Select(t => new
-                        {
-                          IdButton = new Button(t.Id, () => selectedTableId.Set(t.RealId)).Variant(ButtonVariant.Ghost),
-                          t.Name,
-                          t.AnnexedTo,
-                          t.LinkedTo,
-                          t.Date,
-                          Actions = new Button("", () => confirmDeleteId.Set(t.RealId)).Icon(Icons.Trash).Variant(ButtonVariant.Ghost)
-                        }).ToArray().ToTable()
-                            .Width(Size.Full())
-                            // Header checkbox for Select All
-                            .Add(x => x.IdButton)
-                            .Add(x => x.Name)
-                            .Add(x => x.AnnexedTo)
-                            .Add(x => x.LinkedTo)
-                            .Add(x => x.Date)
-                            .Add(x => x.Actions)
-                            .Header(x => x.IdButton, "ID")
-                            .Header(x => x.Name, "Name")
-                            .Header(x => x.AnnexedTo, "Annexed To")
-                            .Header(x => x.LinkedTo, "Linked To")
-                            .Header(x => x.Date, "Uploaded")
-                            .Header(x => x.Actions, "")
-                        : Text.Muted("No data tables found.")
-                    )
-            ),
+        new HeaderLayout(headerCard, content),
         confirmDeleteId.Value != null ? new Dialog(
             _ => confirmDeleteId.Set((int?)null),
             new DialogHeader("Confirm Deletion"),
@@ -192,10 +182,9 @@ public class DataTablesApp : ViewBase
                   if (confirmDeleteId.Value == null) return;
                   var success = await service.DeleteRevenueEntryAsync(confirmDeleteId.Value.Value);
                   if (success)
-                    if (success)
-                    {
-                      refetch();
-                    }
+                  {
+                    refetch();
+                  }
                   confirmDeleteId.Set((int?)null);
                 }).Variant(ButtonVariant.Destructive))
         ) : null

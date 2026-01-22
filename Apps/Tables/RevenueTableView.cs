@@ -128,28 +128,21 @@ public class RevenueTableView : ViewBase
         new("Others", "Others")
     });
 
-    var headerContent = Layout.Vertical()
-       .Width(Size.Full())
-       .Height(Size.Fit()) // Ensure it calculates height based on content
-       .Gap(10)
-       .Padding(20, 20, 20, 5)
-       .Add(Layout.Horizontal()
-            .Width(Size.Full())
-            .Height(Size.Fit())
-            .Align(Align.Center)
-            .Add("Revenue Streams")
-            .Add(new Spacer().Width(Size.Fraction(1))) // Force spacer to take remaining width
-            .Add(new Button("Create Entry", () => showCreateSheet.Set(true))
-               .Icon(Icons.Plus)
-               .Variant(ButtonVariant.Primary)
+    var headerCard = new Card(
+        Layout.Vertical().Gap(10)
+            .Add(Layout.Horizontal().Align(Align.Center).Width(Size.Full())
+                 .Add(Text.H4("Revenue Streams"))
+                 .Add(new Spacer().Width(Size.Fraction(1)))
+                 .Add(new Button("Create Entry", () => showCreateSheet.Set(true))
+                    .Icon(Icons.Plus)
+                    .Variant(ButtonVariant.Primary)
+                 )
             )
-       )
-       .Add(Layout.Horizontal()
-           .Width(Size.Full())
-           .Height(Size.Fit()) // Ensure input row has height
-           .Gap(10)
-           .Add(searchBar)
-           .Add(filterSelect));
+            .Add(Layout.Horizontal().Width(Size.Full()).Gap(10)
+                 .Add(searchBar)
+                 .Add(filterSelect)
+            )
+    );
 
     // Projection for ToTable
     var tableData = filteredEntries.Select(r => new
@@ -184,17 +177,10 @@ public class RevenueTableView : ViewBase
     // Note: Column width might not be supported via .Width(x=>...) in this API, 
     // but checking if ToTable returns Table widget which usually auto-sizes.
 
+    var content = Layout.Vertical().Height(Size.Full()).Padding(20, 0, 20, 50).Add(table);
+
     return new Fragment(
-        Layout.Vertical()
-            .Height(Size.Full())
-            .Gap(0)
-            .Add(headerContent)
-            // Container for table to enforce bottom spacing
-            .Add(Layout.Vertical()
-                .Height(Size.Fraction(1))
-                .Padding(20, 0, 20, 50)
-                .Add(table)
-            ),
+        new HeaderLayout(headerCard, content),
 
         selectedDetailsId.Value != null ? new Dialog(
             _ => selectedDetailsId.Set((int?)null),
