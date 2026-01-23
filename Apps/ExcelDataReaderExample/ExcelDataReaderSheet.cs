@@ -139,6 +139,8 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
 
     // --- Upload Logic ---
     var uploadState = UseState<FileUpload<byte[]>?>();
+    var templateTargetFileId = UseState<string?>(() => null); // Explicit lambda to avoid ambiguity
+
     var uploadContext = this.UseUpload(MemoryStreamUploadHandler.Create(uploadState))
         .Accept(".xlsx,.xls,.csv")
         .MaxFileSize(50 * 1024 * 1024);
@@ -293,21 +295,44 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
 
     CurrentFile? GetActiveFile() => filePaths.Value.FirstOrDefault(); // Helper for views expecting single file context
 
+    IView RenderFileRow(CurrentFile f)
+    {
+      return Layout.Horizontal().Gap(10).Align(Align.Center).Padding(10)
+            .Add(new Icon(Icons.FileText).Size(20))
+            .Add(Layout.Vertical()
+                .Add(Text.Label(f.OriginalName))
+                .Add(Text.Muted($"{FormatFileSize(f.FileSize)} - {f.Status}"))
+            )
+            .Add(Layout.Horizontal().Grow())
+            .Add(f.MatchedTemplate != null ? Text.Success(f.MatchedTemplate.Name) :
+                 f.Status == "Analyzed" ?
+                    Layout.Horizontal().Gap(5).Align(Align.Center)
+                          .Add(Text.Warning("No Template"))
+                          .Add(new Button("Create", () =>
+                          {
+                            templateTargetFileId.Set(f.Id);
+                            activeMode.Set(AnalyzerMode.TemplateCreation);
+                          }).Variant(ButtonVariant.Secondary))
+                 : Text.Muted("-"))
+            .Add(new Button("", () =>
+            {
+              var l = filePaths.Value.ToList();
+              l.RemoveAll(x => x.Id == f.Id);
+              filePaths.Set(l);
+            }).Variant(ButtonVariant.Ghost).Icon(Icons.Trash));
+    }
+
     // --- Render Methods ---
 
     object RenderHome()
     {
-      var files = filePaths.Value;
+      var files = filePaths.Value ?? new List<CurrentFile>();
       var hasFiles = files.Count > 0;
       var isProcessing = isAnalyzing.Value;
       var ready = files.All(f => f.Status == "Analyzed");
 
-      // Determine if we show a dialog
-      // For now, if we are in a sub-mode, we show it. 
-      // But sub-modes like "Preview" need a target file.
-      // We will assume "Preview" previews the FIRST file for now.
       var showDialog = (activeMode.Value != AnalyzerMode.Home && activeMode.Value != AnalyzerMode.Upload)
-                       || (activeMode.Value == AnalyzerMode.Upload && ready); // Upload sub-mode logic
+                       || (activeMode.Value == AnalyzerMode.Upload && ready);
 
       string GetDialogTitle() => activeMode.Value switch
       {
@@ -320,84 +345,71 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
         _ => "Import Data"
       };
 
+      var container = Layout.Vertical().Height(Size.Full()).Width(Size.Full()).Align(Align.Center).Padding(20);
+
+      var content = Layout.Vertical().Gap(20).Align(Align.Center);
+      content.Add(new Icon(Icons.Sheet).Size(48));
+      content.Add(Text.H4("Bulk Import"));
+      content.Add(uploadState.ToFileInput(uploadContext).Placeholder("Select Files (Excel/CSV)").Width(300));
+
+      if (isProcessing)
+      {
+        content.Add(Text.Label("Processing..."));
+      }
+
+      if (hasFiles)
+      {
+        var fileList = Layout.Vertical().Gap(10).Width(Size.Full());
+        foreach (var f in files)
+        {
+          fileList.Add(RenderFileRow(f));
+        }
+        content.Add(fileList);
+      }
+
+      if (hasFiles && ready && !isProcessing)
+      {
+        content.Add(Layout.Horizontal().Gap(10)
+            .Add(new Button("Clear All", () => filePaths.Set(new List<CurrentFile>())).Variant(ButtonVariant.Outline))
+            .Add(new Button("Import All", () =>
+            {
+              if (files.Any(f => f.MatchedTemplate == null))
+              {
+                client.Toast("Templates missing for some files", "Warning");
+                return;
+              }
+              uploadName.Set($"Batch Import {DateTime.Now}");
+              activeMode.Set(AnalyzerMode.Upload);
+            }).Variant(ButtonVariant.Primary))
+        );
+      }
+
+      container.Add(content);
+
+      if (showDialog)
+      {
+        container.Add(new Dialog(
+             _ =>
+             {
+               if (activeMode.Value != AnalyzerMode.Home) activeMode.Set(AnalyzerMode.Home);
+             },
+             new DialogHeader(GetDialogTitle()),
+             new DialogBody(
+                  activeMode.Value == AnalyzerMode.TemplateCreation ? RenderTemplateCreationContent() :
+                  activeMode.Value == AnalyzerMode.Analysis ? RenderAnalysisContent() :
+                  activeMode.Value == AnalyzerMode.Annex ? RenderAnnexContent() :
+                  activeMode.Value == AnalyzerMode.DataView ? RenderDataTableView() :
+                  activeMode.Value == AnalyzerMode.Preview ? RenderPreviewContent() :
+                  activeMode.Value == AnalyzerMode.Upload ? RenderUploadContent() :
+                  Text.Muted("Not implemented view")
+             ),
+             new DialogFooter()
+        ));
+      }
+
       return new Sheet(
           _ => { _onClose(); return ValueTask.CompletedTask; },
-          Layout.Vertical().Height(Size.Full()).Width(Size.Full()).Align(Align.Center).Padding(20)
-            .Add(
-                Layout.Vertical()
-                .Gap(20)
-                .Align(Align.Center)
-                .Add(new Icon(Icons.Sheet).Size(48))
-                .Add(Text.H4("Bulk Import"))
-                .Add(uploadState.ToFileInput(uploadContext).Placeholder("Select Files (Excel/CSV)").Width(300))
-                .Add(isProcessing ? Text.Label("Processing...") : null)
-                .Add(hasFiles ?
-                    Layout.Vertical().Gap(10).Width(Size.Full())
-                    .Add(files.Select(f =>
-                        Layout.Horizontal().Gap(10).Align(Align.Center).Padding(10) // Fixed Class error
-                        .Add(new Icon(Icons.FileText).Size(20))
-                        .Add(Layout.Vertical()
-                            .Add(Text.Label(f.OriginalName))
-                            .Add(Text.Muted($"{FormatFileSize(f.FileSize)} - {f.Status}")) // Fixed Tiny error
-                        )
-                        .Add(Layout.Horizontal().Grow()) // Fixed Spacer error
-                        .Add(f.MatchedTemplate != null ? Text.Success(f.MatchedTemplate.Name) :
-                             f.Status == "Analyzed" ? Text.Warning("No Template") : Text.Muted("-"))
-                        .Add(new Button("", () =>
-                        {
-                          var l = filePaths.Value.ToList();
-                          l.RemoveAll(x => x.Id == f.Id);
-                          filePaths.Set(l);
-                        }).Variant(ButtonVariant.Ghost).Icon(Icons.Trash))
-                    ).ToArray())
-                    : null
-                )
-                .Add(hasFiles && ready && !isProcessing ?
-                    Layout.Horizontal().Gap(10)
-                    .Add(new Button("Clear All", () => filePaths.Set(new List<CurrentFile>())).Variant(ButtonVariant.Outline))
-                    .Add(new Button("Import All", () =>
-                    {
-                      // Check if all work
-                      if (files.Any(f => f.MatchedTemplate == null))
-                      {
-                        client.Toast("Templates missing for some files", "Warning");
-                        return;
-                      }
-                      uploadName.Set($"Batch Import {DateTime.Now}");
-                      activeMode.Set(AnalyzerMode.Upload);
-                    }).Variant(ButtonVariant.Primary))
-                    : null
-                )
-                .Add(hasFiles && files.Any(f => f.Status == "Analyzed" && f.MatchedTemplate == null) ?
-                     new Button("Create Template", () => activeMode.Set(AnalyzerMode.TemplateCreation))
-                     .Variant(ButtonVariant.Secondary)
-                     : null
-                )
-             )
-             .Add(showDialog ? new Dialog(
-              _ =>
-              {
-                if (activeMode.Value != AnalyzerMode.Home)
-                {
-                  activeMode.Set(AnalyzerMode.Home);
-                }
-                else
-                {
-                  // Clear logic?
-                }
-              },
-              new DialogHeader(GetDialogTitle()),
-              new DialogBody(
-                   activeMode.Value == AnalyzerMode.TemplateCreation ? RenderTemplateCreationContent() :
-                   activeMode.Value == AnalyzerMode.Analysis ? RenderAnalysisContent() :
-                   activeMode.Value == AnalyzerMode.Annex ? RenderAnnexContent() :
-                   activeMode.Value == AnalyzerMode.DataView ? RenderDataTableView() :
-                   activeMode.Value == AnalyzerMode.Preview ? RenderPreviewContent() :
-                   activeMode.Value == AnalyzerMode.Upload ? RenderUploadContent() :
-                   Text.Muted("Not implemented view")
-              ),
-              new DialogFooter()
-            ) : null),
+          container,
           "Excel Bulk Import",
           "Upload and process multiple financial data files."
       );
@@ -435,8 +447,10 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
 
     object RenderTemplateCreationContent()
     {
-      var analysis = GetActiveFile()?.Analysis;
-      if (analysis?.Sheets.Count == 0) return Text.Muted("No sheets found in first file.");
+      var targetId = templateTargetFileId.Value;
+      var targetFile = filePaths.Value.FirstOrDefault(f => f.Id == targetId) ?? GetActiveFile(); // Fallback if null, though logical flow should prevent
+      var analysis = targetFile?.Analysis;
+      if (analysis?.Sheets.Count == 0) return Text.Muted("No sheets found in file.");
       var headers = analysis!.Sheets[0].Headers;
 
       var globalFields = new Dictionary<string, string>
