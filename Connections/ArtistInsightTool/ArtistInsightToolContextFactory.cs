@@ -130,6 +130,17 @@ public sealed class ArtistInsightToolContextFactory : IDbContextFactory<ArtistIn
         context.Database.ExecuteSqlRaw("ALTER TABLE tracks ADD COLUMN ArtistId INTEGER DEFAULT 1 REFERENCES artists(Id)");
       }
       catch { }
+
+      // Template Expansion
+      string[] templateCols = {
+        "TransactionDateColumn", "TransactionIdColumn", "SourcePlatformColumn",
+        "CategoryColumn", "QuantityColumn", "SkuColumn", "CustomerEmailColumn",
+        "IsrcColumn", "UpcColumn", "VenueNameColumn", "EventStatusColumn", "TicketClassColumn"
+      };
+      foreach (var col in templateCols)
+      {
+        try { context.Database.ExecuteSqlRaw($"ALTER TABLE import_templates ADD COLUMN {col} TEXT"); } catch { }
+      }
     }
 
     return context;
