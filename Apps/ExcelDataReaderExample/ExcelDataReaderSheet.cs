@@ -42,6 +42,19 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
     public List<string> Headers { get; set; } = new();
   }
 
+  public record CurrentFile
+  {
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    public string Path { get; set; } = "";
+    public string OriginalName { get; set; } = "";
+    public long FileSize { get; set; }
+    public FileAnalysis? Analysis { get; set; }
+    public ImportTemplate? MatchedTemplate { get; set; }
+    public bool IsNewTemplate { get; set; }
+    public List<Dictionary<string, object?>>? ParsedData { get; set; }
+    public string Status { get; set; } = "Pending"; // Pending, Analyzing, Ready, Error
+  }
+
   public override object? Build()
   {
     System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
@@ -54,12 +67,12 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
     var templates = UseState<List<ImportTemplate>>([]);
 
     // --- Analysis State ---
-    var filePath = UseState<string?>(() => null);
-    var fileAnalysis = UseState<FileAnalysis?>(() => null);
+    // --- Analysis State ---
+    var filePaths = UseState<List<CurrentFile>>(() => new());
     var isAnalyzing = UseState(false);
-    var matchedTemplate = UseState<ImportTemplate?>(() => null);
-    var isNewTemplate = UseState(false);
-    var parsedData = UseState<List<Dictionary<string, object?>>>([]); // Hold parsed data
+    // var matchedTemplate = UseState<ImportTemplate?>(() => null); // Moved to CurrentFile
+    // var isNewTemplate = UseState(false); // Moved to CurrentFile
+    // var parsedData = UseState<List<Dictionary<string, object?>>>([]); // Moved to CurrentFile
 
     // --- Annex State ---
     var annexEntries = UseState<List<RevenueEntry>>([]);
@@ -114,11 +127,15 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
     // Auto-name file based on Royalties selection
     UseEffect(() =>
     {
-      if (activeMode.Value == AnalyzerMode.Upload && matchedTemplate.Value?.Category == "Royalties")
+      if (activeMode.Value == AnalyzerMode.Upload)
       {
-        uploadName.Set($"{uploadYear.Value} {uploadQuarter.Value} {matchedTemplate.Value.Name}");
+        var firstT = filePaths.Value.FirstOrDefault()?.MatchedTemplate;
+        if (firstT?.Category == "Royalties")
+        {
+          uploadName.Set($"{uploadYear.Value} {uploadQuarter.Value} {firstT.Name}");
+        }
       }
-    }, [activeMode, matchedTemplate, uploadYear, uploadQuarter]);
+    }, [activeMode, filePaths, uploadYear, uploadQuarter]);
 
     // --- Upload Logic ---
     var uploadState = UseState<FileUpload<byte[]>?>();
@@ -159,8 +176,21 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
           }
           var finalPath = tempPath + extension;
           File.WriteAllBytes(finalPath, bytes);
-          filePath.Set(finalPath);
-          activeMode.Set(AnalyzerMode.Home); // Stay on home to show actions
+
+          var newFile = new CurrentFile
+          {
+            Path = finalPath,
+            OriginalName = uploadState.Value.FileName ?? "Unknown",
+            FileSize = bytes.Length
+          };
+
+          var list = filePaths.Value.ToList();
+          list.Add(newFile);
+          filePaths.Set(list);
+
+          // Reset upload state to allow adding more? 
+          // Actually, if I reset it immediately, it might re-trigger if not careful.
+          // But usually we want to clear it so the input is clear.
         }
         catch (Exception ex)
         {
@@ -172,47 +202,60 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
     // Analysis Logic
     UseEffect(async () =>
     {
-      var currentPath = filePath.Value;
-      if (currentPath != null && !isAnalyzing.Value)
+      if (isAnalyzing.Value) return;
+
+      var files = filePaths.Value;
+      var pending = files.FirstOrDefault(f => f.Status == "Pending");
+
+      if (pending != null)
       {
         isAnalyzing.Set(true);
-        matchedTemplate.Set((ImportTemplate?)null);
-        isNewTemplate.Set(false);
 
         FileAnalysis? result = null;
         try
         {
           result = await Task.Run(() =>
               {
-                try { return AnalyzeFile(currentPath); }
+                try { return AnalyzeFile(pending.Path); }
                 catch { return null; }
               });
         }
         catch { }
 
-        if (result != null)
+        // Update the file in the list
+        // Note: Re-fetch list to avoid closure staleness if possible, though UseEffect should have latest
+        var currentList = filePaths.Value.ToList();
+        var index = currentList.FindIndex(f => f.Id == pending.Id);
+
+        if (index != -1)
         {
-          fileAnalysis.Set(result);
+          var updated = currentList[index] with
+          {
+            Status = result != null ? "Analyzed" : "Error",
+            Analysis = result
+          };
+
           // Match template
-          if (result.Sheets.Count > 0)
+          if (result?.Sheets.Count > 0)
           {
             var firstSheetHeaders = result.Sheets[0].Headers;
             var jsonHeaders = JsonSerializer.Serialize(firstSheetHeaders);
             var match = templates.Value.FirstOrDefault(t => t.HeadersJson == jsonHeaders);
-            if (match != null) matchedTemplate.Set(match);
-            else isNewTemplate.Set(true);
+
+            updated = updated with
+            {
+              MatchedTemplate = match,
+              IsNewTemplate = match == null
+            };
           }
+
+          currentList[index] = updated;
+          filePaths.Set(currentList);
         }
+
         isAnalyzing.Set(false);
       }
-      else if (currentPath == null)
-      {
-        fileAnalysis.Set((FileAnalysis?)null);
-        matchedTemplate.Set((ImportTemplate?)null);
-        isNewTemplate.Set(false);
-        activeMode.Set(AnalyzerMode.Home);
-      }
-    }, [filePath]);
+    }, [filePaths, templates]);
 
     // Load Annex Entries only when in Annex Mode
     UseEffect(() => Task.Run(async () =>
@@ -230,25 +273,41 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
     }), [activeMode]);
 
     // --- Helpers ---
+
+
+    // We need a way to parse all rows for a file
+    List<Dictionary<string, object?>> ParseFileRows(CurrentFile file)
+    {
+      if (file.Path == null || file.MatchedTemplate == null) return [];
+      return ParseData(file.Path, file.MatchedTemplate);
+    }
+
     List<Dictionary<string, object?>> ParseCurrentFile()
     {
-      if (filePath.Value == null || matchedTemplate.Value == null) return [];
-      return ParseData(filePath.Value, matchedTemplate.Value);
+      // Legacy helper used by Preview/Upload single item logic
+      // We'll use the FIRST file for preview
+      var first = filePaths.Value.FirstOrDefault();
+      if (first != null) return ParseFileRows(first);
+      return [];
     }
+
+    CurrentFile? GetActiveFile() => filePaths.Value.FirstOrDefault(); // Helper for views expecting single file context
 
     // --- Render Methods ---
 
     object RenderHome()
     {
-      // Show dialog if analysis is ready AND (we are at Home or entered a sub-mode)
-      var showDialog = fileAnalysis.Value != null &&
-          (activeMode.Value == AnalyzerMode.Home ||
-           activeMode.Value == AnalyzerMode.TemplateCreation ||
-           activeMode.Value == AnalyzerMode.Analysis ||
-           activeMode.Value == AnalyzerMode.Annex ||
-           activeMode.Value == AnalyzerMode.DataView ||
-           activeMode.Value == AnalyzerMode.Preview ||
-           activeMode.Value == AnalyzerMode.Upload);
+      var files = filePaths.Value;
+      var hasFiles = files.Count > 0;
+      var isProcessing = isAnalyzing.Value;
+      var ready = files.All(f => f.Status == "Analyzed");
+
+      // Determine if we show a dialog
+      // For now, if we are in a sub-mode, we show it. 
+      // But sub-modes like "Preview" need a target file.
+      // We will assume "Preview" previews the FIRST file for now.
+      var showDialog = (activeMode.Value != AnalyzerMode.Home && activeMode.Value != AnalyzerMode.Upload)
+                       || (activeMode.Value == AnalyzerMode.Upload && ready); // Upload sub-mode logic
 
       string GetDialogTitle() => activeMode.Value switch
       {
@@ -258,7 +317,7 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
         AnalyzerMode.DataView => "Data Preview",
         AnalyzerMode.Preview => "Preview File",
         AnalyzerMode.Upload => "Upload Table",
-        _ => matchedTemplate.Value != null ? "Match Found" : "File Analyzed"
+        _ => "Import Data"
       };
 
       return new Sheet(
@@ -269,8 +328,51 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
                 .Gap(20)
                 .Align(Align.Center)
                 .Add(new Icon(Icons.Sheet).Size(48))
-                .Add(uploadState.ToFileInput(uploadContext).Placeholder("Select File").Width(300))
-                .Add(isAnalyzing.Value ? Text.Label("Processing...") : null)
+                .Add(Text.H4("Bulk Import"))
+                .Add(uploadState.ToFileInput(uploadContext).Placeholder("Select Files (Excel/CSV)").Width(300))
+                .Add(isProcessing ? Text.Label("Processing...") : null)
+                .Add(hasFiles ?
+                    Layout.Vertical().Gap(10).Width(Size.Full())
+                    .Add(files.Select(f =>
+                        Layout.Horizontal().Gap(10).Align(Align.Center).Padding(10) // Fixed Class error
+                        .Add(new Icon(Icons.FileText).Size(20))
+                        .Add(Layout.Vertical()
+                            .Add(Text.Label(f.OriginalName))
+                            .Add(Text.Muted($"{FormatFileSize(f.FileSize)} - {f.Status}")) // Fixed Tiny error
+                        )
+                        .Add(Layout.Horizontal().Grow()) // Fixed Spacer error
+                        .Add(f.MatchedTemplate != null ? Text.Success(f.MatchedTemplate.Name) :
+                             f.Status == "Analyzed" ? Text.Warning("No Template") : Text.Muted("-"))
+                        .Add(new Button("", () =>
+                        {
+                          var l = filePaths.Value.ToList();
+                          l.RemoveAll(x => x.Id == f.Id);
+                          filePaths.Set(l);
+                        }).Variant(ButtonVariant.Ghost).Icon(Icons.Trash))
+                    ).ToArray())
+                    : null
+                )
+                .Add(hasFiles && ready && !isProcessing ?
+                    Layout.Horizontal().Gap(10)
+                    .Add(new Button("Clear All", () => filePaths.Set(new List<CurrentFile>())).Variant(ButtonVariant.Outline))
+                    .Add(new Button("Import All", () =>
+                    {
+                      // Check if all work
+                      if (files.Any(f => f.MatchedTemplate == null))
+                      {
+                        client.Toast("Templates missing for some files", "Warning");
+                        return;
+                      }
+                      uploadName.Set($"Batch Import {DateTime.Now}");
+                      activeMode.Set(AnalyzerMode.Upload);
+                    }).Variant(ButtonVariant.Primary))
+                    : null
+                )
+                .Add(hasFiles && files.Any(f => f.Status == "Analyzed" && f.MatchedTemplate == null) ?
+                     new Button("Create Template", () => activeMode.Set(AnalyzerMode.TemplateCreation))
+                     .Variant(ButtonVariant.Secondary)
+                     : null
+                )
              )
              .Add(showDialog ? new Dialog(
               _ =>
@@ -281,9 +383,7 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
                 }
                 else
                 {
-                  fileAnalysis.Set((FileAnalysis?)null);
-                  filePath.Set((string?)null);
-                  uploadState.Set((FileUpload<byte[]>?)null);
+                  // Clear logic?
                 }
               },
               new DialogHeader(GetDialogTitle()),
@@ -294,43 +394,19 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
                    activeMode.Value == AnalyzerMode.DataView ? RenderDataTableView() :
                    activeMode.Value == AnalyzerMode.Preview ? RenderPreviewContent() :
                    activeMode.Value == AnalyzerMode.Upload ? RenderUploadContent() :
-                   Layout.Vertical().Gap(20).Align(Align.Center)
-                       | (matchedTemplate.Value != null
-                          ? Layout.Vertical().Gap(15).Align(Align.Center).Width(Size.Full())
-                              | Layout.Horizontal().Gap(5).Align(Align.Center)
-                                  | new Icon(Icons.Check).Size(16)
-                                  | Text.Muted($"Matched Template: {matchedTemplate.Value.Name}")
-                              | Layout.Horizontal().Gap(10).Align(Align.Center).Padding(10, 0)
-                                  | new Button("Preview File", () =>
-                                  {
-                                    parsedData.Set(ParseCurrentFile());
-                                    activeMode.Set(AnalyzerMode.Preview);
-                                  }).Variant(ButtonVariant.Outline).Icon(Icons.Eye).Width(Size.Full())
-                                  | new Button("Upload", () =>
-                                  {
-                                    uploadName.Set(fileAnalysis.Value?.FileName ?? "Untitled");
-                                    parsedData.Set(ParseCurrentFile());
-                                    activeMode.Set(AnalyzerMode.Upload);
-                                  }).Variant(ButtonVariant.Primary).Icon(Icons.Upload).Width(Size.Full())
-                          : Layout.Vertical().Gap(15).Align(Align.Center)
-                              | Text.Markdown("✨ **New Structure Detected**")
-                              | Text.Muted("This file structure is not recognized. Create a new template to import it.")
-                              | new Button("Create Template", () => activeMode.Set(AnalyzerMode.TemplateCreation))
-                                    .Variant(ButtonVariant.Primary)
-                                    .Width(Size.Full())
-                         )
+                   Text.Muted("Not implemented view")
               ),
               new DialogFooter()
             ) : null),
-          "Excel Data Import",
-          "Upload analyzed financial data files."
+          "Excel Bulk Import",
+          "Upload and process multiple financial data files."
       );
     }
 
     object RenderAnalysisContent()
     {
-      if (fileAnalysis.Value == null) return Text.Muted("No analysis available.");
-      var fa = fileAnalysis.Value;
+      var fa = GetActiveFile()?.Analysis;
+      if (fa == null) return Text.Muted("No analysis available.");
 
       return Layout.Vertical().Gap(10).Width(Size.Full())
            | new Button("Back", () => activeMode.Set(AnalyzerMode.Home)).Variant(ButtonVariant.Link).Icon(Icons.ArrowLeft)
@@ -359,8 +435,9 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
 
     object RenderTemplateCreationContent()
     {
-      if (fileAnalysis.Value?.Sheets.Count == 0) return Text.Muted("No sheets found.");
-      var headers = fileAnalysis.Value!.Sheets[0].Headers;
+      var analysis = GetActiveFile()?.Analysis;
+      if (analysis?.Sheets.Count == 0) return Text.Muted("No sheets found in first file.");
+      var headers = analysis!.Sheets[0].Headers;
 
       var globalFields = new Dictionary<string, string>
       {
@@ -514,11 +591,10 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
               var fresh = await db.ImportTemplates.ToListAsync();
               templates.Set(fresh);
 
-              var jsonHeaders = JsonSerializer.Serialize(headers);
-              var match = fresh.FirstOrDefault(t => t.HeadersJson == jsonHeaders);
-              if (match != null) matchedTemplate.Set(match);
+              // Removed matchedTemplate.Set and isNewTemplate.Set as they are no longer relevant 
+              // for the global state in multi-file context. 
+              // The updated templates list will trigger re-analysis in the UseEffect hook.
 
-              isNewTemplate.Set(false);
               activeMode.Set(AnalyzerMode.Home);
               templateCreationStep.Set(1);
               client.Toast("Template Created", "Success");
@@ -615,6 +691,9 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
 
     object RenderAnnexContent()
     {
+      var activeFile = GetActiveFile();
+      var tmpl = activeFile?.MatchedTemplate;
+
       var options = annexEntries.Value.Select(e =>
          new Option<int?>($"{e.Description ?? "No Name"} - {e.RevenueDate:MM/dd/yyyy} - {e.Source.DescriptionText} - {e.Amount:C}", e.Id)
       ).ToList();
@@ -627,15 +706,17 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
                | annexTitle.ToTextInput().Placeholder("e.g. Q1 Royalty Statement")
            | Layout.Vertical().Gap(5)
                | Text.Label("Template Used")
-               | Text.Muted(matchedTemplate.Value?.Name ?? "Unknown")
+               | Text.Muted(tmpl?.Name ?? "Unknown")
            | Layout.Vertical().Gap(5)
                | "Target Entry"
                | annexSelectedId.ToSelectInput(options).Placeholder("Search entry...")
            | new Button("Attach Data", async () =>
            {
              if (annexSelectedId.Value == null) { client.Toast("Select an entry", "Warning"); return; }
-             var data = parsedData.Value;
-             if (data.Count == 0) data = ParseCurrentFile();
+
+             // We only annex the FIRST/Active file for now
+             var data = ParseCurrentFile();
+             if (data.Count == 0) { client.Toast("No data to attach", "Warning"); return; }
 
              await using var db = factory.CreateDbContext();
              var entry = await db.RevenueEntries.FindAsync(annexSelectedId.Value);
@@ -650,19 +731,15 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
                    using var doc = JsonDocument.Parse(entry.JsonData);
                    if (doc.RootElement.ValueKind == JsonValueKind.Array)
                    {
-                     // Check if it's a list of Rows (Legacy) or List of Objects (New)
-                     // A simple heuristic: check first element
                      if (doc.RootElement.GetArrayLength() > 0)
                      {
                        var first = doc.RootElement[0];
                        if (first.ValueKind == JsonValueKind.Object && first.TryGetProperty("FileName", out _))
                        {
-                         // It is ALREADY a list of sheets
                          existingSheets = JsonSerializer.Deserialize<List<object>>(entry.JsonData) ?? [];
                        }
                        else
                        {
-                         // It is a list of rows (Legacy)
                          var rows = JsonSerializer.Deserialize<List<Dictionary<string, object?>>>(entry.JsonData);
                          existingSheets.Add(new { Title = "Legacy Data", FileName = "Legacy", TemplateName = "Unknown", Rows = rows });
                        }
@@ -670,20 +747,19 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
                    }
                    else if (doc.RootElement.ValueKind == JsonValueKind.Object)
                    {
-                     // Single Sheet Object (Previous Format)
                      var obj = JsonSerializer.Deserialize<object>(entry.JsonData);
                      if (obj != null) existingSheets.Add(obj);
                    }
                  }
-                 catch { /* Ignore corrupt data */ }
+                 catch { }
                }
 
                // Append new sheet
                var payload = new
                {
                  Title = annexTitle.Value,
-                 FileName = fileAnalysis.Value?.FileName ?? "Unknown File",
-                 TemplateName = matchedTemplate.Value?.Name ?? "Unknown Template",
+                 FileName = activeFile?.Analysis?.FileName ?? "Unknown File",
+                 TemplateName = tmpl?.Name ?? "Unknown Template",
                  Rows = data
                };
                existingSheets.Add(payload);
@@ -691,7 +767,6 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
                entry.JsonData = JsonSerializer.Serialize(existingSheets);
 
                // --- Asset Extraction Logic ---
-               var tmpl = matchedTemplate.Value;
                if (tmpl != null && !string.IsNullOrEmpty(tmpl.AssetColumn) && !string.IsNullOrEmpty(tmpl.AmountColumn))
                {
                  try
@@ -700,7 +775,6 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
                    var amountCol = tmpl.AmountColumn;
                    var collectionCol = tmpl.CollectionColumn;
 
-                   // 1. Identify Assets in this batch
                    var batchAssets = new Dictionary<string, decimal>();
                    var assetCollections = new Dictionary<string, string>();
 
@@ -714,14 +788,10 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
                          if (!batchAssets.ContainsKey(name))
                          {
                            batchAssets[name] = 0;
-                           // Capture collection if available
                            if (!string.IsNullOrEmpty(collectionCol) && row.TryGetValue(collectionCol, out var colObj))
                            {
                              var colStr = colObj?.ToString()?.Trim();
-                             if (!string.IsNullOrEmpty(colStr))
-                             {
-                               assetCollections[name] = colStr;
-                             }
+                             if (!string.IsNullOrEmpty(colStr)) assetCollections[name] = colStr;
                            }
                          }
                          batchAssets[name] += amount;
@@ -731,12 +801,10 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
 
                    if (batchAssets.Count > 0)
                    {
-                     // 2. Find existing Assets
                      var names = batchAssets.Keys.ToList();
                      var existingAssets = await db.Assets.Where(a => names.Contains(a.Name)).ToListAsync();
                      var existingNames = existingAssets.Select(a => a.Name).ToHashSet();
 
-                     // 3. Create missing Assets
                      var newAssets = names.Where(n => !existingNames.Contains(n))
                                           .Select(n => new Asset
                                           {
@@ -755,7 +823,6 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
                        existingAssets.AddRange(newAssets);
                      }
 
-                     // 4. Create Revenue Records
                      var assetMap = existingAssets.ToDictionary(a => a.Name, a => a.Id);
                      var revenueRecords = batchAssets.Select(kvp => new AssetRevenue
                      {
@@ -776,7 +843,7 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
                await db.SaveChangesAsync();
                client.Toast($"Annexed to {entry.Description}", "Success");
                activeMode.Set(AnalyzerMode.Home);
-               annexTitle.Set(""); // Reset
+               annexTitle.Set("");
              }
            }).Variant(ButtonVariant.Primary).Disabled(annexSelectedId.Value == null);
     }
@@ -784,8 +851,9 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
 
     object RenderDataTableView(bool isEmbedded = false)
     {
-      var tmpl = matchedTemplate.Value;
-      var data = parsedData.Value;
+      var activeFile = GetActiveFile();
+      var tmpl = activeFile?.MatchedTemplate;
+      var data = ParseCurrentFile();
       if (tmpl == null || data.Count == 0) return Text.Muted("No data loaded.");
 
       var headers = tmpl.GetHeaders();
@@ -837,274 +905,179 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
 
     object RenderPreviewContent()
     {
-      if (fileAnalysis.Value == null) return Text.Muted("No analysis available.");
-      var fa = fileAnalysis.Value;
-      var sheet1 = fa.Sheets.FirstOrDefault();
+      var activeFile = GetActiveFile();
+      var fa = activeFile?.Analysis;
+      if (fa == null) return Text.Muted("No analysis");
 
-      var sheetRows = "";
-      if (sheet1 != null)
-      {
-        sheetRows = $"""
-                     | **Sheet Name** | `{sheet1.Name}` |
-                     | **Sheet Columns** | `{sheet1.FieldCount}` |
-                     | **Sheet Rows** | `{sheet1.RowCount}` |
-                     | **Sheet Headers** | {string.Join(", ", sheet1.Headers.Select(header => $"`{header}`"))} |
-                     """;
-      }
+      var tmpl = activeFile?.MatchedTemplate;
 
-      return Layout.Vertical().Gap(10).Width(Size.Full())
-           | new Button("Back", () => activeMode.Set(AnalyzerMode.Home)).Variant(ButtonVariant.Link).Icon(Icons.ArrowLeft)
-           | new Markdown($"""
-                             | Property | Value |
-                             |----------|-------|
-                             | **File Name** | `{fa.FileName}` |
-                             | **File Type** | `{fa.FileType}` |
-                             | **File Size** | `{FormatFileSize(fa.FileSize)}` |
-                             {sheetRows}
-                             """);
+      return Layout.Vertical().Gap(20).Width(Size.Full())
+          | Layout.Horizontal().Gap(10).Align(Align.Center)
+              | new Button("Back", () => activeMode.Set(AnalyzerMode.Home)).Variant(ButtonVariant.Link).Icon(Icons.ArrowLeft)
+              | Text.H4($"Preview: {fa.FileName}")
+          | (tmpl != null
+              ? Text.Success($"Matched Template: {tmpl.Name} ({tmpl.Category})")
+              : Text.Warning("No template matched"))
+          | RenderDataTableView(true);
     }
 
     object RenderUploadContent()
     {
-      var options = annexEntries.Value.Select(e =>
-         new Option<int?>($"{e.Description ?? "No Name"} - {e.RevenueDate:MM/dd/yyyy}", e.Id)
-      ).ToList();
-      options.Insert(0, new Option<int?>("Create New Entry (Default)", null));
+      var files = filePaths.Value.Where(f => f.Status == "Analyzed" && f.MatchedTemplate != null).ToList();
+      if (files.Count == 0) return Text.Muted("No valid files to import.");
 
-      return Layout.Vertical().Gap(5).Width(Size.Full())
-          | Text.Muted("Upload this table to Data Tables.")
-          | Layout.Vertical().Gap(0)
-              | Text.Label("Name")
-              | uploadName.ToTextInput().Placeholder("Table Name")
-          | Layout.Vertical().Gap(0)
-              | Text.Label("Template Used")
-              | Text.Muted(matchedTemplate.Value?.Name ?? "Unknown")
+      return Layout.Vertical().Gap(20).Width(Size.Full())
+           | Layout.Horizontal().Gap(10).Align(Align.Center)
+               | new Button("Back", () => activeMode.Set(AnalyzerMode.Home)).Variant(ButtonVariant.Link).Icon(Icons.ArrowLeft)
+               | Text.H4("Confirm Import")
+           | Text.Label($"Ready to import {files.Count} files.")
+           | Layout.Vertical().Gap(5).Add(files.Select(f => Text.Muted($"• {f.OriginalName} ({f.MatchedTemplate?.Name})")).ToArray())
+           | Layout.Vertical().Gap(10)
+               | Text.Label("Batch Name (Revenue Entry Description)")
+               | uploadName.ToTextInput().Placeholder("e.g. 2024 Q1 Royalties")
+           | Layout.Vertical().Gap(10)
+               | "Smart Naming (Royalties)"
+               | Layout.Horizontal().Gap(10)
+                   | uploadYear.ToSelectInput(Enumerable.Range(2020, 10).Select(y => new Option<int>(y.ToString(), y))).Width(100)
+                   | uploadQuarter.ToSelectInput(new[] { "Q1", "Q2", "Q3", "Q4" }.Select(q => new Option<string>(q, q))).Width(100)
+           | new Button("Import Data", async () =>
+           {
+             if (string.IsNullOrWhiteSpace(uploadName.Value)) { client.Toast("Name required", "Warning"); return; }
 
-          | (matchedTemplate.Value?.Category == "Royalties" ?
-              Layout.Horizontal().Gap(10)
-                | Layout.Vertical().Gap(2).Width(Size.Fraction(1))
-                    | Text.Label("Year")
-                    | uploadYear.ToSelectInput(Enumerable.Range(DateTime.Now.Year - 5, 7).Select(y => new Option<int>(y.ToString(), y)).ToList())
-                | Layout.Vertical().Gap(2).Width(Size.Fraction(1))
-                    | Text.Label("Quarter")
-                    | uploadQuarter.ToSelectInput(new[] { "Q1", "Q2", "Q3", "Q4" }.Select(q => new Option<string>(q, q)).ToList())
-              : null)
+             await using var db = factory.CreateDbContext();
 
-          | Layout.Vertical().Gap(0)
-              | Text.Label("Link to Entry (Optional)")
-              | uploadLinkId.ToSelectInput(options)
+             foreach (var file in files)
+             {
+               var jsonData = ParseFileRows(file);
 
-          | new Button("Upload Table", async () =>
-          {
-            if (string.IsNullOrWhiteSpace(uploadName.Value)) { client.Toast("Name required", "Warning"); return; }
-            var data = parsedData.Value;
-            if (data.Count == 0) data = ParseCurrentFile();
+               // Try to resolve source
+               RevenueSource? source = await db.RevenueSources.FirstOrDefaultAsync(s => s.DescriptionText == "Excel Import");
+               if (source == null)
+               {
+                 source = new RevenueSource { DescriptionText = "Excel Import" };
+                 db.RevenueSources.Add(source);
+                 await db.SaveChangesAsync();
+               }
 
-            await using var db = factory.CreateDbContext();
-            RevenueEntry? targetEntry = null;
+               // Ensure at least one artist exists
+               var artist = await db.Artists.FirstOrDefaultAsync();
+               if (artist == null)
+               {
+                 artist = new Artist { Name = "Unknown Artist", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
+                 db.Artists.Add(artist);
+                 await db.SaveChangesAsync();
+               }
 
-            if (uploadLinkId.Value != null)
-            {
-              // Append to existing
-              targetEntry = await db.RevenueEntries.FindAsync(uploadLinkId.Value);
-              if (targetEntry == null) { client.Toast("Entry not found", "Error"); return; }
-            }
-            else
-            {
-              // Create New
-              var otherSource = await db.RevenueSources.FirstOrDefaultAsync(s => s.DescriptionText == "Other");
-              targetEntry = new RevenueEntry
-              {
-                Description = uploadName.Value,
-                RevenueDate = DateTime.Now,
-                Amount = 0,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow,
-                SourceId = otherSource?.Id ?? 1,
-                ArtistId = 1, // Default Artist
-                ImportTemplateId = matchedTemplate.Value?.Id
-              };
-              db.RevenueEntries.Add(targetEntry);
-            }
+               var entry = new RevenueEntry
+               {
+                 RevenueDate = DateTime.Now,
+                 Description = $"{uploadName.Value} - {file.OriginalName}",
+                 Amount = 0,
+                 SourceId = source.Id,
+                 ArtistId = artist.Id,
+                 CreatedAt = DateTime.UtcNow,
+                 UpdatedAt = DateTime.UtcNow,
+                 JsonData = JsonSerializer.Serialize(jsonData)
+               };
 
-            // Logic to append data
-            var existingSheets = new List<object>();
-            if (!string.IsNullOrEmpty(targetEntry.JsonData))
-            {
-              try
-              {
-                using var doc = JsonDocument.Parse(targetEntry.JsonData);
-                if (doc.RootElement.ValueKind == JsonValueKind.Array)
-                {
-                  if (doc.RootElement.GetArrayLength() > 0)
-                  {
-                    var first = doc.RootElement[0];
-                    if (first.ValueKind == JsonValueKind.Object && first.TryGetProperty("FileName", out _))
-                    {
-                      existingSheets = JsonSerializer.Deserialize<List<object>>(targetEntry.JsonData) ?? [];
-                    }
-                    else
-                    {
-                      var rows = JsonSerializer.Deserialize<List<Dictionary<string, object?>>>(targetEntry.JsonData);
-                      existingSheets.Add(new { Title = "Legacy Data", FileName = "Legacy", TemplateName = "Unknown", Rows = rows });
-                    }
-                  }
-                }
-                else if (doc.RootElement.ValueKind == JsonValueKind.Object)
-                {
-                  var obj = JsonSerializer.Deserialize<object>(targetEntry.JsonData);
-                  if (obj != null) existingSheets.Add(obj);
-                }
-              }
-              catch { }
-            }
+               var tmpl = file.MatchedTemplate!;
+               decimal totalAmount = 0;
+               if (!string.IsNullOrEmpty(tmpl.AmountColumn))
+               {
+                 foreach (var row in jsonData)
+                 {
+                   if (row.TryGetValue(tmpl.AmountColumn, out var val) && decimal.TryParse(val?.ToString(), out var d))
+                     totalAmount += d;
+                 }
+               }
+               entry.Amount = totalAmount;
 
-            var payload = new
-            {
-              Title = uploadName.Value,
-              FileName = fileAnalysis.Value?.FileName ?? "Unknown File",
-              TemplateName = matchedTemplate.Value?.Name ?? "Unknown Template",
-              Rows = data
-            };
-            existingSheets.Add(payload);
-            targetEntry.JsonData = JsonSerializer.Serialize(existingSheets);
-            if (targetEntry.ImportTemplateId == null)
-              targetEntry.ImportTemplateId = matchedTemplate.Value?.Id;
+               if (tmpl.Category == "Royalties")
+               {
+                 entry.Year = uploadYear.Value;
+                 entry.Quarter = uploadQuarter.Value;
+               }
+               entry.ImportTemplateId = tmpl.Id;
+               entry.FileName = file.OriginalName;
 
-            targetEntry.UpdatedAt = DateTime.UtcNow;
-            targetEntry.UploadDate = DateTime.UtcNow;
-            if (matchedTemplate.Value?.Category == "Royalties")
-            {
-              targetEntry.Year = uploadYear.Value;
-              targetEntry.Quarter = uploadQuarter.Value;
-            }
-            targetEntry.FileName = uploadName.Value; // Using upload name as file name reference
+               db.RevenueEntries.Add(entry);
+               await db.SaveChangesAsync(); // Save to get ID
 
-            // --- Asset Extraction ---
-            var tmpl = matchedTemplate.Value;
-            // Proceed even if only AssetColumn is defined, we can default amounts to 0
-            if (tmpl != null && !string.IsNullOrEmpty(tmpl.AssetColumn))
-            {
-              try
-              {
-                var assetCol = tmpl.AssetColumn;
-                // AmountColumn is treated as Net
-                var netCol = tmpl.AmountColumn ?? tmpl.NetColumn;
-                var grossCol = tmpl.GrossColumn;
-                var collectionCol = tmpl.CollectionColumn;
-                var category = tmpl.Category; // Template category is Asset category for now? Or just Template category?
-                                              // User requirement: Asset has a Category (Merchandise, Royalties etc) - assume derived from Template Category
+               // Asset Logic
+               if (!string.IsNullOrEmpty(tmpl.AssetColumn))
+               {
+                 try
+                 {
+                   var assetCol = tmpl.AssetColumn;
+                   var amountCol = tmpl.AmountColumn; // Net
+                   var collectionCol = tmpl.CollectionColumn;
+                   var batchAssets = new Dictionary<string, decimal>();
+                   var assetCollections = new Dictionary<string, string>();
 
-                var batchAssets = new Dictionary<string, (decimal Net, decimal Gross, string? Collection)>();
+                   foreach (var row in jsonData)
+                   {
+                     if (row.TryGetValue(assetCol, out var nameObj) && row.TryGetValue(amountCol, out var amountObj))
+                     {
+                       var name = nameObj?.ToString()?.Trim();
+                       if (!string.IsNullOrEmpty(name) && decimal.TryParse(amountObj?.ToString(), out var amount))
+                       {
+                         if (!batchAssets.ContainsKey(name))
+                         {
+                           batchAssets[name] = 0;
+                           if (!string.IsNullOrEmpty(collectionCol) && row.TryGetValue(collectionCol, out var colObj))
+                           {
+                             var colStr = colObj?.ToString()?.Trim();
+                             if (!string.IsNullOrEmpty(colStr)) assetCollections[name] = colStr;
+                           }
+                         }
+                         batchAssets[name] += amount;
+                       }
+                     }
+                   }
 
-                foreach (var row in data)
-                {
-                  if (row.TryGetValue(assetCol, out var nameObj))
-                  {
-                    var name = nameObj?.ToString()?.Trim();
-                    if (string.IsNullOrEmpty(name)) continue;
+                   if (batchAssets.Count > 0)
+                   {
+                     var names = batchAssets.Keys.ToList();
+                     var existingAssets = await db.Assets.Where(a => names.Contains(a.Name)).ToListAsync();
+                     var existingNames = existingAssets.Select(a => a.Name).ToHashSet();
+                     var newAssets = names.Where(n => !existingNames.Contains(n))
+                                          .Select(n => new Asset
+                                          {
+                                            Name = n,
+                                            Type = "Unknown",
+                                            Category = tmpl.Category,
+                                            Collection = assetCollections.GetValueOrDefault(n) ?? "",
+                                            AmountGenerated = 0
+                                          })
+                                          .ToList();
 
-                    decimal net = 0;
-                    if (!string.IsNullOrEmpty(netCol) && row.TryGetValue(netCol, out var netObj) && decimal.TryParse(netObj?.ToString(), out var nVal))
-                      net = nVal;
+                     if (newAssets.Count > 0)
+                     {
+                       db.Assets.AddRange(newAssets);
+                       await db.SaveChangesAsync();
+                       existingAssets.AddRange(newAssets);
+                     }
 
-                    decimal gross = 0;
-                    if (!string.IsNullOrEmpty(grossCol) && row.TryGetValue(grossCol, out var grossObj) && decimal.TryParse(grossObj?.ToString(), out var gVal))
-                      gross = gVal;
+                     var assetMap = existingAssets.ToDictionary(a => a.Name, a => a.Id);
+                     var revenueRecords = batchAssets.Select(kvp => new AssetRevenue
+                     {
+                       AssetId = assetMap[kvp.Key],
+                       RevenueEntry = entry,
+                       Amount = kvp.Value
+                     });
+                     db.AssetRevenues.AddRange(revenueRecords);
+                   }
+                 }
+                 catch { }
+               }
+             }
 
-                    string? collection = null;
-                    if (!string.IsNullOrEmpty(collectionCol) && row.TryGetValue(collectionCol, out var colObj))
-                      collection = colObj?.ToString()?.Trim();
-
-                    if (!batchAssets.ContainsKey(name))
-                    {
-                      batchAssets[name] = (0, 0, collection);
-                    }
-
-                    var current = batchAssets[name];
-                    batchAssets[name] = (current.Net + net, current.Gross + gross, collection ?? current.Collection);
-                  }
-                }
-
-                if (batchAssets.Count > 0)
-                {
-                  var names = batchAssets.Keys.ToList();
-                  var existingAssets = await db.Assets.Where(a => names.Contains(a.Name)).ToListAsync();
-
-                  // Update Existing Assets with accumulated values?
-                  // Requirement: "Has a gross amount (Amount Generated minus fees)" -> Ambiguous if this is total lifetime or per item. 
-                  // Assuming lifetime accumulation for now similar to AmountGenerated.
-                  foreach (var asset in existingAssets)
-                  {
-                    if (batchAssets.TryGetValue(asset.Name, out var stats))
-                    {
-                      asset.AmountGenerated += stats.Net; // Legacy
-                      asset.NetAmount += stats.Net;
-                      asset.GrossAmount += stats.Gross;
-
-                      // Update metadata if missing
-                      if (string.IsNullOrEmpty(asset.Category)) asset.Category = category;
-                      if (string.IsNullOrEmpty(asset.Collection) && !string.IsNullOrEmpty(stats.Collection)) asset.Collection = stats.Collection;
-                    }
-                  }
-
-                  var existingNames = existingAssets.Select(a => a.Name).ToHashSet();
-                  var newAssets = names.Where(n => !existingNames.Contains(n))
-                                         .Select(n =>
-                                         {
-                                           var stats = batchAssets[n];
-                                           return new Asset
-                                           {
-                                             Name = n,
-                                             Type = "Unknown", // Default
-                                             Category = category,
-                                             Collection = stats.Collection ?? "",
-                                             AmountGenerated = stats.Net,
-                                             NetAmount = stats.Net,
-                                             GrossAmount = stats.Gross
-                                           };
-                                         })
-                                         .ToList();
-
-                  if (newAssets.Count > 0)
-                  {
-                    db.Assets.AddRange(newAssets);
-                    existingAssets.AddRange(newAssets); // Track for revenue records
-                  }
-
-                  // Save Assets first to get IDs
-                  await db.SaveChangesAsync();
-
-                  // 4. Create Revenue Records
-                  var assetMap = existingAssets.ToDictionary(a => a.Name, a => a.Id);
-                  var revenueRecords = batchAssets.Select(kvp => new AssetRevenue
-                  {
-                    AssetId = assetMap[kvp.Key],
-                    RevenueEntry = targetEntry,
-                    Amount = kvp.Value.Net // Recording Net amount in revenue link
-                  });
-                  db.AssetRevenues.AddRange(revenueRecords);
-                }
-              }
-              catch (Exception ex)
-              {
-                client.Toast($"Asset extraction error: {ex.Message}", "Error");
-              }
-            }
-            else
-            {
-              // client.Toast("Asset extraction skipped: Template not configured.", "Warning");
-            }
-
-            await db.SaveChangesAsync();
-            client.Toast("Uploaded Successfully", "Success");
-            activeMode.Set(AnalyzerMode.Home);
-            fileAnalysis.Set((FileAnalysis?)null);
-            filePath.Set((string?)null);
-            uploadState.Set((FileUpload<byte[]>?)null);
-            _onClose(); // Auto-close sheet on successful upload
-
-          }).Variant(ButtonVariant.Primary).Width(Size.Full());
+             await db.SaveChangesAsync();
+             client.Toast($"Imported {files.Count} files", "Success");
+             activeMode.Set(AnalyzerMode.Home);
+             filePaths.Set(new List<CurrentFile>());
+             _onClose();
+           }).Variant(ButtonVariant.Primary).Width(Size.Full());
     }
 
     // --- Main Build ---
