@@ -136,7 +136,6 @@ public class RevenueEditSheet(int id, Action onClose) : ViewBase
     }
 
     // --- RENDER Edit Form ---
-    var name = "-";
     var type = "Other";
 
     // --- RENDER Edit Form ---

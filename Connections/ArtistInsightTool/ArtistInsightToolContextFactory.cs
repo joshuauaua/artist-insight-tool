@@ -15,7 +15,6 @@ public sealed class ArtistInsightToolContextFactory : IDbContextFactory<ArtistIn
   private readonly ServerArgs _args;
   private readonly string _absolutePath;
   private readonly string _relativePath = "db.sqlite";
-  private readonly string _uniqueId = "23bcf718";
   private readonly ILogger? _logger;
 
   public ArtistInsightToolContextFactory(
@@ -139,7 +138,9 @@ public sealed class ArtistInsightToolContextFactory : IDbContextFactory<ArtistIn
       };
       foreach (var col in templateCols)
       {
+#pragma warning disable EF1002
         try { context.Database.ExecuteSqlRaw($"ALTER TABLE import_templates ADD COLUMN {col} TEXT"); } catch { }
+#pragma warning restore EF1002
       }
     }
 
