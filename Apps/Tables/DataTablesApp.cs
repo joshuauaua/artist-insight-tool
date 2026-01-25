@@ -314,9 +314,6 @@ public class DataTableViewSheet(int entryId, Action onClose) : ViewBase
       }
     }, []);
 
-    if (isLoading.Value) return Layout.Center().Add(Text.Label("Loading Table..."));
-    if (!string.IsNullOrEmpty(error.Value)) return Layout.Center().Add(Text.Label(error.Value).Color(Colors.Red));
-
     var config = new DataTableConfig
     {
       FreezeColumns = 1,
@@ -328,18 +325,17 @@ public class DataTableViewSheet(int entryId, Action onClose) : ViewBase
       ShowVerticalBorders = true
     };
 
-    return Layout.Vertical()
-        .Height(Size.Full())
-        .Gap(10)
-        .Add(new Card(
-              Layout.Horizontal().Gap(10).Align(Align.Center).Padding(5)
-                  .Add(new Button("Back", onClose).Variant(ButtonVariant.Ghost).Icon(Icons.ArrowLeft))
-                  .Add(Layout.Vertical().Gap(2)
-                      .Add(Text.H4(entryTitle.Value))
-                      .Add(Text.Muted($"{rows.Value.Count} Rows"))
-                  )
+    var content = Layout.Vertical().Height(Size.Full())
+        .Add(isLoading.Value ? Layout.Center().Add(Text.Label("Loading Table...")) :
+             !string.IsNullOrEmpty(error.Value) ? Layout.Center().Add(Text.Label(error.Value).Color(Colors.Red)) :
+             Layout.Vertical().Height(Size.Full()).Add(new DataTableView(rows.Value.AsQueryable(), Size.Full(), Size.Full(), columns.Value, config))
+        );
 
-        ))
-        .Add(new DataTableView(rows.Value.AsQueryable(), Size.Full(), Size.Full(), columns.Value, config));
+    return new Sheet(
+        _ => onClose(),
+        content,
+        entryTitle.Value,
+        isLoading.Value ? "Loading..." : $"{rows.Value.Count} Rows"
+    ).Width(Size.Full());
   }
 }

@@ -1,11 +1,14 @@
-Entries Count: 5
+Entries Count: 7
  - ID: 17, Desc: 2026 Q1 Artists, DataLen: 221, Source: Other, Created: 1/20/2026 3:53:38 PM
  - ID: 18, Desc: 2026 Q1 Extended, DataLen: 123526, Source: Other, Created: 1/21/2026 8:19:45 AM
  - ID: 19, Desc: 2026 Q1 Assets, DataLen: 2505, Source: Other, Created: 1/21/2026 8:20:24 AM
  - ID: 20, Desc: 2026 Q1 Countries, DataLen: 2152, Source: Other, Created: 1/21/2026 1:57:26 PM
  - ID: 21, Desc: 2023 Q1 Assets Template, DataLen: 2509, Source: Other, Created: 1/21/2026 3:00:08 PM
+ - ID: 22, Desc: 2026 Q1 Assets Template - ALOADED2025Q3LABELS_JoshuaNg-assets.csv, DataLen: 2414, Source: Excel Import, Created: 1/23/2026 7:03:19 AM
+ - ID: 23, Desc: 2026 Q1 Assets Template - ALOADED2025Q3LABELS_JoshuaNg-countries.csv, DataLen: 4293, Source: Excel Import, Created: 1/23/2026 7:03:19 AM
 
-Sources Count: 5
+Sources Count: 6
+ - ID: 0, Desc: Excel Import
  - ID: 1, Desc: Merch
  - ID: 2, Desc: Live Show
  - ID: 3, Desc: Sync
@@ -25,3 +28,5 @@ Total Assets: 5
  - Entry 19: Multi-sheet (1 tables)
  - Entry 20: Multi-sheet (1 tables)
  - Entry 21: Multi-sheet (1 tables)
+ - Entry 22: Legacy (1 table)
+ - Entry 23: Legacy (1 table)
