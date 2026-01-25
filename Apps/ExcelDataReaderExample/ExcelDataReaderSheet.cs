@@ -349,8 +349,8 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
 
       var content = Layout.Vertical().Gap(20).Align(Align.Center);
       content.Add(new Icon(Icons.Sheet).Size(48));
-      content.Add(Text.H4("Bulk Import"));
-      content.Add(uploadState.ToFileInput(uploadContext).Placeholder("Select Files (Excel/CSV)").Width(300));
+      content.Add(Text.H4("Import Data"));
+      content.Add(uploadState.ToFileInput(uploadContext).Placeholder("Select Files (Excel/CSV)").Width(200));
 
       if (isProcessing)
       {
@@ -410,9 +410,9 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
       return new Sheet(
           _ => { _onClose(); return ValueTask.CompletedTask; },
           container,
-          "Excel Bulk Import",
+          "Import Data",
           "Upload and process multiple financial data files."
-      );
+      ).Width(Size.Full());
     }
 
     object RenderAnalysisContent()
