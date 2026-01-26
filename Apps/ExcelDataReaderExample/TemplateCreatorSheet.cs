@@ -34,13 +34,12 @@ public class TemplateCreatorSheet(CurrentFile? file, Action onSuccess, Action on
 
     var fieldGroups = new Dictionary<string, List<(string Key, string Label)>>
         {
-            { "Global Columns", new()
+            { "Global", new()
                 {
                     ("TransactionDate", "Transaction Date"),
                     ("TransactionId", "Transaction ID"),
                     ("SourcePlatform", "Source Platform"),
                     ("Category", "Category"),
-                    ("Quantity", "Quantity"),
                     ("Territory", "Territory/Region")
                 }
             },
@@ -52,12 +51,13 @@ public class TemplateCreatorSheet(CurrentFile? file, Action onSuccess, Action on
                     ("Currency", "Currency")
                 }
             },
-            { "Assets", new()
+            { "Asset Details", new()
                 {
                     ("Asset", "Asset Name (Item)"),
                     ("Collection", "Asset Group (Parent)"),
                     ("Artist", "Artist"),
-                    ("Label", "Label")
+                    ("Label", "Label"),
+                    ("Quantity", "Quantity")
                 }
             }
         };
@@ -65,14 +65,15 @@ public class TemplateCreatorSheet(CurrentFile? file, Action onSuccess, Action on
     var categorySpecificGroups = new Dictionary<string, Dictionary<string, List<(string Key, string Label)>>>
         {
             { "Merchandise", new() {
-                { "Retail", new() { ("Sku", "SKU"), ("Store", "Store") } },
-                { "Customer", new() { ("CustomerEmail", "Customer Email") } }
+                { "Codes", new() { ("Sku", "SKU") } },
+                { "Specifics", new() { ("Store", "Store"), ("CustomerEmail", "Customer Email") } }
             }},
             { "Royalties", new() {
-                { "Music Identifiers", new() { ("Isrc", "ISRC"), ("Upc", "UPC"), ("Dsp", "DSP") } }
+                { "Codes", new() { ("Isrc", "ISRC"), ("Upc", "UPC") } },
+                { "Specifics", new() { ("Dsp", "DSP") } }
             }},
             { "Concerts", new() {
-                { "Event Details", new() { ("VenueName", "Venue Name"), ("EventStatus", "Event Status"), ("TicketClass", "Ticket Class") } }
+                { "Specifics", new() { ("VenueName", "Venue Name"), ("EventStatus", "Event Status"), ("TicketClass", "Ticket Class") } }
             }}
         };
 
@@ -113,42 +114,34 @@ public class TemplateCreatorSheet(CurrentFile? file, Action onSuccess, Action on
       var mapped = mappedPairs.Value;
       var unmappedHeaders = headers.Where(h => !mapped.Any(m => m.Header == h)).ToList();
 
-      // Flatten groups into SelectInput options with Separators
-      var fieldOptions = new List<Option<string?>>();
-      var allFieldsMap = new Dictionary<string, string>(); // For lookup later
+      var allFieldsMap = new Dictionary<string, string>();
+      foreach (var g in activeGroups) foreach (var f in g.Value) allFieldsMap[f.Key] = f.Label;
 
+      var systemFieldLayout = Layout.Vertical().Gap(15);
       foreach (var group in activeGroups)
       {
-        // Separator (assuming SelectInput handles or just renders as is)
-        fieldOptions.Add(new Option<string?>(null, null) { Label = $"--- {group.Key} ---" }); // Removed Disabled property usage if invalid
+        var unmappedInGroup = group.Value.Where(f => !mapped.Any(m => m.FieldKey == f.Key)).ToList();
+        if (unmappedInGroup.Count == 0) continue;
 
-        foreach (var field in group.Value)
-        {
-          allFieldsMap[field.Key] = field.Label;
-          // Only add if not already mapped
-          if (!mapped.Any(m => m.FieldKey == field.Key))
-          {
-            fieldOptions.Add(new Option<string?>(field.Label, field.Key));
-          }
-        }
+        systemFieldLayout
+          .Add(Text.Muted(group.Key.ToUpper()))
+          .Add(selectedFieldToMap.ToSelectInput(unmappedInGroup.Select(f => new Option<string?>(f.Label, f.Key)))
+              .Variant(SelectInputs.Toggle));
       }
 
       content
           .Add(Layout.Horizontal().Align(Align.Center).Add(Text.H4("Step 2: Map Columns")))
           .Add(Layout.Grid().Columns(2).Gap(20)
               .Add(new Card(
-                  Layout.Vertical().Gap(5)
+                  Layout.Vertical().Gap(10)
                       .Add(Text.H5("1. Select File Header"))
                       .Add(selectedHeaderToMap.ToSelectInput(unmappedHeaders.Select(h => new Option<string?>(h, h)))
-                          .Placeholder("Choose header..."))
+                          .Variant(SelectInputs.Toggle))
               ))
               .Add(new Card(
-                  Layout.Vertical().Gap(5)
+                  Layout.Vertical().Gap(10)
                       .Add(Text.H5("2. Select System Field"))
-                      .Add(selectedFieldToMap.ToSelectInput(fieldOptions)
-                          .Placeholder("Choose field...")
-                          .Variant(SelectInputs.List)
-                          .Height(300))
+                      .Add(systemFieldLayout)
               ))
           )
           .Add(Layout.Horizontal().Align(Align.Center).Padding(10)

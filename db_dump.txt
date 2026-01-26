@@ -1,4 +1,4 @@
-Entries Count: 7
+Entries Count: 12
  - ID: 17, Desc: 2026 Q1 Artists, DataLen: 221, Source: Other, Created: 1/20/2026 3:53:38 PM
  - ID: 18, Desc: 2026 Q1 Extended, DataLen: 123526, Source: Other, Created: 1/21/2026 8:19:45 AM
  - ID: 19, Desc: 2026 Q1 Assets, DataLen: 2505, Source: Other, Created: 1/21/2026 8:20:24 AM
@@ -6,6 +6,11 @@ Entries Count: 7
  - ID: 21, Desc: 2023 Q1 Assets Template, DataLen: 2509, Source: Other, Created: 1/21/2026 3:00:08 PM
  - ID: 22, Desc: 2026 Q1 Assets Template - ALOADED2025Q3LABELS_JoshuaNg-assets.csv, DataLen: 2414, Source: Excel Import, Created: 1/23/2026 7:03:19 AM
  - ID: 23, Desc: 2026 Q1 Assets Template - ALOADED2025Q3LABELS_JoshuaNg-countries.csv, DataLen: 4293, Source: Excel Import, Created: 1/23/2026 7:03:19 AM
+ - ID: 24, Desc: Batch Import 1/26/2026 12:41:44 PM - product_template.csv, DataLen: 23458, Source: Excel Import, Created: 1/26/2026 11:41:48 AM
+ - ID: 25, Desc: Batch Import 1/26/2026 12:53:44 PM - product_template.csv, DataLen: 23458, Source: Excel Import, Created: 1/26/2026 11:53:57 AM
+ - ID: 26, Desc: 2026 Q1 Artists, DataLen: 221, Source: Other, Created: 1/26/2026 12:46:33 PM
+ - ID: 27, Desc: Shopify Products, DataLen: 23570, Source: Other, Created: 1/26/2026 12:46:55 PM
+ - ID: 28, Desc: sad - ALOADED2025Q3LABELS_JoshuaNg-artists.csv, DataLen: 238, Source: Excel Import, Created: 1/26/2026 2:09:29 PM
 
 Sources Count: 6
  - ID: 0, Desc: Excel Import
@@ -15,12 +20,15 @@ Sources Count: 6
  - ID: 4, Desc: Streams
  - ID: 5, Desc: Other
 
-Total Assets: 5
+Total Assets: 8
  - [006] Sunday (Unknown)
  - [007] Bonafide (Unknown)
  - [008] Runaway (Unknown)
  - [009] Muddy Waters (Unknown)
  - [010] Patience (Revisited) (Unknown)
+ - [011] Example T-Shirt (Unknown)
+ - [012] Example Jeans (Unknown)
+ - [013] Example Beanie (Unknown)
 
 --- Data Tables Analysis ---
  - Entry 17: Multi-sheet (1 tables)
@@ -30,3 +38,8 @@ Total Assets: 5
  - Entry 21: Multi-sheet (1 tables)
  - Entry 22: Legacy (1 table)
  - Entry 23: Legacy (1 table)
+ - Entry 24: Legacy (1 table)
+ - Entry 25: Legacy (1 table)
+ - Entry 26: Multi-sheet (1 tables)
+ - Entry 27: Multi-sheet (1 tables)
+ - Entry 28: Multi-sheet (1 tables)
