@@ -180,6 +180,9 @@ public class TemplateCreatorSheet(CurrentFile? file, Action onSuccess, Action on
                 db.ImportTemplates.Add(newT);
                 await db.SaveChangesAsync();
 
+                var qs = UseService<IQueryService>();
+                qs.RevalidateByTag("ImportTemplates");
+
                 client.Toast("Template Created", "Success");
                 _onSuccess();
               }).Variant(ButtonVariant.Primary).Disabled(mapped.Count == 0))

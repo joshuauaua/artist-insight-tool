@@ -64,7 +64,11 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
 
     // --- Global State ---
     var activeMode = UseState(AnalyzerMode.Home);
-    var templates = UseState<List<ImportTemplate>>([]);
+    var templatesQuery = UseQuery<List<ImportTemplate>, string>("ImportTemplates", async (ct) =>
+    {
+      await using var db = factory.CreateDbContext();
+      return await db.ImportTemplates.ToListAsync(ct);
+    }, tags: ["ImportTemplates"]);
 
     // --- Analysis State ---
     // --- Analysis State ---
@@ -90,16 +94,7 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
         .MaxFileSize(50 * 1024 * 1024);
 
     // Load templates on mount
-    UseEffect(async () =>
-    {
-      try
-      {
-        await using var db = factory.CreateDbContext();
-        var loaded = await db.ImportTemplates.ToListAsync();
-        templates.Set(loaded);
-      }
-      catch { }
-    }, []);
+
 
     // Handle File Upload
     UseEffect(() =>
@@ -146,62 +141,95 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
     }, [uploadState]);
 
     // Analysis Logic
-    UseEffect(async () =>
+    // Analysis Logic
+    UseEffect(() =>
     {
       if (isAnalyzing.Value) return;
 
       var files = filePaths.Value;
+      var templates = templatesQuery.Value ?? [];
+      bool changed = false;
+      var list = files.ToList();
+
+      // Re-match logic
+      for (int i = 0; i < list.Count; i++)
+      {
+        var f = list[i];
+        if (f.Status == "Analyzed" && f.MatchedTemplate == null)
+        {
+          if (f.Analysis?.Sheets.Count > 0)
+          {
+            var firstSheetHeaders = f.Analysis.Sheets[0].Headers;
+            var jsonHeaders = JsonSerializer.Serialize(firstSheetHeaders);
+            var match = templates.FirstOrDefault(t => t.HeadersJson == jsonHeaders);
+            if (match != null)
+            {
+              list[i] = f with { MatchedTemplate = match, IsNewTemplate = false };
+              changed = true;
+            }
+          }
+        }
+      }
+
+      if (changed)
+      {
+        filePaths.Set(list);
+        return; // Skip analysis triggering if we just updated state
+      }
+
       var pending = files.FirstOrDefault(f => f.Status == "Pending");
 
       if (pending != null)
       {
         isAnalyzing.Set(true);
 
-        FileAnalysis? result = null;
-        try
+        Task.Run(async () =>
         {
-          result = await Task.Run(() =>
-              {
-                try { return AnalyzeFile(pending.Path); }
-                catch { return null; }
-              });
-        }
-        catch { }
-
-        // Update the file in the list
-        // Note: Re-fetch list to avoid closure staleness if possible, though UseEffect should have latest
-        var currentList = filePaths.Value.ToList();
-        var index = currentList.FindIndex(f => f.Id == pending.Id);
-
-        if (index != -1)
-        {
-          var updated = currentList[index] with
+          FileAnalysis? result = null;
+          try
           {
-            Status = result != null ? "Analyzed" : "Error",
-            Analysis = result
-          };
+            result = await Task.Run(() =>
+                {
+                  try { return AnalyzeFile(pending.Path); }
+                  catch { return null; }
+                });
+          }
+          catch { }
 
-          // Match template
-          if (result?.Sheets.Count > 0)
+          // Update the file in the list
+          var currentList = filePaths.Value.ToList();
+          var index = currentList.FindIndex(f => f.Id == pending.Id);
+
+          if (index != -1)
           {
-            var firstSheetHeaders = result.Sheets[0].Headers;
-            var jsonHeaders = JsonSerializer.Serialize(firstSheetHeaders);
-            var match = templates.Value.FirstOrDefault(t => t.HeadersJson == jsonHeaders);
-
-            updated = updated with
+            var updated = currentList[index] with
             {
-              MatchedTemplate = match,
-              IsNewTemplate = match == null
+              Status = result != null ? "Analyzed" : "Error",
+              Analysis = result
             };
+
+            // Match template
+            if (result?.Sheets.Count > 0)
+            {
+              var firstSheetHeaders = result.Sheets[0].Headers;
+              var jsonHeaders = JsonSerializer.Serialize(firstSheetHeaders);
+              var match = (templatesQuery.Value ?? []).FirstOrDefault(t => t.HeadersJson == jsonHeaders);
+
+              updated = updated with
+              {
+                MatchedTemplate = match,
+                IsNewTemplate = match == null
+              };
+            }
+
+            currentList[index] = updated;
+            filePaths.Set(currentList);
           }
 
-          currentList[index] = updated;
-          filePaths.Set(currentList);
-        }
-
-        isAnalyzing.Set(false);
+          isAnalyzing.Set(false);
+        });
       }
-    }, [filePaths, templates]);
+    });
 
 
 
@@ -284,16 +312,7 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
             targetFile,
             () =>
             {
-              Task.Run(async () =>
-              {
-                try
-                {
-                  await using var db = factory.CreateDbContext();
-                  var loaded = await db.ImportTemplates.ToListAsync();
-                  templates.Set(loaded);
-                }
-                catch { }
-              });
+              // No manual reload needed, validated by tag
               activeMode.Set(AnalyzerMode.Home);
             },
             () => activeMode.Set(AnalyzerMode.Home)
