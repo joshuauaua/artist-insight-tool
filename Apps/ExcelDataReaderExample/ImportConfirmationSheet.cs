@@ -161,13 +161,19 @@ public class ImportConfirmationSheet(List<CurrentFile> files, Action onSuccess, 
                    var existingNames = existingAssets.Select(a => a.Name).ToHashSet();
                    var newAssets = names.Where(n => !existingNames.Contains(n))
                                             .Select(n => new Asset
-                                                  {
-                                                    Name = n,
-                                                    Type = "Unknown",
-                                                    Category = tmpl.Category,
-                                                    Collection = assetCollections.GetValueOrDefault(n) ?? "",
-                                                    AmountGenerated = 0
-                                                  })
+                                            {
+                                              Name = n,
+                                              Type = tmpl.Category switch
+                                              {
+                                                "Royalties" => "Single",
+                                                "Merchandise" => "Single Item",
+                                                "Concerts" => "Ticket Sales",
+                                                _ => "Default"
+                                              },
+                                              Category = tmpl.Category,
+                                              Collection = assetCollections.GetValueOrDefault(n) ?? "",
+                                              AmountGenerated = 0
+                                            })
                                             .ToList();
 
                    if (newAssets.Count > 0)

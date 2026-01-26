@@ -3,10 +3,12 @@ using System.IO;
 using System.Collections.Generic;
 using System.Text.Json;
 using System.Dynamic;
+using System.Threading.Tasks;
 using ExcelDataReader;
 using Ivy.Shared;
 using ArtistInsightTool.Connections.ArtistInsightTool;
 using Microsoft.EntityFrameworkCore;
+using Ivy.Hooks;
 
 namespace ExcelDataReaderExample;
 
@@ -71,30 +73,16 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
     }, tags: ["ImportTemplates"]);
 
     // --- Analysis State ---
-    // --- Analysis State ---
     var filePaths = UseState<List<CurrentFile>>(() => new());
     var isAnalyzing = UseState(false);
-    // var matchedTemplate = UseState<ImportTemplate?>(() => null); // Moved to CurrentFile
-    // var isNewTemplate = UseState(false); // Moved to CurrentFile
-    // var parsedData = UseState<List<Dictionary<string, object?>>>([]); // Moved to CurrentFile
 
-
-
-    // --- Template Creation State ---
-
-
-
-
-    // --- Upload Logic ---
+    // --- Upload State ---
     var uploadState = UseState<FileUpload<byte[]>?>();
-    var templateTargetFileId = UseState<string?>(() => null); // Explicit lambda to avoid ambiguity
+    var templateTargetFileId = UseState<string?>(() => null);
 
     var uploadContext = this.UseUpload(MemoryStreamUploadHandler.Create(uploadState))
         .Accept(".xlsx,.xls,.csv")
         .MaxFileSize(50 * 1024 * 1024);
-
-    // Load templates on mount
-
 
     // Handle File Upload
     UseEffect(() =>
@@ -128,10 +116,6 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
           var list = filePaths.Value.ToList();
           list.Add(newFile);
           filePaths.Set(list);
-
-          // Reset upload state to allow adding more? 
-          // Actually, if I reset it immediately, it might re-trigger if not careful.
-          // But usually we want to clear it so the input is clear.
           uploadState.Set((FileUpload<byte[]>?)null);
         }
         catch (Exception ex)
@@ -142,107 +126,101 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
     }, [uploadState]);
 
     // Analysis Logic
-    // Analysis Logic
-    UseEffect(() =>
+    async Task<IDisposable?> RunAnalysis()
     {
-      if (isAnalyzing.Value) return;
-
-      var files = filePaths.Value;
-      var templates = templatesQuery.Value ?? [];
-      bool changed = false;
-      var list = files.ToList();
-
-      // Re-match logic
-      for (int i = 0; i < list.Count; i++)
+      await Task.Yield();
+      if (!isAnalyzing.Value)
       {
-        var f = list[i];
-        if (f.Status == "Analyzed" && f.MatchedTemplate == null)
+        var files = filePaths.Value;
+        var templates = templatesQuery.Value ?? [];
+        bool changed = false;
+        var list = files.ToList();
+
+        // Re-match logic: Try to find templates for files that are analyzed but have no template
+        for (int i = 0; i < list.Count; i++)
         {
-          if (f.Analysis?.Sheets.Count > 0)
+          var f = list[i];
+          if (f.Status == "Analyzed" && f.MatchedTemplate == null)
           {
-            var firstSheetHeaders = f.Analysis.Sheets[0].Headers;
-            var jsonHeaders = JsonSerializer.Serialize(firstSheetHeaders);
-            var match = templates.FirstOrDefault(t => t.HeadersJson == jsonHeaders);
-            if (match != null)
+            if (f.Analysis?.Sheets.Count > 0)
             {
-              list[i] = f with { MatchedTemplate = match, IsNewTemplate = false };
-              changed = true;
+              var firstSheetHeaders = f.Analysis.Sheets[0].Headers;
+              var jsonHeaders = JsonSerializer.Serialize(firstSheetHeaders);
+              var match = templates.FirstOrDefault(t => t.HeadersJson == jsonHeaders);
+              if (match != null)
+              {
+                list[i] = f with { MatchedTemplate = match, IsNewTemplate = false };
+                changed = true;
+              }
             }
           }
         }
-      }
 
-      if (changed)
-      {
-        filePaths.Set(list);
-        return; // Skip analysis triggering if we just updated state
-      }
-
-      var pending = files.FirstOrDefault(f => f.Status == "Pending");
-
-      if (pending != null)
-      {
-        isAnalyzing.Set(true);
-
-        Task.Run(async () =>
+        if (changed)
         {
-          try
+          filePaths.Set(list);
+        }
+        else
+        {
+          var pending = files.FirstOrDefault(f => f.Status == "Pending");
+          if (pending != null)
           {
-            FileAnalysis? result = null;
-            try
+            isAnalyzing.Set(true);
+            _ = Task.Run(async () =>
             {
-              result = await Task.Run(() =>
+              try
+              {
+                FileAnalysis? result = null;
+                try
+                {
+                  result = await Task.Run(() =>
                   {
                     try { return AnalyzeFile(pending.Path); }
                     catch { return null; }
                   });
-            }
-            catch { }
+                }
+                catch { }
 
-            // Update the file in the list
-            var currentList = filePaths.Value.ToList();
-            var index = currentList.FindIndex(f => f.Id == pending.Id);
-
-            if (index != -1)
-            {
-              var updated = currentList[index] with
-              {
-                Status = result != null ? "Analyzed" : "Error",
-                Analysis = result
-              };
-
-              // Match template
-              if (result?.Sheets.Count > 0)
-              {
-                var firstSheetHeaders = result.Sheets[0].Headers;
-                var jsonHeaders = JsonSerializer.Serialize(firstSheetHeaders);
-                var match = (templatesQuery.Value ?? []).FirstOrDefault(t => t.HeadersJson == jsonHeaders);
-
-                updated = updated with
+                var currentList = filePaths.Value.ToList();
+                var index = currentList.FindIndex(f => f.Id == pending.Id);
+                if (index != -1)
                 {
-                  MatchedTemplate = match,
-                  IsNewTemplate = match == null
-                };
+                  var updated = currentList[index] with
+                  {
+                    Status = result != null ? "Analyzed" : "Error",
+                    Analysis = result
+                  };
+
+                  if (result?.Sheets.Count > 0)
+                  {
+                    var firstSheetHeaders = result.Sheets[0].Headers;
+                    var jsonHeaders = JsonSerializer.Serialize(firstSheetHeaders);
+                    var match = (templatesQuery.Value ?? []).FirstOrDefault(t => t.HeadersJson == jsonHeaders);
+                    updated = updated with
+                    {
+                      MatchedTemplate = match,
+                      IsNewTemplate = match == null
+                    };
+                  }
+                  currentList[index] = updated;
+                  filePaths.Set(currentList);
+                }
               }
-
-              currentList[index] = updated;
-              filePaths.Set(currentList);
-            }
+              finally
+              {
+                isAnalyzing.Set(false);
+              }
+            });
           }
-          finally
-          {
-            isAnalyzing.Set(false);
-          }
-        });
+        }
       }
-    }, [filePaths]);
+      return null;
+    }
 
-
+    UseEffect(RunAnalysis, filePaths, activeMode);
 
     // --- Helpers ---
 
-
-    // We need a way to parse all rows for a file
     List<Dictionary<string, object?>> ParseFileRows(CurrentFile file)
     {
       if (file.Path == null || file.MatchedTemplate == null) return [];
@@ -251,14 +229,12 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
 
     List<Dictionary<string, object?>> ParseCurrentFile()
     {
-      // Legacy helper used by Preview/Upload single item logic
-      // We'll use the FIRST file for preview
       var first = filePaths.Value.FirstOrDefault();
       if (first != null) return ParseFileRows(first);
       return [];
     }
 
-    CurrentFile? GetActiveFile() => filePaths.Value.FirstOrDefault(); // Helper for views expecting single file context
+    CurrentFile? GetActiveFile() => filePaths.Value.FirstOrDefault();
 
     IView RenderFileRow(CurrentFile f)
     {
@@ -286,8 +262,6 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
               filePaths.Set(l);
             }).Variant(ButtonVariant.Ghost).Icon(Icons.Trash));
     }
-
-    // --- Render Methods ---
 
     object RenderHome()
     {
@@ -318,7 +292,6 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
             targetFile,
             () =>
             {
-              // No manual reload needed, validated by tag
               activeMode.Set(AnalyzerMode.Home);
             },
             () => activeMode.Set(AnalyzerMode.Home)
@@ -326,24 +299,17 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
       }
 
       var container = Layout.Vertical().Height(Size.Full()).Width(Size.Full()).Padding(20);
-
       var content = Layout.Vertical().Gap(20).Align(Align.Center).Width(Size.Full());
       content.Add(new Icon(Icons.Sheet).Size(48));
       content.Add(Text.H4("Import Data"));
       content.Add(uploadState.ToFileInput(uploadContext).Placeholder("Select Files (Excel/CSV)").Width(200));
 
-      if (isProcessing)
-      {
-        content.Add(Text.Label("Processing..."));
-      }
+      if (isProcessing) content.Add(Text.Label("Processing..."));
 
       if (hasFiles)
       {
         var fileList = Layout.Vertical().Gap(10).Width(Size.Full());
-        foreach (var f in files)
-        {
-          fileList.Add(RenderFileRow(f));
-        }
+        foreach (var f in files) fileList.Add(RenderFileRow(f));
         content.Add(fileList);
       }
 
@@ -399,39 +365,29 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
       if (fa == null) return Text.Muted("No analysis available.");
 
       return Layout.Vertical().Gap(10).Width(Size.Full())
-           | new Button("Back", () => activeMode.Set(AnalyzerMode.Home)).Variant(ButtonVariant.Link).Icon(Icons.ArrowLeft)
-           | new Markdown($"""                                
-                             | Property | Value |
-                             |----------|-------|
-                             | **File name** | `{fa.FileName}` |
-                             | **Type** | `{fa.FileType}` |
-                             | **Size** | `{FormatFileSize(fa.FileSize)}` |
-                             """)
-           | Layout.Vertical(
+           .Add(new Button("Back", () => activeMode.Set(AnalyzerMode.Home)).Variant(ButtonVariant.Link).Icon(Icons.ArrowLeft))
+           .Add(new Markdown($"""                                
+                                 | Property | Value |
+                                 |----------|-------|
+                                 | **File name** | `{fa.FileName}` |
+                                 | **Type** | `{fa.FileType}` |
+                                 | **Size** | `{FormatFileSize(fa.FileSize)}` |
+                                 """))
+           .Add(Layout.Vertical(
                fa.Sheets.Select((sheet, index) =>
                        new Expandable(
                            Text.Label($"Sheet {index + 1}: {sheet.Name}"),
                            new Markdown($"""
-                                         | Property | Value |
-                                         |----------|-------|
-                                         | **Columns** | `{sheet.FieldCount}` |
-                                         | **Rows** | `{sheet.RowCount}` |
-                                         | **Headers** | {string.Join(", ", sheet.Headers.Select(header => $"`{header}`"))} |
-                                         """)
+                                             | Property | Value |
+                                             |----------|-------|
+                                             | **Columns** | `{sheet.FieldCount}` |
+                                             | **Rows** | `{sheet.RowCount}` |
+                                             | **Headers** | {string.Join(", ", sheet.Headers.Select(header => $"`{header}`"))} |
+                                             """)
                        )
                ).ToArray()
-           );
+           ));
     }
-
-
-
-
-
-
-
-
-
-
 
     object RenderDataTableView(bool isEmbedded = false)
     {
@@ -475,16 +431,13 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
         ShowVerticalBorders = true
       };
 
-      if (isEmbedded)
-      {
-        return new DataTableView(dRows, Size.Full(), Size.Units(400), cols, config);
-      }
+      if (isEmbedded) return new DataTableView(dRows, Size.Full(), Size.Units(400), cols, config);
 
       return Layout.Vertical().Gap(10).Width(Size.Full())
-              | Layout.Horizontal().Gap(10).Align(Align.Center)
-                  | new Button("Back", () => activeMode.Set(AnalyzerMode.Home)).Variant(ButtonVariant.Link).Icon(Icons.ArrowLeft)
-                  | Text.H4($"{data.Count} Rows")
-              | new DataTableView(dRows, Size.Full(), Size.Fit(), cols, config);
+              .Add(Layout.Horizontal().Gap(10).Align(Align.Center)
+                  .Add(new Button("Back", () => activeMode.Set(AnalyzerMode.Home)).Variant(ButtonVariant.Link).Icon(Icons.ArrowLeft))
+                  .Add(Text.H4($"{data.Count} Rows")))
+              .Add(new DataTableView(dRows, Size.Full(), Size.Fit(), cols, config));
     }
 
     object RenderPreviewContent()
@@ -492,20 +445,17 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
       var activeFile = GetActiveFile();
       var fa = activeFile?.Analysis;
       if (fa == null) return Text.Muted("No analysis");
-
       var tmpl = activeFile?.MatchedTemplate;
 
       return Layout.Vertical().Gap(20).Width(Size.Full())
-          | Layout.Horizontal().Gap(10).Align(Align.Center)
-              | new Button("Back", () => activeMode.Set(AnalyzerMode.Home)).Variant(ButtonVariant.Link).Icon(Icons.ArrowLeft)
-              | Text.H4($"Preview: {fa.FileName}")
-          | (tmpl != null
+          .Add(Layout.Horizontal().Gap(10).Align(Align.Center)
+              .Add(new Button("Back", () => activeMode.Set(AnalyzerMode.Home)).Variant(ButtonVariant.Link).Icon(Icons.ArrowLeft))
+              .Add(Text.H4($"Preview: {fa.FileName}")))
+          .Add(tmpl != null
               ? Text.Success($"Matched Template: {tmpl.Name} ({tmpl.Category})")
               : Text.Warning("No template matched"))
-          | RenderDataTableView(true);
+          .Add(RenderDataTableView(true));
     }
-
-
 
     // --- Main Build ---
     return activeMode.Value switch

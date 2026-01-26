@@ -1,4 +1,4 @@
-Entries Count: 12
+Entries Count: 15
  - ID: 17, Desc: 2026 Q1 Artists, DataLen: 221, Source: Other, Created: 1/20/2026 3:53:38 PM
  - ID: 18, Desc: 2026 Q1 Extended, DataLen: 123526, Source: Other, Created: 1/21/2026 8:19:45 AM
  - ID: 19, Desc: 2026 Q1 Assets, DataLen: 2505, Source: Other, Created: 1/21/2026 8:20:24 AM
@@ -11,6 +11,9 @@ Entries Count: 12
  - ID: 26, Desc: 2026 Q1 Artists, DataLen: 221, Source: Other, Created: 1/26/2026 12:46:33 PM
  - ID: 27, Desc: Shopify Products, DataLen: 23570, Source: Other, Created: 1/26/2026 12:46:55 PM
  - ID: 28, Desc: sad - ALOADED2025Q3LABELS_JoshuaNg-artists.csv, DataLen: 238, Source: Excel Import, Created: 1/26/2026 2:09:29 PM
+ - ID: 29, Desc: Assets - ALOADED2025Q3LABELS_JoshuaNg-assets.csv, DataLen: 2522, Source: Excel Import, Created: 1/26/2026 2:29:24 PM
+ - ID: 30, Desc: Products - ALOADED2025Q3LABELS_JoshuaNg-products.csv, DataLen: 697, Source: Excel Import, Created: 1/26/2026 2:35:42 PM
+ - ID: 31, Desc: Products - ALOADED2025Q3LABELS_JoshuaNg-products.csv, DataLen: 697, Source: Excel Import, Created: 1/26/2026 2:35:42 PM
 
 Sources Count: 6
  - ID: 0, Desc: Excel Import
@@ -43,3 +46,6 @@ Total Assets: 8
  - Entry 26: Multi-sheet (1 tables)
  - Entry 27: Multi-sheet (1 tables)
  - Entry 28: Multi-sheet (1 tables)
+ - Entry 29: Multi-sheet (1 tables)
+ - Entry 30: Multi-sheet (1 tables)
+ - Entry 31: Multi-sheet (1 tables)
