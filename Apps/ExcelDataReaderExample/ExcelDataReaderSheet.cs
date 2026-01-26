@@ -9,6 +9,7 @@ using Ivy.Shared;
 using ArtistInsightTool.Connections.ArtistInsightTool;
 using Microsoft.EntityFrameworkCore;
 using Ivy.Hooks;
+using System.Collections.Immutable;
 
 namespace ExcelDataReaderExample;
 
@@ -77,7 +78,7 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
     var isAnalyzing = UseState(false);
 
     // --- Upload State ---
-    var uploadState = UseState<FileUpload<byte[]>?>();
+    var uploadState = UseState(ImmutableArray.Create<FileUpload<byte[]>>());
     var templateTargetFileId = UseState<string?>(() => null);
 
     var uploadContext = this.UseUpload(MemoryStreamUploadHandler.Create(uploadState))
@@ -87,40 +88,53 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
     // Handle File Upload
     UseEffect(() =>
     {
-      if (uploadState.Value?.Content is byte[] bytes && bytes.Length > 0)
+      if (uploadState.Value.Length > 0)
       {
-        try
+        var list = filePaths.Value.ToList();
+        bool added = false;
+
+        foreach (var upload in uploadState.Value)
         {
-          var tempPath = System.IO.Path.GetTempFileName();
-          var extension = ".xlsx";
-          if (bytes.Length >= 4)
+          if (upload.Content is byte[] bytes && bytes.Length > 0)
           {
-            if (bytes[0] == 0x50 && bytes[1] == 0x4B) extension = ".xlsx";
-            else if (bytes[0] == 0xD0 && bytes[1] == 0xCF) extension = ".xls";
-            else
+            try
             {
-              var content = System.Text.Encoding.UTF8.GetString(bytes.Take(100).ToArray());
-              if (content.Contains(',')) extension = ".csv";
+              var tempPath = System.IO.Path.GetTempFileName();
+              var extension = ".xlsx";
+              if (bytes.Length >= 4)
+              {
+                if (bytes[0] == 0x50 && bytes[1] == 0x4B) extension = ".xlsx";
+                else if (bytes[0] == 0xD0 && bytes[1] == 0xCF) extension = ".xls";
+                else
+                {
+                  var content = System.Text.Encoding.UTF8.GetString(bytes.Take(100).ToArray());
+                  if (content.Contains(',')) extension = ".csv";
+                }
+              }
+              var finalPath = tempPath + extension;
+              File.WriteAllBytes(finalPath, bytes);
+
+              var newFile = new CurrentFile
+              {
+                Path = finalPath,
+                OriginalName = upload.FileName ?? "Unknown",
+                FileSize = bytes.Length
+              };
+
+              list.Add(newFile);
+              added = true;
+            }
+            catch (Exception ex)
+            {
+              try { client.Toast($"File upload error: {ex.Message}", "Error"); } catch { }
             }
           }
-          var finalPath = tempPath + extension;
-          File.WriteAllBytes(finalPath, bytes);
-
-          var newFile = new CurrentFile
-          {
-            Path = finalPath,
-            OriginalName = uploadState.Value.FileName ?? "Unknown",
-            FileSize = bytes.Length
-          };
-
-          var list = filePaths.Value.ToList();
-          list.Add(newFile);
-          filePaths.Set(list);
-          uploadState.Set((FileUpload<byte[]>?)null);
         }
-        catch (Exception ex)
+
+        if (added)
         {
-          try { client.Toast($"File upload error: {ex.Message}", "Error"); } catch { }
+          filePaths.Set(list);
+          uploadState.Set(ImmutableArray<FileUpload<byte[]>>.Empty);
         }
       }
     }, [uploadState]);
