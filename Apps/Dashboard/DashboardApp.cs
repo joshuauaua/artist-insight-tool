@@ -20,9 +20,19 @@ public class DashboardApp : ViewBase
     var service = UseService<ArtistInsightService>();
     var client = UseService<IClientProvider>();
 
-    // Tabs State
+    // States
     var selectedTab = UseState(0);
     var tabs = new[] { "Overview", "Analytics", "Activity" };
+    var showImportSheet = UseState(false);
+
+    // Import Handling
+    if (showImportSheet.Value)
+    {
+      return new ExcelDataReaderExample.ExcelDataReaderSheet(() =>
+      {
+        showImportSheet.Set(false);
+      });
+    }
 
     // Common Data Queries
     var assetsQuery = UseQuery("dashboard_assets", async (ct) => await service.GetAssetsAsync());
@@ -38,18 +48,9 @@ public class DashboardApp : ViewBase
             .Add(Layout.Horizontal().Align(Align.Center).Width(Size.Full())
                  .Add(Text.H1("Dashboard"))
                  .Add(new Spacer().Width(Size.Fraction(1)))
-                 .Add(new DropDownMenu(
-                         DropDownMenu.DefaultSelectHandler(),
-                         new Button("Actions").Variant(ButtonVariant.Outline)
-                     )
-                     | MenuItem.Default("Refresh All").HandleSelect(() =>
-                     {
-                       assetsQuery.Mutator.Revalidate();
-                       revenueQuery.Mutator.Revalidate();
-                       activityQuery.Mutator.Revalidate();
-                       client.Toast("Dashboard data refreshed");
-                     })
-                 )
+                 .Add(new Button("Import Data", () => showImportSheet.Set(true))
+                     .Icon(Icons.FileUp)
+                     .Variant(ButtonVariant.Primary))
             )
             .Add(Layout.Horizontal().Gap(2).Padding(0, 0, 10, 0)
                 | tabs.Select((tab, index) =>
