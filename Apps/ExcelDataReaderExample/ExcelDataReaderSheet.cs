@@ -532,20 +532,21 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
             | Layout.Horizontal().Align(Align.Center)
                 | Text.H4("Step 2: Map Columns")
 
-            | Layout.Grid().Columns(2).Gap(10)
-                // Left Column: File Headers
-                | Layout.Vertical().Gap(5)
-                    | Text.Label("1. Select File Header")
-                    | selectedHeaderToMap.ToSelectInput(unmappedHeaders.Select(h => new Option<string?>(h, h)))
-                        .Placeholder("Choose header...")
-
-                // Right Column: System Fields
-                | Layout.Vertical().Gap(5)
-                    | Text.Label("2. Select System Field")
-                    | selectedFieldToMap.ToSelectInput(availableSystemFields.Select(kv => new Option<string?>(kv.Value, kv.Key)))
-                        .Placeholder("Choose field...")
-                        .Variant(SelectInputs.List)
-                        .Height(300)
+            | Layout.Grid().Columns(2).Gap(20)
+                .Add(new Card(
+                    Layout.Vertical().Gap(5)
+                        .Add(Text.H5("1. Select File Header"))
+                        .Add(selectedHeaderToMap.ToSelectInput(unmappedHeaders.Select(h => new Option<string?>(h, h)))
+                            .Placeholder("Choose header..."))
+                ))
+                .Add(new Card(
+                    Layout.Vertical().Gap(5)
+                        .Add(Text.H5("2. Select System Field"))
+                        .Add(selectedFieldToMap.ToSelectInput(availableSystemFields.Select(kv => new Option<string?>(kv.Value, kv.Key)))
+                            .Placeholder("Choose field...")
+                            .Variant(SelectInputs.List)
+                            .Height(300))
+                ))
 
             | Layout.Horizontal().Align(Align.Center).Padding(10)
                 | new Button("Confirm Mapping", () =>
@@ -924,6 +925,14 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
                  await db.SaveChangesAsync();
                }
 
+               var sheetData = new
+               {
+                 Title = "Main Data",
+                 FileName = file.OriginalName,
+                 TemplateName = file.MatchedTemplate?.Name ?? "Unknown",
+                 Rows = jsonData
+               };
+
                var entry = new RevenueEntry
                {
                  RevenueDate = DateTime.Now,
@@ -933,7 +942,7 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
                  ArtistId = artist.Id,
                  CreatedAt = DateTime.UtcNow,
                  UpdatedAt = DateTime.UtcNow,
-                 JsonData = JsonSerializer.Serialize(jsonData)
+                 JsonData = JsonSerializer.Serialize(new[] { sheetData })
                };
 
                var tmpl = file.MatchedTemplate!;
