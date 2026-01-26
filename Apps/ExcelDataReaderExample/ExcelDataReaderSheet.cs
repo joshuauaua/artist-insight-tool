@@ -345,6 +345,16 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
         _ => "Import Data"
       };
 
+      if (activeMode.Value == AnalyzerMode.TemplateCreation)
+      {
+        return new Sheet(
+            _ => activeMode.Set(AnalyzerMode.Home),
+            new FooterLayout(Layout.Horizontal(), RenderTemplateCreationContent()), // Simple footer or none? Content has buttons
+            "Create Import Template",
+            "Define how to import this file format."
+        ).Width(Size.Full());
+      }
+
       var container = Layout.Vertical().Height(Size.Full()).Width(Size.Full()).Align(Align.Center).Padding(20);
 
       var content = Layout.Vertical().Gap(20).Align(Align.Center);
@@ -395,7 +405,6 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
              },
              new DialogHeader(GetDialogTitle()),
              new DialogBody(
-                  activeMode.Value == AnalyzerMode.TemplateCreation ? RenderTemplateCreationContent() :
                   activeMode.Value == AnalyzerMode.Analysis ? RenderAnalysisContent() :
                   activeMode.Value == AnalyzerMode.Annex ? RenderAnnexContent() :
                   activeMode.Value == AnalyzerMode.DataView ? RenderDataTableView() :
@@ -490,56 +499,28 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
                 | new Button("Next", () =>
                 {
                   if (string.IsNullOrWhiteSpace(newTemplateName.Value)) { client.Toast("Name required", "Warning"); return; }
-                  // Initialize selected fields with basic globals
-                  selectedFieldKeys.Set(new List<string> { "Asset", "Net", "Currency" });
                   templateCreationStep.Set(2);
                 }).Variant(ButtonVariant.Primary).Icon(Icons.ArrowRight);
       }
-      else if (templateCreationStep.Value == 2)
+      else
       {
+        // Step 2: Mapping (Combined Selection + Mapping)
         var availableFields = new Dictionary<string, string>(globalFields);
         if (categoryFields.TryGetValue(newTemplateCategory.Value, out var extra))
         {
           foreach (var kv in extra) availableFields[kv.Key] = kv.Value;
         }
 
-        var options = availableFields.Select(kv => new Option<string>(kv.Value, kv.Key)).ToList();
-
         return Layout.Vertical().Gap(10).Width(Size.Full())
             | Layout.Horizontal().Align(Align.Center).Gap(10)
                 | new Button("", () => templateCreationStep.Set(1)).Variant(ButtonVariant.Ghost).Icon(Icons.ArrowLeft)
-                | Text.H4("Step 2: Select Fields")
-            | Text.Muted($"Select fields to map for {newTemplateCategory.Value}.")
-            | Layout.Vertical().Gap(5)
-                | Text.Label("Standard Fields")
-                | selectedFieldKeys.ToSelectInput(options).Placeholder("Select fields...")
-            | Layout.Horizontal().Align(Align.Right).Padding(10, 0, 0, 0)
-                | new Button("Next", () =>
-                {
-                  if (selectedFieldKeys.Value.Count == 0) { client.Toast("Select at least one field", "Warning"); return; }
-                  templateCreationStep.Set(3);
-                }).Variant(ButtonVariant.Primary).Icon(Icons.ArrowRight);
-      }
-      else
-      {
-        // Step 3: Mapping
-        var selectedFieldsMap = new Dictionary<string, string>();
-        foreach (var key in selectedFieldKeys.Value)
-        {
-          if (globalFields.TryGetValue(key, out var label)) selectedFieldsMap[key] = label;
-          else if (categoryFields.TryGetValue(newTemplateCategory.Value, out var extras) && extras.TryGetValue(key, out label)) selectedFieldsMap[key] = label;
-        }
-
-        return Layout.Vertical().Gap(10).Width(Size.Full())
-            | Layout.Horizontal().Align(Align.Center).Gap(10)
-                | new Button("", () => templateCreationStep.Set(2)).Variant(ButtonVariant.Ghost).Icon(Icons.ArrowLeft)
-                | Text.H4("Step 3: Map Columns")
+                | Text.H4("Step 2: Map Columns")
             | Text.Muted("Assign file headers to your selected fields.")
             | headers.Select(h =>
             {
               var roleKey = GetRoleKeyForHeader(h);
               var currentRoleKey = roleKey ?? "Ignore";
-              var currentRoleLabel = currentRoleKey == "Ignore" ? "Ignore" : (selectedFieldsMap.TryGetValue(currentRoleKey, out var l) ? l : currentRoleKey);
+              var currentRoleLabel = currentRoleKey == "Ignore" ? "Ignore" : (availableFields.TryGetValue(currentRoleKey, out var l) ? l : currentRoleKey);
 
               var menu = new DropDownMenu(
                   DropDownMenu.DefaultSelectHandler(),
@@ -548,7 +529,7 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
 
               menu = menu | MenuItem.Default("Ignore").HandleSelect(() => ClearColumn(h));
 
-              foreach (var field in selectedFieldsMap)
+              foreach (var field in availableFields)
               {
                 menu = menu | MenuItem.Default(field.Value).HandleSelect(() => { ClearColumn(h); SetColumn(field.Key, h); });
               }

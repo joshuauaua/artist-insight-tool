@@ -121,11 +121,10 @@ public class RevenueTableView : ViewBase
 
     var filterSelect = selectedSource.ToSelectInput(new List<Option<string>> {
         new("All", "All"),
-        new("Streams", "Streams"),
-        new("Merch", "Merch"),
-        new("Live Show", "Live Show"),
-        new("Sync", "Sync"),
-        new("Others", "Others")
+        new("Merchandise", "Merchandise"),
+        new("Royalties", "Royalties"),
+        new("Concerts", "Concerts"),
+        new("Other", "Other")
     });
 
     var headerCard = new Card(

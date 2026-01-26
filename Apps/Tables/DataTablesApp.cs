@@ -13,7 +13,7 @@ namespace ArtistInsightTool.Apps.Tables;
 [App(icon: Icons.Database, title: "Data Tables", path: ["Tables"])]
 public class DataTablesApp : ViewBase
 {
-  public record TableItem(int RealId, string Id, string Name, string AnnexedTo, string LinkedTo, string Date);
+  public record TableItem(int RealId, string Id, string Name, string Template, string Date);
 
   public override object? Build()
   {
@@ -54,7 +54,7 @@ public class DataTablesApp : ViewBase
           var root = doc.RootElement;
 
           // Logic to parse items... (Compact helper to keep code short)
-          void AddItem(string title) => items.Add(new TableItem(entry.Id, $"DT{index++:D3}", title, entry.Description ?? "-", "-", entry.UpdatedAt.ToShortDateString()));
+          void AddItem(string title, string template) => items.Add(new TableItem(entry.Id, $"DT{index++:D3}", title, template, entry.UpdatedAt.ToShortDateString()));
 
           if (root.ValueKind == JsonValueKind.Array && root.GetArrayLength() > 0)
           {
@@ -67,13 +67,15 @@ public class DataTablesApp : ViewBase
               foreach (var el in root.EnumerateArray())
               {
                 string t = "Untitled";
+                string tmpl = "-";
                 if (el.TryGetProperty("Title", out var p) || el.TryGetProperty("title", out p)) t = p.GetString() ?? "Untitled";
-                AddItem(t);
+                if (el.TryGetProperty("TemplateName", out var tp) || el.TryGetProperty("templateName", out tp)) tmpl = tp.GetString() ?? "-";
+                AddItem(t, tmpl);
               }
             }
-            else AddItem("Legacy Data");
+            else AddItem("Legacy Data", "-");
           }
-          else if (root.ValueKind == JsonValueKind.Object) AddItem("Single Sheet");
+          else if (root.ValueKind == JsonValueKind.Object) AddItem("Single Sheet", "-");
         }
         catch { }
       }
@@ -89,8 +91,9 @@ public class DataTablesApp : ViewBase
 
     var selectedIds = UseState<HashSet<string>>([]);
     var searchQuery = UseState("");
+    var selectedTemplate = UseState("All");
 
-    // Filter items based on search
+    // Filter items based on search and template
     var filteredItems = tablesData;
     if (!string.IsNullOrWhiteSpace(searchQuery.Value))
     {
@@ -99,6 +102,11 @@ public class DataTablesApp : ViewBase
           t.Name.ToLowerInvariant().Contains(q) ||
           t.Id.ToLowerInvariant().Contains(q)
       ).ToList();
+    }
+
+    if (selectedTemplate.Value != "All")
+    {
+      filteredItems = filteredItems.Where(t => t.Template == selectedTemplate.Value).ToList();
     }
 
     bool allSelected = filteredItems.Count > 0 && selectedIds.Value.Count == filteredItems.Count;
@@ -120,6 +128,11 @@ public class DataTablesApp : ViewBase
       return new HeaderMappingSheet(mappingEntryId.Value.Value, () => mappingEntryId.Set((int?)null));
     }
 
+    // Unique templates for filter
+    var uniqueTemplates = tablesData.Select(t => t.Template).Distinct().OrderBy(t => t).ToList();
+    var templateOptions = new List<Option<string>> { new("All Templates", "All") };
+    templateOptions.AddRange(uniqueTemplates.Select(t => new Option<string>(t, t)));
+
     var headerCard = new Card(
         Layout.Vertical().Gap(10)
             .Add(Layout.Horizontal().Align(Align.Center).Width(Size.Full())
@@ -132,6 +145,7 @@ public class DataTablesApp : ViewBase
             )
             .Add(Layout.Horizontal().Width(Size.Full()).Gap(10)
                  .Add(searchQuery.ToTextInput().Placeholder("Search tables...").Width(300))
+                 .Add(selectedTemplate.ToSelectInput(templateOptions).Width(200))
             )
     );
 
@@ -147,22 +161,19 @@ public class DataTablesApp : ViewBase
                     {
                       IdButton = new Button(t.Id, () => selectedTableId.Set(t.RealId)).Variant(ButtonVariant.Ghost),
                       t.Name,
-                      t.AnnexedTo,
-                      t.LinkedTo,
+                      t.Template,
                       t.Date,
                       Actions = new Button("", () => confirmDeleteId.Set(t.RealId)).Icon(Icons.Trash).Variant(ButtonVariant.Ghost)
                     }).ToArray().ToTable()
                         .Width(Size.Full())
                         .Add(x => x.IdButton)
                         .Add(x => x.Name)
-                        .Add(x => x.AnnexedTo)
-                        .Add(x => x.LinkedTo)
+                        .Add(x => x.Template)
                         .Add(x => x.Date)
                         .Add(x => x.Actions)
                         .Header(x => x.IdButton, "ID")
                         .Header(x => x.Name, "Name")
-                        .Header(x => x.AnnexedTo, "Annexed To")
-                        .Header(x => x.LinkedTo, "Linked To")
+                        .Header(x => x.Template, "Template")
                         .Header(x => x.Date, "Uploaded")
                         .Header(x => x.Actions, "")
                     : Text.Muted("No data tables found.")
