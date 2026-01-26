@@ -84,6 +84,12 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
     var newTemplateName = UseState("");
     var newTemplateCategory = UseState("Merchandise");
     var templateCreationStep = UseState(1);
+
+    // --- Mapping State (Redesign) ---
+    var selectedHeaderToMap = UseState<string?>(() => null);
+    var selectedFieldToMap = UseState<string?>(() => null);
+    var mappedPairs = UseState<List<(string Header, string FieldKey)>>(() => new());
+
     var newTemplateAssetColumn = UseState<string?>(() => null);
 
     var newTemplateAmountColumn = UseState<string?>(() => null);
@@ -504,182 +510,137 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
       }
       else
       {
-        // Step 2: Mapping (Combined Selection + Mapping)
-        var availableFields = new Dictionary<string, string>(globalFields);
+        // Step 2: Mapping (Interactive Selection)
+        var allSystemFields = new Dictionary<string, string>(globalFields);
         if (categoryFields.TryGetValue(newTemplateCategory.Value, out var extra))
         {
-          foreach (var kv in extra) availableFields[kv.Key] = kv.Value;
+          foreach (var kv in extra) allSystemFields[kv.Key] = kv.Value;
         }
 
+        var mapped = mappedPairs.Value; // List<(string Header, string FieldKey)>
+        var unmappedHeaders = headers.Where(h => !mapped.Any(m => m.Header == h)).ToList();
+
+        // Filter out system fields that are already mapped
+        var availableSystemFields = allSystemFields.Where(kv => !mapped.Any(m => m.FieldKey == kv.Key)).ToDictionary(k => k.Key, v => v.Value);
+
+        var globalSection = new[] { "Asset", "Category", "Gross", "Net", "TransactionDate" };
+        var codeSection = new[] { "Isrc", "Upc", "Sku", "TransactionId", "TicketClass" };
+
+        Func<string, string?> getHeader = k => mapped.FirstOrDefault(m => m.FieldKey == k).Header;
+
         return Layout.Vertical().Gap(10).Width(Size.Full())
-            | Layout.Horizontal().Align(Align.Center).Gap(10)
-                | new Button("", () => templateCreationStep.Set(1)).Variant(ButtonVariant.Ghost).Icon(Icons.ArrowLeft)
+            | Layout.Horizontal().Align(Align.Center)
                 | Text.H4("Step 2: Map Columns")
-            | Text.Muted("Assign file headers to your selected fields.")
-            | headers.Select(h =>
-            {
-              var roleKey = GetRoleKeyForHeader(h);
-              var currentRoleKey = roleKey ?? "Ignore";
-              var currentRoleLabel = currentRoleKey == "Ignore" ? "Ignore" : (availableFields.TryGetValue(currentRoleKey, out var l) ? l : currentRoleKey);
 
-              var menu = new DropDownMenu(
-                  DropDownMenu.DefaultSelectHandler(),
-                  new Button(currentRoleLabel).Variant(ButtonVariant.Outline).Icon(Icons.ChevronDown).Width(Size.Full())
-              );
+            | Layout.Grid().Columns(2).Gap(10)
+                // Left Column: File Headers
+                | Layout.Vertical().Gap(5)
+                    | Text.Label("1. Select File Header")
+                    | selectedHeaderToMap.ToSelectInput(unmappedHeaders.Select(h => new Option<string?>(h, h)))
+                        .Placeholder("Choose header...")
 
-              menu = menu | MenuItem.Default("Ignore").HandleSelect(() => ClearColumn(h));
+                // Right Column: System Fields
+                | Layout.Vertical().Gap(5)
+                    | Text.Label("2. Select System Field")
+                    | selectedFieldToMap.ToSelectInput(availableSystemFields.Select(kv => new Option<string?>(kv.Value, kv.Key)))
+                        .Placeholder("Choose field...")
+                        .Variant(SelectInputs.List)
+                        .Height(300)
 
-              foreach (var field in availableFields)
-              {
-                menu = menu | MenuItem.Default(field.Value).HandleSelect(() => { ClearColumn(h); SetColumn(field.Key, h); });
-              }
+            | Layout.Horizontal().Align(Align.Center).Padding(10)
+                | new Button("Confirm Mapping", () =>
+                {
+                  if (selectedHeaderToMap.Value != null && selectedFieldToMap.Value != null)
+                  {
+                    var list = mappedPairs.Value.ToList();
+                    list.Add((selectedHeaderToMap.Value, selectedFieldToMap.Value));
+                    mappedPairs.Set(_ => list);
 
-              return Layout.Horizontal().Gap(10).Align(Align.Center)
-                  | Layout.Vertical().Width(Size.Fraction(1)).Align(Align.Left)
-                      | Text.H5(h)
-                  | Layout.Vertical().Width(180)
-                      | menu;
-            }).ToArray()
-            | new Button("Save Template", async () =>
-            {
-              await using var db = factory.CreateDbContext();
-              var newT = new ImportTemplate
-              {
-                Name = newTemplateName.Value,
-                Category = newTemplateCategory.Value,
-                HeadersJson = JsonSerializer.Serialize(headers),
+                    selectedHeaderToMap.Set((string?)null);
+                    selectedFieldToMap.Set((string?)null);
+                  }
+                }).Variant(ButtonVariant.Primary)
+                  .Disabled(selectedHeaderToMap.Value == null || selectedFieldToMap.Value == null)
+                  .Icon(Icons.Link)
 
-                // Global
-                AssetColumn = newTemplateAssetColumn.Value,
-                AmountColumn = newTemplateAmountColumn.Value,
-                CollectionColumn = newTemplateCollectionColumn.Value,
-                GrossColumn = newTemplateGrossColumn.Value,
-                CurrencyColumn = newTemplateCurrencyColumn.Value,
-                TerritoryColumn = newTemplateTerritoryColumn.Value,
-                LabelColumn = newTemplateLabelColumn.Value,
-                ArtistColumn = newTemplateArtistColumn.Value,
-                StoreColumn = newTemplateStoreColumn.Value,
-                DspColumn = newTemplateDspColumn.Value,
-                NetColumn = newTemplateNetColumn.Value ?? newTemplateAmountColumn.Value,
+            | Text.H5("Mapped Columns")
+            | Layout.Vertical().Padding(15).Gap(5)
+                .Add(mapped.Count == 0 ?
+                    Layout.Horizontal().Align(Align.Center) | Text.Muted("No columns mapped yet.")
+                    :
+                    Layout.Vertical().Gap(5).Add(mapped.Select(m =>
+                        Layout.Horizontal().Gap(10).Align(Align.Center).Padding(5)
+                            | new Icon(Icons.Check).Size(16)
+                            | Text.Label($"{m.Header}")
+                            | new Icon(Icons.ArrowRight).Size(14)
+                            | Text.Label($"{allSystemFields.GetValueOrDefault(m.FieldKey, m.FieldKey)}")
+                            | Layout.Horizontal().Grow()
+                            | new Button("", () =>
+                            {
+                              var list = mappedPairs.Value.ToList();
+                              list.RemoveAll(x => x.Header == m.Header && x.FieldKey == m.FieldKey);
+                              mappedPairs.Set(_ => list);
+                            }).Variant(ButtonVariant.Ghost).Icon(Icons.Trash).Size(24)
+                    ).ToArray()))
 
-                TransactionDateColumn = newTemplateTransactionDateColumn.Value,
-                TransactionIdColumn = newTemplateTransactionIdColumn.Value,
-                SourcePlatformColumn = newTemplateSourcePlatformColumn.Value,
-                CategoryColumn = newTemplateCategoryColumn.Value,
-                QuantityColumn = newTemplateQuantityColumn.Value,
+            | Layout.Horizontal().Gap(10).Align(Align.Right).Padding(10, 0, 0, 0)
+                | new Button("Back", () => templateCreationStep.Set(1)).Variant(ButtonVariant.Ghost).Icon(Icons.ArrowLeft)
+                | new Button("Save Template", async () =>
+                {
+                  await using var db = factory.CreateDbContext();
+                  var newT = new ImportTemplate
+                  {
+                    Name = newTemplateName.Value,
+                    Category = newTemplateCategory.Value,
+                    HeadersJson = JsonSerializer.Serialize(headers),
 
-                // Category Specific
-                SkuColumn = newTemplateSkuColumn.Value,
-                CustomerEmailColumn = newTemplateCustomerEmailColumn.Value,
-                IsrcColumn = newTemplateIsrcColumn.Value,
-                UpcColumn = newTemplateUpcColumn.Value,
-                VenueNameColumn = newTemplateVenueNameColumn.Value,
-                EventStatusColumn = newTemplateEventStatusColumn.Value,
-                TicketClassColumn = newTemplateTicketClassColumn.Value,
+                    // Global
+                    AssetColumn = getHeader("Asset"),
+                    AmountColumn = getHeader("Amount"),
+                    CollectionColumn = getHeader("Collection"),
+                    GrossColumn = getHeader("Gross"),
+                    CurrencyColumn = getHeader("Currency"),
+                    TerritoryColumn = getHeader("Territory"),
+                    LabelColumn = getHeader("Label"),
+                    ArtistColumn = getHeader("Artist"),
+                    StoreColumn = getHeader("Store"),
+                    DspColumn = getHeader("Dsp"),
+                    NetColumn = getHeader("Net") ?? getHeader("Amount"),
 
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-              };
-              db.ImportTemplates.Add(newT);
-              await db.SaveChangesAsync();
+                    TransactionDateColumn = getHeader("TransactionDate"),
+                    TransactionIdColumn = getHeader("TransactionId"),
+                    SourcePlatformColumn = getHeader("SourcePlatform"),
+                    CategoryColumn = getHeader("Category"),
+                    QuantityColumn = getHeader("Quantity"),
 
-              var fresh = await db.ImportTemplates.ToListAsync();
-              templates.Set(fresh);
+                    // Category Specific
+                    SkuColumn = getHeader("Sku"),
+                    CustomerEmailColumn = getHeader("CustomerEmail"),
+                    IsrcColumn = getHeader("Isrc"),
+                    UpcColumn = getHeader("Upc"),
+                    VenueNameColumn = getHeader("VenueName"),
+                    EventStatusColumn = getHeader("EventStatus"),
+                    TicketClassColumn = getHeader("TicketClass"),
 
-              // Removed matchedTemplate.Set and isNewTemplate.Set as they are no longer relevant 
-              // for the global state in multi-file context. 
-              // The updated templates list will trigger re-analysis in the UseEffect hook.
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                  };
+                  db.ImportTemplates.Add(newT);
+                  await db.SaveChangesAsync();
 
-              activeMode.Set(AnalyzerMode.Home);
-              templateCreationStep.Set(1);
-              client.Toast("Template Created", "Success");
-            }).Variant(ButtonVariant.Primary).Width(Size.Full());
+                  var fresh = await db.ImportTemplates.ToListAsync();
+                  templates.Set(fresh);
+
+                  activeMode.Set(AnalyzerMode.Home);
+                  templateCreationStep.Set(1);
+                  mappedPairs.Set(_ => new());
+                  client.Toast("Template Created", "Success");
+                }).Variant(ButtonVariant.Primary)
+                  .Disabled(mapped.Count == 0);
       }
     }
 
-    string? GetRoleKeyForHeader(string header)
-    {
-      if (newTemplateAssetColumn.Value == header) return "Asset";
-      if (newTemplateAmountColumn.Value == header) return "Net";
-      if (newTemplateCollectionColumn.Value == header) return "Collection";
-      if (newTemplateGrossColumn.Value == header) return "Gross";
-      if (newTemplateCurrencyColumn.Value == header) return "Currency";
-      if (newTemplateTerritoryColumn.Value == header) return "Territory";
-      if (newTemplateLabelColumn.Value == header) return "Label";
-      if (newTemplateArtistColumn.Value == header) return "Artist";
-      if (newTemplateStoreColumn.Value == header) return "Store";
-      if (newTemplateDspColumn.Value == header) return "Dsp";
-      if (newTemplateNetColumn.Value == header) return "Net";
-      if (newTemplateTransactionDateColumn.Value == header) return "TransactionDate";
-      if (newTemplateTransactionIdColumn.Value == header) return "TransactionId";
-      if (newTemplateSourcePlatformColumn.Value == header) return "SourcePlatform";
-      if (newTemplateCategoryColumn.Value == header) return "Category";
-      if (newTemplateQuantityColumn.Value == header) return "Quantity";
-      if (newTemplateSkuColumn.Value == header) return "Sku";
-      if (newTemplateCustomerEmailColumn.Value == header) return "CustomerEmail";
-      if (newTemplateIsrcColumn.Value == header) return "Isrc";
-      if (newTemplateUpcColumn.Value == header) return "Upc";
-      if (newTemplateVenueNameColumn.Value == header) return "VenueName";
-      if (newTemplateEventStatusColumn.Value == header) return "EventStatus";
-      if (newTemplateTicketClassColumn.Value == header) return "TicketClass";
-      return null;
-    }
 
-    void SetColumn(string key, string header)
-    {
-      switch (key)
-      {
-        case "Asset": newTemplateAssetColumn.Set(header); break;
-        case "Net": newTemplateAmountColumn.Set(header); break;
-        case "Collection": newTemplateCollectionColumn.Set(header); break;
-        case "Gross": newTemplateGrossColumn.Set(header); break;
-        case "Currency": newTemplateCurrencyColumn.Set(header); break;
-        case "Territory": newTemplateTerritoryColumn.Set(header); break;
-        case "Label": newTemplateLabelColumn.Set(header); break;
-        case "Artist": newTemplateArtistColumn.Set(header); break;
-        case "Store": newTemplateStoreColumn.Set(header); break;
-        case "Dsp": newTemplateDspColumn.Set(header); break;
-        case "TransactionDate": newTemplateTransactionDateColumn.Set(header); break;
-        case "TransactionId": newTemplateTransactionIdColumn.Set(header); break;
-        case "SourcePlatform": newTemplateSourcePlatformColumn.Set(header); break;
-        case "Category": newTemplateCategoryColumn.Set(header); break;
-        case "Quantity": newTemplateQuantityColumn.Set(header); break;
-        case "Sku": newTemplateSkuColumn.Set(header); break;
-        case "CustomerEmail": newTemplateCustomerEmailColumn.Set(header); break;
-        case "Isrc": newTemplateIsrcColumn.Set(header); break;
-        case "Upc": newTemplateUpcColumn.Set(header); break;
-        case "VenueName": newTemplateVenueNameColumn.Set(header); break;
-        case "EventStatus": newTemplateEventStatusColumn.Set(header); break;
-        case "TicketClass": newTemplateTicketClassColumn.Set(header); break;
-      }
-    }
-
-    void ClearColumn(string h)
-    {
-      if (newTemplateAssetColumn.Value == h) newTemplateAssetColumn.Set((string?)null);
-      if (newTemplateAmountColumn.Value == h) newTemplateAmountColumn.Set((string?)null);
-      if (newTemplateCollectionColumn.Value == h) newTemplateCollectionColumn.Set((string?)null);
-      if (newTemplateGrossColumn.Value == h) newTemplateGrossColumn.Set((string?)null);
-      if (newTemplateCurrencyColumn.Value == h) newTemplateCurrencyColumn.Set((string?)null);
-      if (newTemplateTerritoryColumn.Value == h) newTemplateTerritoryColumn.Set((string?)null);
-      if (newTemplateLabelColumn.Value == h) newTemplateLabelColumn.Set((string?)null);
-      if (newTemplateArtistColumn.Value == h) newTemplateArtistColumn.Set((string?)null);
-      if (newTemplateStoreColumn.Value == h) newTemplateStoreColumn.Set((string?)null);
-      if (newTemplateDspColumn.Value == h) newTemplateDspColumn.Set((string?)null);
-      if (newTemplateNetColumn.Value == h) newTemplateNetColumn.Set((string?)null);
-      if (newTemplateTransactionDateColumn.Value == h) newTemplateTransactionDateColumn.Set((string?)null);
-      if (newTemplateTransactionIdColumn.Value == h) newTemplateTransactionIdColumn.Set((string?)null);
-      if (newTemplateSourcePlatformColumn.Value == h) newTemplateSourcePlatformColumn.Set((string?)null);
-      if (newTemplateCategoryColumn.Value == h) newTemplateCategoryColumn.Set((string?)null);
-      if (newTemplateQuantityColumn.Value == h) newTemplateQuantityColumn.Set((string?)null);
-      if (newTemplateSkuColumn.Value == h) newTemplateSkuColumn.Set((string?)null);
-      if (newTemplateCustomerEmailColumn.Value == h) newTemplateCustomerEmailColumn.Set((string?)null);
-      if (newTemplateIsrcColumn.Value == h) newTemplateIsrcColumn.Set((string?)null);
-      if (newTemplateUpcColumn.Value == h) newTemplateUpcColumn.Set((string?)null);
-      if (newTemplateVenueNameColumn.Value == h) newTemplateVenueNameColumn.Set((string?)null);
-      if (newTemplateEventStatusColumn.Value == h) newTemplateEventStatusColumn.Set((string?)null);
-      if (newTemplateTicketClassColumn.Value == h) newTemplateTicketClassColumn.Set((string?)null);
-    }
 
 
 

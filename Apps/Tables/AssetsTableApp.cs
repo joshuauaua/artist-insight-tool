@@ -97,14 +97,12 @@ public class AssetsTableApp : ViewBase
     .Add(x => x.Name)
     .Add(x => x.Category)
     .Add(x => x.Type)
-    .Add(x => x.Collection)
     .Add(x => x.Amount)
     .Add(x => x.Actions)
     .Header(x => x.IdButton, "ID")
     .Header(x => x.Name, "Asset Name")
     .Header(x => x.Category, "Category")
-    .Header(x => x.Type, "Collection Type")
-    .Header(x => x.Collection, collectionHeader)
+    .Header(x => x.Type, "Type")
     .Header(x => x.Amount, "Amount Generated")
     .Header(x => x.Actions, "");
 
@@ -258,23 +256,12 @@ public class CreateAssetSheet(Action onClose) : ViewBase
 
     var typeOptions = category.Value switch
     {
-      "Concerts" => new[] { "Ticket" },
+      "Concerts" => new[] { "Ticket Sales", "VIP Package", "Merch Bundle", "Meet & Greet" },
       "Merchandise" => new[] { "Single Item", "Merchandise Collection" },
       "Royalties" => new[] { "Single", "EP", "Album" },
+      "Other" => new[] { "Grant", "Sponsorship", "Investment", "Licensing" },
       _ => Array.Empty<string>()
     };
-
-    UseEffect(() =>
-    {
-      if (category.Value == "Other")
-      {
-        type.Set("");
-      }
-      else if (typeOptions.Length > 0 && !typeOptions.Contains(type.Value))
-      {
-        type.Set(typeOptions[0]);
-      }
-    }, [category]);
 
     return new Dialog(
         _ => onClose(),
@@ -284,11 +271,27 @@ public class CreateAssetSheet(Action onClose) : ViewBase
             .Add(Text.Label("Name"))
             .Add(name.ToTextInput().Placeholder("Asset Name"))
             .Add(Text.Label("Category"))
-            .Add(category.ToSelectInput(new[] { "Concerts", "Merchandise", "Royalties", "Other" }.Select(c => new Option<string>(c, c))))
+            .Add(new SelectInput<string>(
+                value: category.Value,
+                onChange: e =>
+                {
+                  category.Set(e.Value);
+                  // Reset Type based on new Category
+                  if (e.Value == "Concerts") type.Set("Ticket Sales");
+                  else if (e.Value == "Merchandise") type.Set("Single Item");
+                  else if (e.Value == "Royalties") type.Set("Single");
+                  else if (e.Value == "Other") type.Set("Grant");
+                  else type.Set("");
+                },
+                new[] { "Concerts", "Merchandise", "Royalties", "Other" }.Select(c => new Option<string>(c, c))))
             .Add(Text.Label("Collection Type"))
-            .Add(category.Value == "Other"
+            .Add(typeOptions.Length == 0
                 ? type.ToTextInput().Placeholder("Collection Type")
-                : type.ToSelectInput(typeOptions.Select(t => new Option<string>(t, t))))
+                : new SelectInput<string>(
+                    value: type.Value,
+                    onChange: e => type.Set(e.Value),
+                    typeOptions.Select(t => new Option<string>(t, t))
+                  ))
             .Add(Text.Label("Collection"))
             .Add(collection.ToTextInput().Placeholder("Collection Name"))
             .Add(Layout.Horizontal().Align(Align.Right).Gap(10).Padding(10, 0, 0, 0)
