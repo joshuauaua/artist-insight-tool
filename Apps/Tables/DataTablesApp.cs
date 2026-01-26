@@ -176,7 +176,9 @@ public class DataTablesApp : ViewBase
                         .Header(x => x.Template, "Template")
                         .Header(x => x.Date, "Uploaded")
                         .Header(x => x.Actions, "")
-                    : Text.Muted("No data tables found.")
+                        .Header(x => x.Date, "Uploaded")
+                        .Header(x => x.Actions, "")
+                    : Layout.Center().Add(Text.Label("There is no information to display"))
                 )
         );
 

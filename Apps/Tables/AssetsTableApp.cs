@@ -128,7 +128,10 @@ public class AssetsTableApp : ViewBase
             )
     );
 
-    var content = Layout.Vertical().Height(Size.Full()).Padding(20, 0, 20, 50).Add(table);
+    var content = Layout.Vertical().Height(Size.Full()).Padding(20, 0, 20, 50)
+        .Add(filteredAssets.Any()
+            ? table
+            : Layout.Center().Add(Text.Label("There is no information to display")));
 
     return new Fragment(
         new HeaderLayout(headerCard, content),

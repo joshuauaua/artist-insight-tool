@@ -107,8 +107,8 @@ public class TemplatesApp : ViewBase
     }
 
     var content = Layout.Vertical().Height(Size.Full()).Padding(20, 0, 20, 50)
-                .Add(
-                     tableData.ToTable()
+                .Add(filteredItems.Any()
+                     ? tableData.ToTable()
                      .Width(Size.Full())
                      .Add(x => x.IdButton)
                      .Header(x => x.IdButton, "ID")
@@ -116,6 +116,7 @@ public class TemplatesApp : ViewBase
                      .Header(x => x.Category, "Category")
                      .Header(x => x.Files, "Linked Files")
                      .Header(x => x.Actions, "")
+                     : Layout.Center().Add(Text.Label("There is no information to display"))
                 );
 
     return new Fragment(

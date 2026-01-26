@@ -176,7 +176,10 @@ public class RevenueTableView : ViewBase
     // Note: Column width might not be supported via .Width(x=>...) in this API, 
     // but checking if ToTable returns Table widget which usually auto-sizes.
 
-    var content = Layout.Vertical().Height(Size.Full()).Padding(20, 0, 20, 50).Add(table);
+    var content = Layout.Vertical().Height(Size.Full()).Padding(20, 0, 20, 50)
+        .Add(filteredEntries.Length > 0
+            ? table
+            : Layout.Center().Add(Text.Label("There is no information to display")));
 
     return new Fragment(
         new HeaderLayout(headerCard, content),
