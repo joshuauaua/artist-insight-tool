@@ -31,27 +31,48 @@ public class TemplateCreatorSheet(CurrentFile? file, Action onSuccess, Action on
     if (analysis?.Sheets.Count == 0) return Text.Muted("No sheets found in file.");
     var headers = analysis!.Sheets[0].Headers;
 
-    var globalFields = new Dictionary<string, string>
+    var fieldGroups = new Dictionary<string, List<(string Key, string Label)>>
         {
-            { "TransactionDate", "Transaction Date" },
-            { "TransactionId", "Transaction ID" },
-            { "SourcePlatform", "Source Platform" },
-            { "Asset", "Asset Name (Item)" },
-            { "Collection", "Asset Group (Parent)" },
-            { "Category", "Category" },
-            { "Quantity", "Quantity" },
-            { "Gross", "Gross Revenue" },
-            { "Net", "Net Revenue" },
-            { "Currency", "Currency" },
-            { "Territory", "Territory/Region" }
+            { "Global Columns", new()
+                {
+                    ("TransactionDate", "Transaction Date"),
+                    ("TransactionId", "Transaction ID"),
+                    ("SourcePlatform", "Source Platform"),
+                    ("Category", "Category"),
+                    ("Quantity", "Quantity"),
+                    ("Territory", "Territory/Region")
+                }
+            },
+            { "Financials", new()
+                {
+                    ("Gross", "Gross Revenue"),
+                    ("Net", "Net Revenue"),
+                    ("Amount", "Amount (Net)"),
+                    ("Currency", "Currency")
+                }
+            },
+            { "Assets", new()
+                {
+                    ("Asset", "Asset Name (Item)"),
+                    ("Collection", "Asset Group (Parent)"),
+                    ("Artist", "Artist"),
+                    ("Label", "Label")
+                }
+            }
         };
 
-    var categoryFields = new Dictionary<string, Dictionary<string, string>>
+    var categorySpecificGroups = new Dictionary<string, Dictionary<string, List<(string Key, string Label)>>>
         {
-            { "Merchandise", new Dictionary<string, string> { { "Sku", "SKU" }, { "CustomerEmail", "Customer Email" }, { "Store", "Store" } } },
-            { "Royalties", new Dictionary<string, string> { { "Isrc", "ISRC" }, { "Upc", "UPC" }, { "Dsp", "DSP" }, { "Artist", "Artist" }, { "Label", "Label" } } },
-            { "Concerts", new Dictionary<string, string> { { "VenueName", "Venue Name" }, { "EventStatus", "Event Status" }, { "TicketClass", "Ticket Class" } } },
-            { "Other", new Dictionary<string, string>() }
+            { "Merchandise", new() {
+                { "Retail", new() { ("Sku", "SKU"), ("Store", "Store") } },
+                { "Customer", new() { ("CustomerEmail", "Customer Email") } }
+            }},
+            { "Royalties", new() {
+                { "Music Identifiers", new() { ("Isrc", "ISRC"), ("Upc", "UPC"), ("Dsp", "DSP") } }
+            }},
+            { "Concerts", new() {
+                { "Event Details", new() { ("VenueName", "Venue Name"), ("EventStatus", "Event Status"), ("TicketClass", "Ticket Class") } }
+            }}
         };
 
     Func<string, string?> getHeader = k => mappedPairs.Value.FirstOrDefault(m => m.FieldKey == k).Header;
@@ -78,15 +99,38 @@ public class TemplateCreatorSheet(CurrentFile? file, Action onSuccess, Action on
     else
     {
       // Step 2: Mapping
-      var allSystemFields = new Dictionary<string, string>(globalFields);
-      if (categoryFields.TryGetValue(newTemplateCategory.Value, out var extra))
+      var activeGroups = new Dictionary<string, List<(string Key, string Label)>>(fieldGroups);
+
+      if (categorySpecificGroups.TryGetValue(newTemplateCategory.Value, out var extraGroups))
       {
-        foreach (var kv in extra) allSystemFields[kv.Key] = kv.Value;
+        foreach (var grp in extraGroups)
+        {
+          activeGroups[grp.Key] = grp.Value;
+        }
       }
 
       var mapped = mappedPairs.Value;
       var unmappedHeaders = headers.Where(h => !mapped.Any(m => m.Header == h)).ToList();
-      var availableSystemFields = allSystemFields.Where(kv => !mapped.Any(m => m.FieldKey == kv.Key)).ToDictionary(k => k.Key, v => v.Value);
+
+      // Flatten groups into SelectInput options with Separators
+      var fieldOptions = new List<Option<string?>>();
+      var allFieldsMap = new Dictionary<string, string>(); // For lookup later
+
+      foreach (var group in activeGroups)
+      {
+        // Separator (assuming SelectInput handles or just renders as is)
+        fieldOptions.Add(new Option<string?>(null, null) { Label = $"--- {group.Key} ---" }); // Removed Disabled property usage if invalid
+
+        foreach (var field in group.Value)
+        {
+          allFieldsMap[field.Key] = field.Label;
+          // Only add if not already mapped
+          if (!mapped.Any(m => m.FieldKey == field.Key))
+          {
+            fieldOptions.Add(new Option<string?>(field.Label, field.Key));
+          }
+        }
+      }
 
       content
           .Add(Layout.Horizontal().Align(Align.Center).Add(Text.H4("Step 2: Map Columns")))
@@ -100,7 +144,7 @@ public class TemplateCreatorSheet(CurrentFile? file, Action onSuccess, Action on
               .Add(new Card(
                   Layout.Vertical().Gap(5)
                       .Add(Text.H5("2. Select System Field"))
-                      .Add(selectedFieldToMap.ToSelectInput(availableSystemFields.Select(kv => new Option<string?>(kv.Value, kv.Key)))
+                      .Add(selectedFieldToMap.ToSelectInput(fieldOptions)
                           .Placeholder("Choose field...")
                           .Variant(SelectInputs.List)
                           .Height(300))
@@ -130,7 +174,7 @@ public class TemplateCreatorSheet(CurrentFile? file, Action onSuccess, Action on
                           .Add(new Icon(Icons.Check).Size(16))
                           .Add(Text.Label($"{m.Header}"))
                           .Add(new Icon(Icons.ArrowRight).Size(14))
-                          .Add(Text.Label($"{allSystemFields.GetValueOrDefault(m.FieldKey, m.FieldKey)}"))
+                          .Add(Text.Label($"{allFieldsMap.GetValueOrDefault(m.FieldKey, m.FieldKey)}"))
                           .Add(Layout.Horizontal().Grow())
                           .Add(new Button("", () =>
                           {

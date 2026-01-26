@@ -132,6 +132,7 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
           // Reset upload state to allow adding more? 
           // Actually, if I reset it immediately, it might re-trigger if not careful.
           // But usually we want to clear it so the input is clear.
+          uploadState.Set((FileUpload<byte[]>?)null);
         }
         catch (Exception ex)
         {
@@ -185,51 +186,56 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
 
         Task.Run(async () =>
         {
-          FileAnalysis? result = null;
           try
           {
-            result = await Task.Run(() =>
-                {
-                  try { return AnalyzeFile(pending.Path); }
-                  catch { return null; }
-                });
-          }
-          catch { }
-
-          // Update the file in the list
-          var currentList = filePaths.Value.ToList();
-          var index = currentList.FindIndex(f => f.Id == pending.Id);
-
-          if (index != -1)
-          {
-            var updated = currentList[index] with
+            FileAnalysis? result = null;
+            try
             {
-              Status = result != null ? "Analyzed" : "Error",
-              Analysis = result
-            };
-
-            // Match template
-            if (result?.Sheets.Count > 0)
-            {
-              var firstSheetHeaders = result.Sheets[0].Headers;
-              var jsonHeaders = JsonSerializer.Serialize(firstSheetHeaders);
-              var match = (templatesQuery.Value ?? []).FirstOrDefault(t => t.HeadersJson == jsonHeaders);
-
-              updated = updated with
-              {
-                MatchedTemplate = match,
-                IsNewTemplate = match == null
-              };
+              result = await Task.Run(() =>
+                  {
+                    try { return AnalyzeFile(pending.Path); }
+                    catch { return null; }
+                  });
             }
+            catch { }
 
-            currentList[index] = updated;
-            filePaths.Set(currentList);
+            // Update the file in the list
+            var currentList = filePaths.Value.ToList();
+            var index = currentList.FindIndex(f => f.Id == pending.Id);
+
+            if (index != -1)
+            {
+              var updated = currentList[index] with
+              {
+                Status = result != null ? "Analyzed" : "Error",
+                Analysis = result
+              };
+
+              // Match template
+              if (result?.Sheets.Count > 0)
+              {
+                var firstSheetHeaders = result.Sheets[0].Headers;
+                var jsonHeaders = JsonSerializer.Serialize(firstSheetHeaders);
+                var match = (templatesQuery.Value ?? []).FirstOrDefault(t => t.HeadersJson == jsonHeaders);
+
+                updated = updated with
+                {
+                  MatchedTemplate = match,
+                  IsNewTemplate = match == null
+                };
+              }
+
+              currentList[index] = updated;
+              filePaths.Set(currentList);
+            }
           }
-
-          isAnalyzing.Set(false);
+          finally
+          {
+            isAnalyzing.Set(false);
+          }
         });
       }
-    });
+    }, [filePaths]);
 
 
 
