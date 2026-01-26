@@ -16,6 +16,7 @@ public class TemplateCreatorSheet(CurrentFile? file, Action onSuccess, Action on
   {
     var factory = UseService<ArtistInsightToolContextFactory>();
     var client = UseService<IClientProvider>();
+    var queryService = UseService<IQueryService>();
 
     // --- Template Creation State ---
     var newTemplateName = UseState("");
@@ -224,8 +225,7 @@ public class TemplateCreatorSheet(CurrentFile? file, Action onSuccess, Action on
                 db.ImportTemplates.Add(newT);
                 await db.SaveChangesAsync();
 
-                var qs = UseService<IQueryService>();
-                qs.RevalidateByTag("ImportTemplates");
+                queryService.RevalidateByTag("ImportTemplates");
 
                 client.Toast("Template Created", "Success");
                 _onSuccess();

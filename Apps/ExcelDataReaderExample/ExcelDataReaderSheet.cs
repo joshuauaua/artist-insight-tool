@@ -325,9 +325,9 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
         );
       }
 
-      var container = Layout.Vertical().Height(Size.Full()).Width(Size.Full()).Align(Align.Center).Padding(20);
+      var container = Layout.Vertical().Height(Size.Full()).Width(Size.Full()).Padding(20);
 
-      var content = Layout.Vertical().Gap(20).Align(Align.Center);
+      var content = Layout.Vertical().Gap(20).Align(Align.Center).Width(Size.Full());
       content.Add(new Icon(Icons.Sheet).Size(48));
       content.Add(Text.H4("Import Data"));
       content.Add(uploadState.ToFileInput(uploadContext).Placeholder("Select Files (Excel/CSV)").Width(200));
@@ -349,7 +349,7 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
 
       if (hasFiles && ready && !isProcessing)
       {
-        content.Add(Layout.Horizontal().Gap(10)
+        content.Add(Layout.Horizontal().Gap(10).Align(Align.Center).Width(Size.Full())
             .Add(new Button("Clear All", () => filePaths.Set(new List<CurrentFile>())).Variant(ButtonVariant.Outline))
             .Add(new Button("Import All", () =>
             {
