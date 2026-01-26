@@ -4,6 +4,7 @@ using ArtistInsightTool.Apps.Services;
 using Ivy.Hooks;
 using System.Linq;
 using System.Collections.Generic;
+using System;
 
 namespace ArtistInsightTool.Apps.Dashboard;
 
@@ -17,23 +18,20 @@ public class DashboardApp : ViewBase
   public override object Build()
   {
     var service = UseService<ArtistInsightService>();
+    var client = UseService<IClientProvider>();
+
+    // Tabs State
+    var selectedTab = UseState(0);
+    var tabs = new[] { "Overview", "Analytics", "Activity" };
+
+    // Common Data Queries
     var assetsQuery = UseQuery("dashboard_assets", async (ct) => await service.GetAssetsAsync());
+    var revenueQuery = UseQuery("dashboard_total_revenue", async (ct) => await service.GetTotalRevenueAsync(DateTime.Now.AddYears(-10), DateTime.Now));
+    var activityQuery = UseQuery("dashboard_activity", async (ct) => await service.GetRevenueEntriesAsync());
 
-    // States
-    var searchQuery = UseState("");
     var assets = assetsQuery.Value ?? [];
-
-    // Grouping for Primary Chart (Category)
-    var categoryData = assets
-        .GroupBy(a => a.Category ?? "Uncategorized")
-        .Select(g => new CategoryRevenue(
-          g.Key,
-          (double)g.Sum(a => a.AmountGenerated)
-        ))
-        .ToList();
-
-    var categories = categoryData.Select(c => c.Category).OrderBy(c => c).ToList();
-    var selectedCategory = UseState(categories.FirstOrDefault() ?? "Uncategorized");
+    var totalRevenue = revenueQuery.Value;
+    var activities = activityQuery.Value ?? [];
 
     var headerCard = new Card(
         Layout.Vertical().Gap(10)
@@ -44,56 +42,106 @@ public class DashboardApp : ViewBase
                          DropDownMenu.DefaultSelectHandler(),
                          new Button("Actions").Variant(ButtonVariant.Outline)
                      )
-                     | MenuItem.Default("Refresh").HandleSelect(() => assetsQuery.Mutator.Revalidate())
+                     | MenuItem.Default("Refresh All").HandleSelect(() =>
+                     {
+                       assetsQuery.Mutator.Revalidate();
+                       revenueQuery.Mutator.Revalidate();
+                       activityQuery.Mutator.Revalidate();
+                       client.Toast("Dashboard data refreshed");
+                     })
                  )
             )
-            .Add(Layout.Horizontal().Width(Size.Full()).Gap(10)
-                 .Add(searchQuery.ToTextInput().Placeholder("Search dashboard...").Width(300))
+            .Add(Layout.Horizontal().Gap(2).Padding(0, 0, 10, 0)
+                | tabs.Select((tab, index) =>
+                    new Button(tab, _ => selectedTab.Set(index))
+                        .Variant(selectedTab.Value == index ? ButtonVariant.Primary : ButtonVariant.Ghost)
+                )
             )
     );
 
-    // Filtering for Secondary Chart (Asset breakdown for selected category)
-    var assetBreakdown = assets
-        .Where(a => (a.Category ?? "Uncategorized") == selectedCategory.Value)
-        .Select(a => new AssetRevenueItem(
-          a.Name,
-          (double)a.AmountGenerated
-        ))
-        .ToList();
+    // --- Tab Views ---
 
-    var content = Layout.Vertical().Height(Size.Full()).Padding(20).Gap(20);
+    object OverviewTab() => Layout.Vertical().Gap(20)
+        .Add(Layout.Grid().Columns(3).Gap(20)
+            .Add(new Card(Layout.Center().Add(Text.H2(assets.Count.ToString()))).Title("Total Assets").Description("Number of tracked assets"))
+            .Add(new Card(Layout.Center().Add(Text.H2(totalRevenue?.Value ?? "$0.00"))).Title("Total Revenue").Description("Accumulated revenue across all sources"))
+            .Add(new Card(Layout.Center().Add(Text.H2(activities.Count.ToString()))).Title("Data Imports").Description("Number of successful data imports")))
+        .Add(new Card(Text.P("Welcome to your dashboard overview. Switch to the Analytics tab for detailed breakdowns.")).Title("Quick Start"));
 
-    if (assetsQuery.Loading)
+    object AnalyticsTab()
+    {
+      // Grouping for Primary Chart (Category)
+      var categoryData = assets
+          .GroupBy(a => a.Category ?? "Uncategorized")
+          .Select(g => new CategoryRevenue(
+            g.Key,
+            (double)g.Sum(a => a.AmountGenerated)
+          ))
+          .ToList();
+
+      var categories = categoryData.Select(c => c.Category).OrderBy(c => c).ToList();
+      var selectedCategory = UseState(categories.FirstOrDefault() ?? "Uncategorized");
+
+      // Filtering for Secondary Chart (Asset breakdown for selected category)
+      var assetBreakdown = assets
+          .Where(a => (a.Category ?? "Uncategorized") == selectedCategory.Value)
+          .Select(a => new AssetRevenueItem(
+            a.Name,
+            (double)a.AmountGenerated
+          ))
+          .ToList();
+
+      if (assets.Count == 0) return Layout.Center().Add(Text.Label("No asset data available to display."));
+
+      return Layout.Vertical().Gap(20)
+          .Add(Layout.Horizontal().Gap(20).Width(Size.Full())
+              .Add(new Card(
+                  categoryData.ToPieChart(
+                      e => e.Category,
+                      g => g.Sum(f => f.Amount))
+              ).Title("Revenue by Category").Description("Total revenue across all categories").Width(Size.Fraction(0.5f)))
+
+              .Add(new Card(
+                  assetBreakdown.ToPieChart(
+                      e => e.Asset,
+                      g => g.Sum(f => f.Amount))
+              ).Title($"{selectedCategory.Value} Breakdown").Description($"Revenue breakdown by asset in {selectedCategory.Value}").Width(Size.Fraction(0.5f)))
+          )
+          .Add(Layout.Horizontal().Align(Align.Center).Gap(10)
+              .Add(Text.Label("Select Category to Drill Down"))
+              .Add(selectedCategory.ToSelectInput(categories.ToOptions()).Width(300)));
+    }
+
+    object ActivityTab()
+    {
+      if (activities.Count == 0) return Layout.Center().Add(Text.Label("No recent activity found."));
+
+      return new Card(
+          activities.Select(a => new
+          {
+            Description = a.Description ?? "Untitled",
+            Source = a.Integration ?? "Manual",
+            Amount = a.Amount.ToString("C"),
+            Date = a.RevenueDate.ToShortDateString()
+          }).Take(10).ToArray().ToTable()
+      ).Title("Recent Data Imports").Description("Latest revenue entries added to the system.");
+    }
+
+    var content = Layout.Vertical().Height(Size.Full()).Padding(20);
+
+    if (assetsQuery.Loading || revenueQuery.Loading || activityQuery.Loading)
     {
       content.Add(Layout.Center().Add(Text.Label("Loading dashboard data...")));
     }
-    else if (assets.Count == 0)
-    {
-      content.Add(Layout.Center().Add(Text.Label("No asset data available to display.")));
-    }
     else
     {
-      content.Add(
-          new Card(
-              Layout.Vertical().Gap(10).Padding(2)
-                .Add(Layout.Horizontal().Gap(20).Width(Size.Full())
-                    .Add(Layout.Vertical().Gap(10).Width(Size.Fraction(0.5f)).Align(Align.Center)
-                        .Add(Text.H5("Total Revenue by Category"))
-                        .Add(categoryData.ToPieChart(
-                            e => e.Category,
-                            e => e.Sum(f => f.Amount))))
-
-                    .Add(Layout.Vertical().Gap(10).Width(Size.Fraction(0.5f)).Align(Align.Center)
-                        .Add(Text.H5($"{selectedCategory.Value} Asset Breakdown"))
-                        .Add(assetBreakdown.ToPieChart(
-                            e => e.Asset,
-                            e => e.Sum(f => f.Amount))))
-                )
-                .Add(Layout.Vertical().Gap(10).Align(Align.Center)
-                    .Add(Text.Muted("Select Category to Drill Down").Small())
-                    .Add(selectedCategory.ToSelectInput(categories.ToOptions()).Width(100)))
-          ).Title("Revenue Drilldown").Description("Analyze revenue by category and deep-dive into individual assets.")
-      );
+      content.Add(selectedTab.Value switch
+      {
+        0 => OverviewTab(),
+        1 => AnalyticsTab(),
+        2 => ActivityTab(),
+        _ => OverviewTab()
+      });
     }
 
     return new HeaderLayout(headerCard, content);
