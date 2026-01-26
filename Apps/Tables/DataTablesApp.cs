@@ -136,7 +136,7 @@ public class DataTablesApp : ViewBase
     var headerCard = new Card(
         Layout.Vertical().Gap(10)
             .Add(Layout.Horizontal().Align(Align.Center).Width(Size.Full())
-                 .Add(Text.H4("Data Tables"))
+                 .Add(Text.H1("Data Tables"))
                  .Add(new Spacer().Width(Size.Fraction(1)))
                  .Add(new Button("Import Data", () => showImportSheet.Set(true))
                      .Icon(Icons.FileUp)

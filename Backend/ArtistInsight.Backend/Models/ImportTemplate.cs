@@ -30,6 +30,7 @@ public partial class ImportTemplate
   public string? GrossColumn { get; set; }
   public string? NetColumn { get; set; }
   public string? CurrencyColumn { get; set; }
+  public string? AssetTypeColumn { get; set; }
 
   public List<string> GetHeaders()
   {

@@ -40,6 +40,7 @@ public class TemplateCreatorSheet(CurrentFile? file, Action onSuccess, Action on
                     ("TransactionId", "Transaction ID"),
                     ("SourcePlatform", "Source Platform"),
                     ("Category", "Category"),
+                    ("AssetType", "Asset Type (Collection Type)"),
                     ("Territory", "Territory/Region")
                 }
             },
@@ -194,6 +195,7 @@ public class TemplateCreatorSheet(CurrentFile? file, Action onSuccess, Action on
                   CollectionColumn = getHeader("Collection"),
                   GrossColumn = getHeader("Gross"),
                   CurrencyColumn = getHeader("Currency"),
+                  AssetTypeColumn = getHeader("AssetType"),
                   TerritoryColumn = getHeader("Territory"),
                   LabelColumn = getHeader("Label"),
                   ArtistColumn = getHeader("Artist"),

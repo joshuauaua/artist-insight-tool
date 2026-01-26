@@ -130,7 +130,7 @@ public class RevenueTableView : ViewBase
     var headerCard = new Card(
         Layout.Vertical().Gap(10)
             .Add(Layout.Horizontal().Align(Align.Center).Width(Size.Full())
-                 .Add(Text.H4("Revenue Streams"))
+                 .Add(Text.H1("Revenue Streams"))
                  .Add(new Spacer().Width(Size.Fraction(1)))
                  .Add(new Button("Create Entry", () => showCreateSheet.Set(true))
                     .Icon(Icons.Plus)

@@ -70,7 +70,7 @@ public class TemplatesApp : ViewBase
     var headerCard = new Card(
         Layout.Vertical().Gap(10)
             .Add(Layout.Horizontal().Align(Align.Center).Width(Size.Full())
-                 .Add(Text.H4("Templates Table"))
+                 .Add(Text.H1("Templates Table"))
                  .Add(new Spacer().Width(Size.Fraction(1)))
                  .Add(new DropDownMenu(
                          DropDownMenu.DefaultSelectHandler(),

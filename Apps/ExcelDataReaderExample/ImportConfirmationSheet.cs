@@ -160,19 +160,37 @@ public class ImportConfirmationSheet(List<CurrentFile> files, Action onSuccess, 
                    var existingAssets = await db.Assets.Where(a => names.Contains(a.Name)).ToListAsync();
                    var existingNames = existingAssets.Select(a => a.Name).ToHashSet();
                    var newAssets = names.Where(n => !existingNames.Contains(n))
-                                            .Select(n => new Asset
+                                            .Select(n =>
                                             {
-                                              Name = n,
-                                              Type = tmpl.Category switch
+                                              var type = "";
+                                              if (!string.IsNullOrEmpty(tmpl.AssetTypeColumn))
                                               {
-                                                "Royalties" => "Single",
-                                                "Merchandise" => "Single Item",
-                                                "Concerts" => "Ticket Sales",
-                                                _ => "Default"
-                                              },
-                                              Category = tmpl.Category,
-                                              Collection = assetCollections.GetValueOrDefault(n) ?? "",
-                                              AmountGenerated = 0
+                                                var rowWithAsset = jsonData.FirstOrDefault(r => r.GetValueOrDefault(assetCol)?.ToString()?.Trim() == n);
+                                                if (rowWithAsset != null && rowWithAsset.TryGetValue(tmpl.AssetTypeColumn, out var typeObj))
+                                                {
+                                                  type = typeObj?.ToString()?.Trim() ?? "";
+                                                }
+                                              }
+
+                                              if (string.IsNullOrEmpty(type))
+                                              {
+                                                type = tmpl.Category switch
+                                                {
+                                                  "Royalties" => "Single",
+                                                  "Merchandise" => "Single Item",
+                                                  "Concerts" => "Ticket Sales",
+                                                  _ => "Default"
+                                                };
+                                              }
+
+                                              return new Asset
+                                              {
+                                                Name = n,
+                                                Type = type,
+                                                Category = tmpl.Category,
+                                                Collection = assetCollections.GetValueOrDefault(n) ?? "",
+                                                AmountGenerated = 0
+                                              };
                                             })
                                             .ToList();
 
