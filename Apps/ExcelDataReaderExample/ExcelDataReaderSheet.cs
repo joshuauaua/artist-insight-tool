@@ -74,74 +74,12 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
     // var isNewTemplate = UseState(false); // Moved to CurrentFile
     // var parsedData = UseState<List<Dictionary<string, object?>>>([]); // Moved to CurrentFile
 
-    // --- Annex State ---
-    var annexEntries = UseState<List<RevenueEntry>>([]);
 
-    var annexSelectedId = UseState<int?>(() => null); // Bound to SelectInput
-    var annexTitle = UseState("");
 
     // --- Template Creation State ---
-    var newTemplateName = UseState("");
-    var newTemplateCategory = UseState("Merchandise");
-    var templateCreationStep = UseState(1);
 
-    // --- Mapping State (Redesign) ---
-    var selectedHeaderToMap = UseState<string?>(() => null);
-    var selectedFieldToMap = UseState<string?>(() => null);
-    var mappedPairs = UseState<List<(string Header, string FieldKey)>>(() => new());
 
-    var newTemplateAssetColumn = UseState<string?>(() => null);
 
-    var newTemplateAmountColumn = UseState<string?>(() => null);
-    var newTemplateCollectionColumn = UseState<string?>(() => null);
-    var newTemplateGrossColumn = UseState<string?>(() => null);
-
-    var newTemplateCurrencyColumn = UseState<string?>(() => null);
-
-    // New Mappings
-    var newTemplateTerritoryColumn = UseState<string?>(() => null);
-    var newTemplateLabelColumn = UseState<string?>(() => null);
-    var newTemplateArtistColumn = UseState<string?>(() => null);
-    var newTemplateStoreColumn = UseState<string?>(() => null);
-    var newTemplateDspColumn = UseState<string?>(() => null);
-    var newTemplateNetColumn = UseState<string?>(() => null);
-    var newTemplateTransactionDateColumn = UseState<string?>(() => null);
-    var newTemplateTransactionIdColumn = UseState<string?>(() => null);
-    var newTemplateSourcePlatformColumn = UseState<string?>(() => null);
-    var newTemplateCategoryColumn = UseState<string?>(() => null); // Global header Category
-    var newTemplateQuantityColumn = UseState<string?>(() => null);
-
-    // Category Specific
-    var newTemplateSkuColumn = UseState<string?>(() => null);
-    var newTemplateCustomerEmailColumn = UseState<string?>(() => null);
-    var newTemplateIsrcColumn = UseState<string?>(() => null);
-    var newTemplateUpcColumn = UseState<string?>(() => null);
-    var newTemplateVenueNameColumn = UseState<string?>(() => null);
-    var newTemplateEventStatusColumn = UseState<string?>(() => null);
-    var newTemplateTicketClassColumn = UseState<string?>(() => null);
-
-    var selectedFieldKeys = UseState<List<string>>(() => new List<string>());
-
-    // --- Upload/Save State ---
-    var uploadName = UseState("");
-    var uploadLinkId = UseState<int?>(() => null);
-
-    // --- Smart Naming State (Royalties) ---
-    var uploadYear = UseState(DateTime.Now.Year);
-    var uploadQuarter = UseState("Q1");
-
-    // Auto-name file based on Royalties selection
-    UseEffect(() =>
-    {
-      if (activeMode.Value == AnalyzerMode.Upload)
-      {
-        var firstT = filePaths.Value.FirstOrDefault()?.MatchedTemplate;
-        if (firstT?.Category == "Royalties")
-        {
-          uploadName.Set($"{uploadYear.Value} {uploadQuarter.Value} {firstT.Name}");
-        }
-      }
-    }, [activeMode, filePaths, uploadYear, uploadQuarter]);
 
     // --- Upload Logic ---
     var uploadState = UseState<FileUpload<byte[]>?>();
@@ -265,20 +203,7 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
       }
     }, [filePaths, templates]);
 
-    // Load Annex Entries only when in Annex Mode
-    UseEffect(() => Task.Run(async () =>
-    {
-      if (activeMode.Value == AnalyzerMode.Annex && annexEntries.Value.Count == 0)
-      {
-        await using var db = factory.CreateDbContext();
-        var results = await db.RevenueEntries
-               .Include(e => e.Source)
-               .OrderBy(e => e.Id)
-               .Take(1000)
-               .ToListAsync();
-        annexEntries.Set(results);
-      }
-    }), [activeMode]);
+
 
     // --- Helpers ---
 
@@ -353,12 +278,26 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
 
       if (activeMode.Value == AnalyzerMode.TemplateCreation)
       {
-        return new Sheet(
-            _ => activeMode.Set(AnalyzerMode.Home),
-            new FooterLayout(Layout.Horizontal(), RenderTemplateCreationContent()), // Simple footer or none? Content has buttons
-            "Create Import Template",
-            "Define how to import this file format."
-        ).Width(Size.Full());
+        var targetId = templateTargetFileId.Value;
+        var targetFile = filePaths.Value.FirstOrDefault(f => f.Id == targetId) ?? GetActiveFile();
+        return new TemplateCreatorSheet(
+            targetFile,
+            () =>
+            {
+              Task.Run(async () =>
+              {
+                try
+                {
+                  await using var db = factory.CreateDbContext();
+                  var loaded = await db.ImportTemplates.ToListAsync();
+                  templates.Set(loaded);
+                }
+                catch { }
+              });
+              activeMode.Set(AnalyzerMode.Home);
+            },
+            () => activeMode.Set(AnalyzerMode.Home)
+        );
       }
 
       var container = Layout.Vertical().Height(Size.Full()).Width(Size.Full()).Align(Align.Center).Padding(20);
@@ -394,7 +333,6 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
                 client.Toast("Templates missing for some files", "Warning");
                 return;
               }
-              uploadName.Set($"Batch Import {DateTime.Now}");
               activeMode.Set(AnalyzerMode.Upload);
             }).Variant(ButtonVariant.Primary))
         );
@@ -412,10 +350,10 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
              new DialogHeader(GetDialogTitle()),
              new DialogBody(
                   activeMode.Value == AnalyzerMode.Analysis ? RenderAnalysisContent() :
-                  activeMode.Value == AnalyzerMode.Annex ? RenderAnnexContent() :
+                  activeMode.Value == AnalyzerMode.Annex ? new AnnexSheet(GetActiveFile(), () => activeMode.Set(AnalyzerMode.Home)) :
                   activeMode.Value == AnalyzerMode.DataView ? RenderDataTableView() :
                   activeMode.Value == AnalyzerMode.Preview ? RenderPreviewContent() :
-                  activeMode.Value == AnalyzerMode.Upload ? RenderUploadContent() :
+                  activeMode.Value == AnalyzerMode.Upload ? new ImportConfirmationSheet(files.Where(f => f.Status == "Analyzed" && f.MatchedTemplate != null).ToList(), () => { filePaths.Set(new List<CurrentFile>()); activeMode.Set(AnalyzerMode.Home); }, () => activeMode.Set(AnalyzerMode.Home)) :
                   Text.Muted("Not implemented view")
              ),
              new DialogFooter()
@@ -460,350 +398,14 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
            );
     }
 
-    object RenderTemplateCreationContent()
-    {
-      var targetId = templateTargetFileId.Value;
-      var targetFile = filePaths.Value.FirstOrDefault(f => f.Id == targetId) ?? GetActiveFile(); // Fallback if null, though logical flow should prevent
-      var analysis = targetFile?.Analysis;
-      if (analysis?.Sheets.Count == 0) return Text.Muted("No sheets found in file.");
-      var headers = analysis!.Sheets[0].Headers;
-
-      var globalFields = new Dictionary<string, string>
-      {
-        { "TransactionDate", "Transaction Date" },
-        { "TransactionId", "Transaction ID" },
-        { "SourcePlatform", "Source Platform" },
-        { "Asset", "Asset Name (Item)" },
-        { "Collection", "Asset Group (Parent)" },
-        { "Category", "Category" },
-        { "Quantity", "Quantity" },
-        { "Gross", "Gross Revenue" },
-        { "Net", "Net Revenue" },
-        { "Currency", "Currency" },
-        { "Territory", "Territory/Region" }
-      };
-
-      var categoryFields = new Dictionary<string, Dictionary<string, string>>
-      {
-        { "Merchandise", new Dictionary<string, string> { { "Sku", "SKU" }, { "CustomerEmail", "Customer Email" }, { "Store", "Store" } } },
-        { "Royalties", new Dictionary<string, string> { { "Isrc", "ISRC" }, { "Upc", "UPC" }, { "Dsp", "DSP" }, { "Artist", "Artist" }, { "Label", "Label" } } },
-        { "Concerts", new Dictionary<string, string> { { "VenueName", "Venue Name" }, { "EventStatus", "Event Status" }, { "TicketClass", "Ticket Class" } } },
-        { "Other", new Dictionary<string, string>() }
-      };
-
-      if (templateCreationStep.Value == 1)
-      {
-        return Layout.Vertical().Gap(10).Width(Size.Full())
-            | Text.H4("Step 1: Template Details")
-            | Layout.Vertical().Gap(2)
-                | Text.Label("Template Name")
-                | newTemplateName.ToTextInput().Placeholder("e.g. Spotify Report")
-            | Layout.Vertical().Gap(2)
-                | Text.Label("Category")
-                | newTemplateCategory.ToSelectInput(new[] { "Merchandise", "Royalties", "Concerts", "Other" }.Select(c => new Option<string>(c, c)))
-            | Layout.Horizontal().Align(Align.Right).Padding(10, 0, 0, 0)
-                | new Button("Next", () =>
-                {
-                  if (string.IsNullOrWhiteSpace(newTemplateName.Value)) { client.Toast("Name required", "Warning"); return; }
-                  templateCreationStep.Set(2);
-                }).Variant(ButtonVariant.Primary).Icon(Icons.ArrowRight);
-      }
-      else
-      {
-        // Step 2: Mapping (Interactive Selection)
-        var allSystemFields = new Dictionary<string, string>(globalFields);
-        if (categoryFields.TryGetValue(newTemplateCategory.Value, out var extra))
-        {
-          foreach (var kv in extra) allSystemFields[kv.Key] = kv.Value;
-        }
-
-        var mapped = mappedPairs.Value; // List<(string Header, string FieldKey)>
-        var unmappedHeaders = headers.Where(h => !mapped.Any(m => m.Header == h)).ToList();
-
-        // Filter out system fields that are already mapped
-        var availableSystemFields = allSystemFields.Where(kv => !mapped.Any(m => m.FieldKey == kv.Key)).ToDictionary(k => k.Key, v => v.Value);
-
-        var globalSection = new[] { "Asset", "Category", "Gross", "Net", "TransactionDate" };
-        var codeSection = new[] { "Isrc", "Upc", "Sku", "TransactionId", "TicketClass" };
-
-        Func<string, string?> getHeader = k => mapped.FirstOrDefault(m => m.FieldKey == k).Header;
-
-        return Layout.Vertical().Gap(10).Width(Size.Full())
-            | Layout.Horizontal().Align(Align.Center)
-                | Text.H4("Step 2: Map Columns")
-
-            | Layout.Grid().Columns(2).Gap(20)
-                .Add(new Card(
-                    Layout.Vertical().Gap(5)
-                        .Add(Text.H5("1. Select File Header"))
-                        .Add(selectedHeaderToMap.ToSelectInput(unmappedHeaders.Select(h => new Option<string?>(h, h)))
-                            .Placeholder("Choose header..."))
-                ))
-                .Add(new Card(
-                    Layout.Vertical().Gap(5)
-                        .Add(Text.H5("2. Select System Field"))
-                        .Add(selectedFieldToMap.ToSelectInput(availableSystemFields.Select(kv => new Option<string?>(kv.Value, kv.Key)))
-                            .Placeholder("Choose field...")
-                            .Variant(SelectInputs.List)
-                            .Height(300))
-                ))
-
-            | Layout.Horizontal().Align(Align.Center).Padding(10)
-                | new Button("Confirm Mapping", () =>
-                {
-                  if (selectedHeaderToMap.Value != null && selectedFieldToMap.Value != null)
-                  {
-                    var list = mappedPairs.Value.ToList();
-                    list.Add((selectedHeaderToMap.Value, selectedFieldToMap.Value));
-                    mappedPairs.Set(_ => list);
-
-                    selectedHeaderToMap.Set((string?)null);
-                    selectedFieldToMap.Set((string?)null);
-                  }
-                }).Variant(ButtonVariant.Primary)
-                  .Disabled(selectedHeaderToMap.Value == null || selectedFieldToMap.Value == null)
-                  .Icon(Icons.Link)
-
-            | Text.H5("Mapped Columns")
-            | Layout.Vertical().Padding(15).Gap(5)
-                .Add(mapped.Count == 0 ?
-                    Layout.Horizontal().Align(Align.Center) | Text.Muted("No columns mapped yet.")
-                    :
-                    Layout.Vertical().Gap(5).Add(mapped.Select(m =>
-                        Layout.Horizontal().Gap(10).Align(Align.Center).Padding(5)
-                            | new Icon(Icons.Check).Size(16)
-                            | Text.Label($"{m.Header}")
-                            | new Icon(Icons.ArrowRight).Size(14)
-                            | Text.Label($"{allSystemFields.GetValueOrDefault(m.FieldKey, m.FieldKey)}")
-                            | Layout.Horizontal().Grow()
-                            | new Button("", () =>
-                            {
-                              var list = mappedPairs.Value.ToList();
-                              list.RemoveAll(x => x.Header == m.Header && x.FieldKey == m.FieldKey);
-                              mappedPairs.Set(_ => list);
-                            }).Variant(ButtonVariant.Ghost).Icon(Icons.Trash).Size(24)
-                    ).ToArray()))
-
-            | Layout.Horizontal().Gap(10).Align(Align.Right).Padding(10, 0, 0, 0)
-                | new Button("Back", () => templateCreationStep.Set(1)).Variant(ButtonVariant.Ghost).Icon(Icons.ArrowLeft)
-                | new Button("Save Template", async () =>
-                {
-                  await using var db = factory.CreateDbContext();
-                  var newT = new ImportTemplate
-                  {
-                    Name = newTemplateName.Value,
-                    Category = newTemplateCategory.Value,
-                    HeadersJson = JsonSerializer.Serialize(headers),
-
-                    // Global
-                    AssetColumn = getHeader("Asset"),
-                    AmountColumn = getHeader("Amount"),
-                    CollectionColumn = getHeader("Collection"),
-                    GrossColumn = getHeader("Gross"),
-                    CurrencyColumn = getHeader("Currency"),
-                    TerritoryColumn = getHeader("Territory"),
-                    LabelColumn = getHeader("Label"),
-                    ArtistColumn = getHeader("Artist"),
-                    StoreColumn = getHeader("Store"),
-                    DspColumn = getHeader("Dsp"),
-                    NetColumn = getHeader("Net") ?? getHeader("Amount"),
-
-                    TransactionDateColumn = getHeader("TransactionDate"),
-                    TransactionIdColumn = getHeader("TransactionId"),
-                    SourcePlatformColumn = getHeader("SourcePlatform"),
-                    CategoryColumn = getHeader("Category"),
-                    QuantityColumn = getHeader("Quantity"),
-
-                    // Category Specific
-                    SkuColumn = getHeader("Sku"),
-                    CustomerEmailColumn = getHeader("CustomerEmail"),
-                    IsrcColumn = getHeader("Isrc"),
-                    UpcColumn = getHeader("Upc"),
-                    VenueNameColumn = getHeader("VenueName"),
-                    EventStatusColumn = getHeader("EventStatus"),
-                    TicketClassColumn = getHeader("TicketClass"),
-
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
-                  };
-                  db.ImportTemplates.Add(newT);
-                  await db.SaveChangesAsync();
-
-                  var fresh = await db.ImportTemplates.ToListAsync();
-                  templates.Set(fresh);
-
-                  activeMode.Set(AnalyzerMode.Home);
-                  templateCreationStep.Set(1);
-                  mappedPairs.Set(_ => new());
-                  client.Toast("Template Created", "Success");
-                }).Variant(ButtonVariant.Primary)
-                  .Disabled(mapped.Count == 0);
-      }
-    }
 
 
 
 
 
 
-    object RenderAnnexContent()
-    {
-      var activeFile = GetActiveFile();
-      var tmpl = activeFile?.MatchedTemplate;
 
-      var options = annexEntries.Value.Select(e =>
-         new Option<int?>($"{e.Description ?? "No Name"} - {e.RevenueDate:MM/dd/yyyy} - {e.Source.DescriptionText} - {e.Amount:C}", e.Id)
-      ).ToList();
 
-      return Layout.Vertical().Gap(5).Width(Size.Full())
-           | new Button("Back", () => activeMode.Set(AnalyzerMode.Home)).Variant(ButtonVariant.Primary).Icon(Icons.ArrowLeft)
-           | Text.Muted("Attach the current file content to an existing Revenue Entry.")
-           | Layout.Vertical().Gap(5)
-               | Text.Label("Entry Title")
-               | annexTitle.ToTextInput().Placeholder("e.g. Q1 Royalty Statement")
-           | Layout.Vertical().Gap(5)
-               | Text.Label("Template Used")
-               | Text.Muted(tmpl?.Name ?? "Unknown")
-           | Layout.Vertical().Gap(5)
-               | "Target Entry"
-               | annexSelectedId.ToSelectInput(options).Placeholder("Search entry...")
-           | new Button("Attach Data", async () =>
-           {
-             if (annexSelectedId.Value == null) { client.Toast("Select an entry", "Warning"); return; }
-
-             // We only annex the FIRST/Active file for now
-             var data = ParseCurrentFile();
-             if (data.Count == 0) { client.Toast("No data to attach", "Warning"); return; }
-
-             await using var db = factory.CreateDbContext();
-             var entry = await db.RevenueEntries.FindAsync(annexSelectedId.Value);
-             if (entry != null)
-             {
-               // Load existing data
-               var existingSheets = new List<object>();
-               if (!string.IsNullOrEmpty(entry.JsonData))
-               {
-                 try
-                 {
-                   using var doc = JsonDocument.Parse(entry.JsonData);
-                   if (doc.RootElement.ValueKind == JsonValueKind.Array)
-                   {
-                     if (doc.RootElement.GetArrayLength() > 0)
-                     {
-                       var first = doc.RootElement[0];
-                       if (first.ValueKind == JsonValueKind.Object && first.TryGetProperty("FileName", out _))
-                       {
-                         existingSheets = JsonSerializer.Deserialize<List<object>>(entry.JsonData) ?? [];
-                       }
-                       else
-                       {
-                         var rows = JsonSerializer.Deserialize<List<Dictionary<string, object?>>>(entry.JsonData);
-                         existingSheets.Add(new { Title = "Legacy Data", FileName = "Legacy", TemplateName = "Unknown", Rows = rows });
-                       }
-                     }
-                   }
-                   else if (doc.RootElement.ValueKind == JsonValueKind.Object)
-                   {
-                     var obj = JsonSerializer.Deserialize<object>(entry.JsonData);
-                     if (obj != null) existingSheets.Add(obj);
-                   }
-                 }
-                 catch { }
-               }
-
-               // Append new sheet
-               var payload = new
-               {
-                 Title = annexTitle.Value,
-                 FileName = activeFile?.Analysis?.FileName ?? "Unknown File",
-                 TemplateName = tmpl?.Name ?? "Unknown Template",
-                 Rows = data
-               };
-               existingSheets.Add(payload);
-
-               entry.JsonData = JsonSerializer.Serialize(existingSheets);
-
-               // --- Asset Extraction Logic ---
-               if (tmpl != null && !string.IsNullOrEmpty(tmpl.AssetColumn) && !string.IsNullOrEmpty(tmpl.AmountColumn))
-               {
-                 try
-                 {
-                   var assetCol = tmpl.AssetColumn;
-                   var amountCol = tmpl.AmountColumn;
-                   var collectionCol = tmpl.CollectionColumn;
-
-                   var batchAssets = new Dictionary<string, decimal>();
-                   var assetCollections = new Dictionary<string, string>();
-
-                   foreach (var row in data)
-                   {
-                     if (row.TryGetValue(assetCol, out var nameObj) && row.TryGetValue(amountCol, out var amountObj))
-                     {
-                       var name = nameObj?.ToString()?.Trim();
-                       if (!string.IsNullOrEmpty(name) && decimal.TryParse(amountObj?.ToString(), out var amount))
-                       {
-                         if (!batchAssets.ContainsKey(name))
-                         {
-                           batchAssets[name] = 0;
-                           if (!string.IsNullOrEmpty(collectionCol) && row.TryGetValue(collectionCol, out var colObj))
-                           {
-                             var colStr = colObj?.ToString()?.Trim();
-                             if (!string.IsNullOrEmpty(colStr)) assetCollections[name] = colStr;
-                           }
-                         }
-                         batchAssets[name] += amount;
-                       }
-                     }
-                   }
-
-                   if (batchAssets.Count > 0)
-                   {
-                     var names = batchAssets.Keys.ToList();
-                     var existingAssets = await db.Assets.Where(a => names.Contains(a.Name)).ToListAsync();
-                     var existingNames = existingAssets.Select(a => a.Name).ToHashSet();
-
-                     var newAssets = names.Where(n => !existingNames.Contains(n))
-                                          .Select(n => new Asset
-                                          {
-                                            Name = n,
-                                            Type = "Unknown",
-                                            Category = tmpl.Category,
-                                            Collection = assetCollections.GetValueOrDefault(n) ?? "",
-                                            AmountGenerated = 0
-                                          })
-                                          .ToList();
-
-                     if (newAssets.Count > 0)
-                     {
-                       db.Assets.AddRange(newAssets);
-                       await db.SaveChangesAsync();
-                       existingAssets.AddRange(newAssets);
-                     }
-
-                     var assetMap = existingAssets.ToDictionary(a => a.Name, a => a.Id);
-                     var revenueRecords = batchAssets.Select(kvp => new AssetRevenue
-                     {
-                       AssetId = assetMap[kvp.Key],
-                       RevenueEntry = entry,
-                       Amount = kvp.Value
-                     });
-
-                     db.AssetRevenues.AddRange(revenueRecords);
-                   }
-                 }
-                 catch (Exception ex)
-                 {
-                   client.Toast($"Asset extraction failed: {ex.Message}", "Error");
-                 }
-               }
-
-               await db.SaveChangesAsync();
-               client.Toast($"Annexed to {entry.Description}", "Success");
-               activeMode.Set(AnalyzerMode.Home);
-               annexTitle.Set("");
-             }
-           }).Variant(ButtonVariant.Primary).Disabled(annexSelectedId.Value == null);
-    }
 
 
     object RenderDataTableView(bool isEmbedded = false)
@@ -878,172 +480,7 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
           | RenderDataTableView(true);
     }
 
-    object RenderUploadContent()
-    {
-      var files = filePaths.Value.Where(f => f.Status == "Analyzed" && f.MatchedTemplate != null).ToList();
-      if (files.Count == 0) return Text.Muted("No valid files to import.");
 
-      return Layout.Vertical().Gap(20).Width(Size.Full())
-           | Layout.Horizontal().Gap(10).Align(Align.Center)
-               | new Button("Back", () => activeMode.Set(AnalyzerMode.Home)).Variant(ButtonVariant.Link).Icon(Icons.ArrowLeft)
-               | Text.H4("Confirm Import")
-           | Text.Label($"Ready to import {files.Count} files.")
-           | Layout.Vertical().Gap(5).Add(files.Select(f => Text.Muted($"• {f.OriginalName} ({f.MatchedTemplate?.Name})")).ToArray())
-           | Layout.Vertical().Gap(10)
-               | Text.Label("Batch Name (Revenue Entry Description)")
-               | uploadName.ToTextInput().Placeholder("e.g. 2024 Q1 Royalties")
-           | Layout.Vertical().Gap(10)
-               | "Smart Naming (Royalties)"
-               | Layout.Horizontal().Gap(10)
-                   | uploadYear.ToSelectInput(Enumerable.Range(2020, 10).Select(y => new Option<int>(y.ToString(), y))).Width(100)
-                   | uploadQuarter.ToSelectInput(new[] { "Q1", "Q2", "Q3", "Q4" }.Select(q => new Option<string>(q, q))).Width(100)
-           | new Button("Import Data", async () =>
-           {
-             if (string.IsNullOrWhiteSpace(uploadName.Value)) { client.Toast("Name required", "Warning"); return; }
-
-             await using var db = factory.CreateDbContext();
-
-             foreach (var file in files)
-             {
-               var jsonData = ParseFileRows(file);
-
-               // Try to resolve source
-               RevenueSource? source = await db.RevenueSources.FirstOrDefaultAsync(s => s.DescriptionText == "Excel Import");
-               if (source == null)
-               {
-                 source = new RevenueSource { DescriptionText = "Excel Import" };
-                 db.RevenueSources.Add(source);
-                 await db.SaveChangesAsync();
-               }
-
-               // Ensure at least one artist exists
-               var artist = await db.Artists.FirstOrDefaultAsync();
-               if (artist == null)
-               {
-                 artist = new Artist { Name = "Unknown Artist", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
-                 db.Artists.Add(artist);
-                 await db.SaveChangesAsync();
-               }
-
-               var sheetData = new
-               {
-                 Title = "Main Data",
-                 FileName = file.OriginalName,
-                 TemplateName = file.MatchedTemplate?.Name ?? "Unknown",
-                 Rows = jsonData
-               };
-
-               var entry = new RevenueEntry
-               {
-                 RevenueDate = DateTime.Now,
-                 Description = $"{uploadName.Value} - {file.OriginalName}",
-                 Amount = 0,
-                 SourceId = source.Id,
-                 ArtistId = artist.Id,
-                 CreatedAt = DateTime.UtcNow,
-                 UpdatedAt = DateTime.UtcNow,
-                 JsonData = JsonSerializer.Serialize(new[] { sheetData })
-               };
-
-               var tmpl = file.MatchedTemplate!;
-               decimal totalAmount = 0;
-               if (!string.IsNullOrEmpty(tmpl.AmountColumn))
-               {
-                 foreach (var row in jsonData)
-                 {
-                   if (row.TryGetValue(tmpl.AmountColumn, out var val) && decimal.TryParse(val?.ToString(), out var d))
-                     totalAmount += d;
-                 }
-               }
-               entry.Amount = totalAmount;
-
-               if (tmpl.Category == "Royalties")
-               {
-                 entry.Year = uploadYear.Value;
-                 entry.Quarter = uploadQuarter.Value;
-               }
-               entry.ImportTemplateId = tmpl.Id;
-               entry.FileName = file.OriginalName;
-
-               db.RevenueEntries.Add(entry);
-               await db.SaveChangesAsync(); // Save to get ID
-
-               // Asset Logic
-               if (!string.IsNullOrEmpty(tmpl.AssetColumn))
-               {
-                 try
-                 {
-                   var assetCol = tmpl.AssetColumn;
-                   var amountCol = tmpl.AmountColumn; // Net
-                   var collectionCol = tmpl.CollectionColumn;
-                   var batchAssets = new Dictionary<string, decimal>();
-                   var assetCollections = new Dictionary<string, string>();
-
-                   foreach (var row in jsonData)
-                   {
-                     if (row.TryGetValue(assetCol, out var nameObj) && row.TryGetValue(amountCol, out var amountObj))
-                     {
-                       var name = nameObj?.ToString()?.Trim();
-                       if (!string.IsNullOrEmpty(name) && decimal.TryParse(amountObj?.ToString(), out var amount))
-                       {
-                         if (!batchAssets.ContainsKey(name))
-                         {
-                           batchAssets[name] = 0;
-                           if (!string.IsNullOrEmpty(collectionCol) && row.TryGetValue(collectionCol, out var colObj))
-                           {
-                             var colStr = colObj?.ToString()?.Trim();
-                             if (!string.IsNullOrEmpty(colStr)) assetCollections[name] = colStr;
-                           }
-                         }
-                         batchAssets[name] += amount;
-                       }
-                     }
-                   }
-
-                   if (batchAssets.Count > 0)
-                   {
-                     var names = batchAssets.Keys.ToList();
-                     var existingAssets = await db.Assets.Where(a => names.Contains(a.Name)).ToListAsync();
-                     var existingNames = existingAssets.Select(a => a.Name).ToHashSet();
-                     var newAssets = names.Where(n => !existingNames.Contains(n))
-                                          .Select(n => new Asset
-                                          {
-                                            Name = n,
-                                            Type = "Unknown",
-                                            Category = tmpl.Category,
-                                            Collection = assetCollections.GetValueOrDefault(n) ?? "",
-                                            AmountGenerated = 0
-                                          })
-                                          .ToList();
-
-                     if (newAssets.Count > 0)
-                     {
-                       db.Assets.AddRange(newAssets);
-                       await db.SaveChangesAsync();
-                       existingAssets.AddRange(newAssets);
-                     }
-
-                     var assetMap = existingAssets.ToDictionary(a => a.Name, a => a.Id);
-                     var revenueRecords = batchAssets.Select(kvp => new AssetRevenue
-                     {
-                       AssetId = assetMap[kvp.Key],
-                       RevenueEntry = entry,
-                       Amount = kvp.Value
-                     });
-                     db.AssetRevenues.AddRange(revenueRecords);
-                   }
-                 }
-                 catch { }
-               }
-             }
-
-             await db.SaveChangesAsync();
-             client.Toast($"Imported {files.Count} files", "Success");
-             activeMode.Set(AnalyzerMode.Home);
-             filePaths.Set(new List<CurrentFile>());
-             _onClose();
-           }).Variant(ButtonVariant.Primary).Width(Size.Full());
-    }
 
     // --- Main Build ---
     return activeMode.Value switch
@@ -1059,7 +496,7 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
   }
 
   // --- Parsing & Analysis Helpers ---
-  private List<Dictionary<string, object?>> ParseData(string filePath, ImportTemplate template)
+  public static List<Dictionary<string, object?>> ParseData(string filePath, ImportTemplate template)
   {
     var results = new List<Dictionary<string, object?>>();
     var headers = template.GetHeaders();
