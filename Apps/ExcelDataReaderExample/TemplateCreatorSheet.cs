@@ -118,32 +118,36 @@ public class TemplateCreatorSheet(CurrentFile? file, Action onSuccess, Action on
       var allFieldsMap = new Dictionary<string, string>();
       foreach (var g in activeGroups) foreach (var f in g.Value) allFieldsMap[f.Key] = f.Label;
 
-      var systemFieldLayout = Layout.Vertical().Gap(15);
+      var allUnmappedOptions = new List<Option<string?>>();
       foreach (var group in activeGroups)
       {
         var unmappedInGroup = group.Value.Where(f => !mapped.Any(m => m.FieldKey == f.Key)).ToList();
         if (unmappedInGroup.Count == 0) continue;
 
-        systemFieldLayout
-          .Add(Text.Muted(group.Key.ToUpper()))
-          .Add(selectedFieldToMap.ToSelectInput(unmappedInGroup.Select(f => new Option<string?>(f.Label, f.Key)))
-              .Variant(SelectInputs.Toggle));
+        // Add a header/separator if supported or just add all with a label prefix if needed
+        // For now, let's just add all and see if we can use a single SelectInput
+        foreach (var field in unmappedInGroup)
+        {
+          allUnmappedOptions.Add(new Option<string?>(field.Label, field.Key, group.Key));
+        }
       }
 
       content
           .Add(Layout.Horizontal().Align(Align.Center).Add(Text.H4("Step 2: Map Columns")))
-          .Add(Layout.Grid().Columns(2).Gap(20)
+          .Add(Layout.Horizontal().Gap(20).Width(Size.Full())
               .Add(new Card(
-                  Layout.Vertical().Gap(10)
+                  Layout.Vertical().Gap(5)
                       .Add(Text.H5("1. Select File Header"))
                       .Add(selectedHeaderToMap.ToSelectInput(unmappedHeaders.Select(h => new Option<string?>(h, h)))
-                          .Variant(SelectInputs.Toggle))
-              ))
+                          .Variant(SelectInputs.List))
+              ).Width(Size.Fraction(0.5f)))
               .Add(new Card(
-                  Layout.Vertical().Gap(10)
+                  Layout.Vertical().Gap(5)
                       .Add(Text.H5("2. Select System Field"))
-                      .Add(systemFieldLayout)
-              ))
+                      .Add(selectedFieldToMap.ToSelectInput(allUnmappedOptions)
+                          .Variant(SelectInputs.Select)
+                          .Placeholder("Choose system field..."))
+              ).Width(Size.Fraction(0.5f)))
           )
           .Add(Layout.Horizontal().Align(Align.Center).Padding(10)
               .Add(new Button("Confirm Mapping", () =>

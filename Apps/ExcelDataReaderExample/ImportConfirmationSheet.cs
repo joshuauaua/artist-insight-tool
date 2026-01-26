@@ -79,12 +79,12 @@ public class ImportConfirmationSheet(List<CurrentFile> files, Action onSuccess, 
                await db.SaveChangesAsync();
              }
 
-             var sheetData = new
+             var sheetData = new Dictionary<string, object?>
              {
-               Title = "Main Data",
-               FileName = file.OriginalName,
-               TemplateName = file.MatchedTemplate?.Name ?? "Unknown",
-               Rows = jsonData
+               ["Title"] = "Main Data",
+               ["FileName"] = file.OriginalName,
+               ["TemplateName"] = file.MatchedTemplate?.Name ?? "Unknown",
+               ["Rows"] = jsonData
              };
 
              var entry = new RevenueEntry
