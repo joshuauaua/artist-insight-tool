@@ -16,7 +16,7 @@ using Ivy.Hooks;
 
 namespace ArtistInsightTool.Apps.Tables;
 
-[App(icon: Icons.Table, title: "Assets Table", path: ["Tables"])]
+// [App(icon: Icons.Table, title: "Assets Table", path: ["Tables"])]
 public class AssetsTableApp : ViewBase
 {
   public override object Build()

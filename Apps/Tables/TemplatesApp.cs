@@ -8,7 +8,7 @@ using Ivy.Hooks;
 
 namespace ArtistInsightTool.Apps.Tables;
 
-[App(icon: Icons.Sheet, title: "Templates Table", path: ["Tables"])]
+// [App(icon: Icons.Sheet, title: "Templates Table", path: ["Tables"])]
 public class TemplatesApp : ViewBase
 {
   // Define Table Item

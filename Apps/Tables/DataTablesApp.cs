@@ -10,7 +10,7 @@ using ArtistInsightTool.Apps.Services;
 
 namespace ArtistInsightTool.Apps.Tables;
 
-[App(icon: Icons.Database, title: "Data Tables", path: ["Tables"])]
+// [App(icon: Icons.Database, title: "Data Tables", path: ["Tables"])]
 public class DataTablesApp : ViewBase
 {
   public record TableItem(int RealId, string Id, string Name, string Template, string Date);
