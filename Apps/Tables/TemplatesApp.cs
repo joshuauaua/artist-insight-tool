@@ -45,6 +45,7 @@ public class TemplatesApp : ViewBase
 
     // Sheet State
     var editId = UseState<int?>(() => null);
+    var viewTemplateId = UseState<int?>(() => null);
     var showCreate = UseState(false);
     var showImportExcel = UseState(false);
 
@@ -59,7 +60,7 @@ public class TemplatesApp : ViewBase
     // Table Data
     var tableData = filteredItems.Select(t => new
     {
-      IdButton = new Button(t.Id, () => { }).Variant(ButtonVariant.Ghost),
+      IdButton = new Button(t.Id, () => viewTemplateId.Set(t.RealId)).Variant(ButtonVariant.Ghost),
       t.Name,
       t.Source,
       t.Category,
@@ -94,6 +95,10 @@ public class TemplatesApp : ViewBase
     if (editId.Value != null)
     {
       sheets = new TemplateEditSheet(() => editId.Set((int?)null), editId.Value.Value, client);
+    }
+    else if (viewTemplateId.Value != null)
+    {
+      sheets = new TemplateDataViewSheet(viewTemplateId.Value.Value, () => viewTemplateId.Set((int?)null));
     }
     else if (showCreate.Value)
     {

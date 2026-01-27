@@ -28,7 +28,7 @@ public class DashboardApp : ViewBase
   public record RevenueRow(object Id, string Date, string Name, string Type, string Source, string Amount);
   public record AssetRow(object Id, string Name, string? Category, string? Type, string Amount, object Actions);
   public record DataTableRow(object Id, string Name, string Template, string Period, string UploadDate, object Actions);
-  public record TemplateRow(string Id, string Name, string Source, string Category, int Linked, object Actions);
+  public record TemplateRow(object Id, string Name, string Source, string Category, int Linked, object Actions);
 
   public override object Build()
   {
@@ -134,12 +134,12 @@ public class DashboardApp : ViewBase
     {
       body.Add(selectedTab.Value switch
       {
-        0 => RenderOverview(overviewCards, assets, totalRevenue, revenueEntries, selectedDialog),
+        0 => RenderOverview(showImportSheet, overviewCards, assets, totalRevenue, revenueEntries, selectedDialog),
         1 => RenderAssets(assets, globalSearch, selectedDialog, assetsQuery, service, selectedCategory, categories, revenueEntries),
         2 => RenderRevenue(revenueEntries, globalSearch, selectedDialog, revenueQuery),
         3 => RenderDataTables(revenueEntries, globalSearch, selectedDialog, revenueQuery, service),
         4 => RenderTemplates(templatesData, globalSearch, selectedDialog, tmplQuery, service, client),
-        _ => RenderOverview(overviewCards, assets, totalRevenue, revenueEntries, selectedDialog)
+        _ => RenderOverview(showImportSheet, overviewCards, assets, totalRevenue, revenueEntries, selectedDialog)
       });
     }
 
@@ -151,7 +151,7 @@ public class DashboardApp : ViewBase
   // Kanban State Record
   public record CardState(string Id, string Title, string Column, int Order, int Type); // Type: 0=QuickStart, 1=Assets, 2=Revenue, 3=Imports, 4=Placeholder
 
-  private object RenderOverview(IState<List<CardState>> cardStates, List<Asset> assets, MetricDto? totalRevenue, List<RevenueEntryDto> revenueEntries, IState<object?> selectedDialog)
+  private object RenderOverview(IState<bool> showImportSheet, IState<List<CardState>> cardStates, List<Asset> assets, MetricDto? totalRevenue, List<RevenueEntryDto> revenueEntries, IState<object?> selectedDialog)
   {
     return cardStates.Value
         .ToKanban(
@@ -166,17 +166,15 @@ public class DashboardApp : ViewBase
           var content = c.Type switch
           {
             0 => new Card(
-                Layout.Vertical().Gap(5).Padding(10).Align(Align.Center)
-                    .Add(Text.H4(c.Title)) // Centered Title
-                    .Add(Layout.Vertical().Gap(4).Padding(10, 10, 10, 10).Align(Align.Left) // Left aligned content
-                        .Add(Text.Label("Use the 'Uploads' tab to begin importing your data").Small())
-                        .Add(Text.Label("Manage your products in 'Assets'").Small())
-                        .Add(Text.Label("Customize your experience in Overview").Small())
-                    )
-            )
-            .BorderThickness(1)
-            .BorderStyle(BorderStyle.Dashed)
-            .BorderColor(Colors.Primary),
+                "Use the 'Uploads' tab to begin importing your data. Manage your products in 'Assets', and customize your experience in Overview.",
+                new Button("Get Started", _ => showImportSheet.Set(true))
+            ).Title("Get Started")
+             .Description("Build your catalog and start tracking your revenue.")
+             .BorderThickness(1)
+             .BorderStyle(BorderStyle.Dashed)
+             .BorderColor(Colors.Primary)
+             .BorderRadius(BorderRadius.Rounded)
+             .Width(Size.Fraction(1.0f)),
 
             1 => new Card(
                 Layout.Vertical().Gap(10).Padding(10).Align(Align.Center) // Symmetrical padding
@@ -406,7 +404,8 @@ public class DashboardApp : ViewBase
     var filtered = templates.Where(t => string.IsNullOrWhiteSpace(search.Value) || t.Name.Contains(search.Value, StringComparison.OrdinalIgnoreCase)).ToList();
     return Layout.Vertical().Gap(20)
         .Add(filtered.Select(t => new TemplateRow(
-            $"T{t.RealId:D3}", t.Name, t.Source, t.Category, t.Files,
+            new Button($"T{t.RealId:D3}", () => dialog.Set(new TemplateDataViewSheet(t.RealId, () => dialog.Set((object?)null)))).Variant(ButtonVariant.Ghost),
+            t.Name, t.Source, t.Category, t.Files,
             Layout.Horizontal().Gap(5)
                 .Add(new Button("", () => dialog.Set(new TemplateEditSheet(() => { dialog.Set((object?)null); query.Mutator.Revalidate(); }, t.RealId, client))).Icon(Icons.Pencil).Variant(ButtonVariant.Ghost))
                 .Add(new Button("", () => dialog.Set(new Dialog(_ => { dialog.Set((object?)null); return ValueTask.CompletedTask; }, new DialogHeader("Delete Template"), new DialogBody(Text.Label($"Delete {t.Name}?")), new DialogFooter(new Button("Cancel", () => dialog.Set((object?)null)), new Button("Delete", async () => { await service.DeleteTemplateAsync(t.RealId); dialog.Set((object?)null); query.Mutator.Revalidate(); }).Variant(ButtonVariant.Destructive))))).Icon(Icons.Trash).Variant(ButtonVariant.Ghost))
