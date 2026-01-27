@@ -308,7 +308,12 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
         );
       }
 
-      var container = Layout.Vertical().Height(Size.Full()).Width(Size.Full()).Padding(10, 20, 10, 20);
+      var contentHeader = Layout.Vertical().Align(Align.Center).Gap(5).Width(Size.Full())
+          .Add(Text.H3("Import Data"))
+          .Add(Text.Label("Upload and process multiple financial data files.").Muted())
+          .Add(new Spacer().Height(20));
+
+      var container = Layout.Vertical().Height(Size.Full()).Width(Size.Full()).Padding(10, 20, 10, 20).Add(contentHeader);
       var mainSplit = Layout.Horizontal().Gap(40).Width(Size.Full()).Grow();
 
       // Left Pane: Controls
@@ -316,8 +321,7 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
       leftPane.Add(new Card(
           Layout.Vertical().Gap(15).Align(Align.Center).Padding(5, 20, 15, 20)
               .Add(Layout.Vertical().Gap(5).Align(Align.Center)
-                  .Add(new Icon(Icons.Sheet).Size(48))
-                  .Add(Text.H4("Import Data")))
+                  .Add(new Icon(Icons.Sheet).Size(48)))
               .Add(uploadState.ToFileInput(uploadContext).Placeholder("Select Files").Width(Size.Full()))
               .Add(isProcessing ? Layout.Horizontal().Align(Align.Center).Add(Text.Label("Processing...")) : null)
       ).Width(Size.Full()));
@@ -406,8 +410,8 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
       return new Sheet(
           _ => { _onClose(); return ValueTask.CompletedTask; },
           container,
-          "Import Data",
-          "Upload and process multiple financial data files."
+          "",
+          ""
       ).Width(Size.Full());
     }
 
@@ -416,29 +420,36 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
       var fa = GetActiveFile()?.Analysis;
       if (fa == null) return Text.Muted("No analysis available.");
 
-      return Layout.Vertical().Gap(10).Width(Size.Full())
+      var contentHeader = Layout.Vertical().Align(Align.Center).Gap(5).Width(Size.Full())
+        .Add(Text.H3("Annex Data"))
+        .Add(Text.Label("Attach this file to an existing entry.").Muted())
+        .Add(new Spacer().Height(10));
+
+      var content = Layout.Vertical().Gap(5).Width(Size.Full()).Add(contentHeader)
            .Add(new Button("Back", () => activeMode.Set(AnalyzerMode.Home)).Variant(ButtonVariant.Link).Icon(Icons.ArrowLeft))
-           .Add(new Markdown($"""                                
+           .Add(new Markdown($"""
                                  | Property | Value |
                                  |----------|-------|
                                  | **File name** | `{fa.FileName}` |
                                  | **Type** | `{fa.FileType}` |
                                  | **Size** | `{FormatFileSize(fa.FileSize)}` |
                                  """))
-           .Add(Layout.Vertical(
-               fa.Sheets.Select((sheet, index) =>
-                       new Expandable(
-                           Text.Label($"Sheet {index + 1}: {sheet.Name}"),
-                           new Markdown($"""
+             .Add(Layout.Vertical(
+                 fa.Sheets.Select((sheet, index) =>
+                         new Expandable(
+                             Text.Label($"Sheet {index + 1}: {sheet.Name}"),
+                             new Markdown($"""
                                              | Property | Value |
                                              |----------|-------|
                                              | **Columns** | `{sheet.FieldCount}` |
                                              | **Rows** | `{sheet.RowCount}` |
                                              | **Headers** | {string.Join(", ", sheet.Headers.Select(header => $"`{header}`"))} |
                                              """)
-                       )
-               ).ToArray()
-           ));
+                         )
+                 ).ToArray()
+             ));
+
+      return content;
     }
 
     object RenderDataTableView(bool isEmbedded = false)

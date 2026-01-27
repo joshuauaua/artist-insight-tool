@@ -39,7 +39,12 @@ public class AnnexSheet(CurrentFile? file, Action onClose) : ViewBase
        new Option<int?>($"{e.Description ?? "No Name"} - {e.RevenueDate:MM/dd/yyyy} - {e.Source.DescriptionText} - {e.Amount:C}", e.Id)
     ).ToList();
 
-    var content = Layout.Vertical().Gap(5).Width(Size.Full())
+    var contentHeader = Layout.Vertical().Align(Align.Center).Gap(5).Width(Size.Full())
+        .Add(Text.H3("Annex Data"))
+        .Add(Text.Label("Attach this file to an existing entry.").Muted())
+        .Add(new Spacer().Height(10));
+
+    var content = Layout.Vertical().Gap(5).Width(Size.Full()).Add(contentHeader)
          .Add(new Button("Back", () => _onClose()).Variant(ButtonVariant.Primary).Icon(Icons.ArrowLeft))
          .Add(Text.Muted("Attach the current file content to an existing Revenue Entry."))
          .Add(Layout.Vertical().Gap(5)
@@ -149,13 +154,13 @@ public class AnnexSheet(CurrentFile? file, Action onClose) : ViewBase
 
                    var newAssets = names.Where(n => !existingNames.Contains(n))
                                             .Select(n => new Asset
-                                                  {
-                                                    Name = n,
-                                                    Type = "Unknown",
-                                                    Category = tmpl.Category,
-                                                    Collection = assetCollections.GetValueOrDefault(n) ?? "",
-                                                    AmountGenerated = 0
-                                                  })
+                                            {
+                                              Name = n,
+                                              Type = "Unknown",
+                                              Category = tmpl.Category,
+                                              Collection = assetCollections.GetValueOrDefault(n) ?? "",
+                                              AmountGenerated = 0
+                                            })
                                             .ToList();
 
                    if (newAssets.Count > 0)
@@ -191,8 +196,8 @@ public class AnnexSheet(CurrentFile? file, Action onClose) : ViewBase
     return new Sheet(
         _ => { _onClose(); return ValueTask.CompletedTask; },
         content,
-        "Annex Data",
-        "Attach this file to an existing entry."
+        "",
+        ""
     ).Width(Size.Full());
   }
 }

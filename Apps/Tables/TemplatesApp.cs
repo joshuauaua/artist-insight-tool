@@ -157,9 +157,14 @@ public class CreateTemplateSheet(Action onClose) : ViewBase
 
     return new Dialog(
         _ => onClose(),
-        new DialogHeader("Create Template"),
+        new DialogHeader(""),
         new DialogBody(
             Layout.Vertical().Gap(10)
+            .Add(Layout.Vertical().Align(Align.Center).Gap(5).Width(Size.Full())
+                .Add(Text.H3("Create Template"))
+                .Add(Text.Label("Define a new import template manually.").Muted())
+                .Add(new Spacer().Height(10))
+            )
             .Add(Text.Label("Template Name"))
             .Add(name.ToTextInput().Placeholder("e.g. Distrokid CSV"))
             .Add(Text.Label("Source Name"))
@@ -320,7 +325,12 @@ public class TemplateEditSheet : ViewBase
       mappingSection.Add(Text.Muted("No headers found in this template."));
     }
 
-    var content = Layout.Vertical().Gap(10).Padding(40, 10).Align(Align.Stretch)
+    var contentHeader = Layout.Vertical().Align(Align.Center).Gap(5).Width(Size.Full())
+        .Add(Text.H3("Edit Template"))
+        .Add(Text.Label("Modify template details and column mappings.").Muted())
+        .Add(new Spacer().Height(10));
+
+    var content = Layout.Vertical().Gap(10).Padding(40, 10).Align(Align.Stretch).Add(contentHeader)
         .Add(new Card(
             Layout.Vertical().Gap(15)
                 .Add(Layout.Vertical().Gap(5)
@@ -347,8 +357,8 @@ public class TemplateEditSheet : ViewBase
     return new Sheet(
         _ => _onClose(),
         new FooterLayout(footer, content),
-        "Edit Template",
-        "Modify template details and column mappings."
+        "",
+        ""
     ).Width(Size.Full());
   }
 }

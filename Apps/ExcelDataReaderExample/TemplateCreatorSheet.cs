@@ -87,12 +87,17 @@ public class TemplateCreatorSheet(CurrentFile? file, Action onSuccess, Action on
 
     Func<string, string?> getHeader = k => mappedPairs.Value.FirstOrDefault(m => m.FieldKey == k).Header;
 
-    var content = Layout.Vertical().Gap(10).Width(Size.Full());
+    var subtitle = templateCreationStep.Value == 1 ? "Step 1: Template Details" : "Step 2: Map Columns";
+
+    var contentHeader = Layout.Vertical().Align(Align.Center).Gap(5).Width(Size.Full())
+        .Add(Text.H3("Create Template"))
+        .Add(Text.Label(subtitle).Muted());
+
+    var content = Layout.Vertical().Gap(10).Width(Size.Full()).Add(contentHeader).Add(new Spacer().Height(10));
 
     if (templateCreationStep.Value == 1)
     {
       content
-          .Add(Text.H4("Step 1: Template Details"))
           .Add(Layout.Vertical().Gap(2)
               .Add(Text.Label("Template Name"))
               .Add(newTemplateName.ToTextInput().Placeholder("e.g. Spotify Report")))
@@ -111,7 +116,7 @@ public class TemplateCreatorSheet(CurrentFile? file, Action onSuccess, Action on
     }
     else
     {
-      // Step 2: Mapping
+      // ... (rest of the mapping logic)
       var activeGroups = new Dictionary<string, List<SystemField>>(fieldGroups);
 
       if (categorySpecificGroups.TryGetValue(newTemplateCategory.Value, out var extraGroups))
@@ -184,7 +189,6 @@ public class TemplateCreatorSheet(CurrentFile? file, Action onSuccess, Action on
       ) : null;
 
       content
-          .Add(Layout.Horizontal().Align(Align.Center).Add(Text.H4("Step 2: Map Columns")))
           .Add(Layout.Horizontal().Gap(20).Width(Size.Full())
               .Add(new Card(
                   Layout.Vertical().Gap(5)
@@ -258,8 +262,8 @@ public class TemplateCreatorSheet(CurrentFile? file, Action onSuccess, Action on
         new Sheet(
             _ => { _onCancel(); return ValueTask.CompletedTask; },
             content,
-            "Create Import Template",
-            "Define how to import this file format."
+            "",
+            ""
         ).Width(Size.Full()),
         mappingDialog
       );
@@ -269,8 +273,8 @@ public class TemplateCreatorSheet(CurrentFile? file, Action onSuccess, Action on
     return new Sheet(
         _ => { _onCancel(); return ValueTask.CompletedTask; },
         content,
-        "Create Import Template",
-        "Define how to import this file format."
+        "",
+        ""
     ).Width(Size.Full());
   }
 }
