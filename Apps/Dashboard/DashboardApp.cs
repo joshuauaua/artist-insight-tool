@@ -21,13 +21,13 @@ namespace ArtistInsightTool.Apps.Dashboard;
 public class DashboardApp : ViewBase
 {
   public record PieChartData(string Dimension, double Measure);
-  public record DataTableItem(int RealId, string Id, string Name, string Template, string Date);
+  public record DataTableItem(int RealId, string Id, string Name, string Template, string UploadDate, string Period);
   public record TemplateTableItem(int RealId, string Id, string Name, string Category, int Files, DateTime CreatedAt);
 
   // Table projection records
   public record RevenueRow(object Id, string Date, string Name, string Type, string Source, string Amount);
   public record AssetRow(object Id, string Name, string? Category, string? Type, string Amount, object Actions);
-  public record DataTableRow(object Id, string Name, string Date, object Actions);
+  public record DataTableRow(object Id, string Name, string Template, string Period, string UploadDate, object Actions);
   public record TemplateRow(string Id, string Name, string Category, int Linked, object Actions);
 
   public override object Build()
@@ -103,7 +103,7 @@ public class DashboardApp : ViewBase
 
     // --- 3. View Components ---
 
-    var tabNames = new[] { "Overview", "Assets", "Revenue", "Data Tables", "Templates" };
+    var tabNames = new[] { "Overview", "Assets", "Revenue", "Uploads", "Templates" };
     var tabButtons = new List<object>();
     for (int i = 0; i < tabNames.Length; i++)
     {
@@ -124,7 +124,7 @@ public class DashboardApp : ViewBase
             .Add(Layout.Horizontal().Gap(2).Add(tabButtons))
     );
 
-    var body = Layout.Vertical().Height(Size.Full()).Padding(20);
+    var body = Layout.Vertical().Height(Size.Full()).Padding(20, 4, 20, 20);
     if (assetsQuery.Loading || revenueQuery.Loading || totalRevenueQuery.Loading || tmplQuery.Loading)
     {
       body.Add(Layout.Center().Add(Text.Label("Syncing Ledger...")));
@@ -158,13 +158,13 @@ public class DashboardApp : ViewBase
             idSelector: c => c.Id,
             orderSelector: c => c.Order)
         .HideCounts()
-        .Gap(20)
+        .Gap(4)
         .CardBuilder(c =>
         {
           // Render content based on Type/Id
           var content = c.Type switch
           {
-            0 => new Card(Text.P("Welcome to your Artist Ledger. Use the tabs above to manage your assets and revenue.")).Title(c.Title),
+            0 => new Card(Layout.Vertical().Gap(10).Add(Text.H2(c.Title)).Add(Text.P("Welcome to your Artist Ledger. Use the 'Uploads' tab to import your data, or manage your portfolio in 'Assets'. Track your performance in real-time."))),
             1 => new Card(Layout.Center().Add(Text.H2(assets.Count.ToString()))).Title(c.Title),
             2 => new Card(Layout.Center().Add(Text.H2(totalRevenue?.Value ?? "$0.00"))).Title(c.Title),
             3 => new Card(Layout.Center().Add(Text.H2(revenueEntries.Count(x => !string.IsNullOrEmpty(x.JsonData)).ToString()))).Title(c.Title),
@@ -355,7 +355,9 @@ public class DashboardApp : ViewBase
       {
         using var doc = JsonDocument.Parse(e.JsonData!);
         var fn = doc.RootElement[0].TryGetProperty("FileName", out var p) ? p.GetString() : null;
-        items.Add(new DataTableItem(e.Id, $"DT{e.Id:D3}", fn ?? e.Description ?? "Table", "-", e.RevenueDate.ToShortDateString()));
+        var period = $"Q{(e.RevenueDate.Month + 2) / 3} {e.RevenueDate.Year}";
+        var uploadDate = (e.UploadDate ?? e.RevenueDate).ToShortDateString();
+        items.Add(new DataTableItem(e.Id, $"DT{e.Id:D3}", fn ?? e.Description ?? "Table", e.ImportTemplateName ?? "-", uploadDate, period));
       }
       catch { }
     }
@@ -363,9 +365,12 @@ public class DashboardApp : ViewBase
     return Layout.Vertical().Gap(20)
         .Add(filtered.Select(t => new DataTableRow(
             new Button(t.Id, () => dialog.Set(new DataTableViewSheet(t.RealId, () => dialog.Set((object?)null)))).Variant(ButtonVariant.Ghost),
-            t.Name, t.Date,
+            t.Name,
+            t.Template,
+            t.Period,
+            t.UploadDate,
             new Button("", () => dialog.Set(new Dialog(_ => { dialog.Set((object?)null); return ValueTask.CompletedTask; }, new DialogHeader("Delete Data"), new DialogBody(Text.Label($"Delete {t.Name}?")), new DialogFooter(new Button("Cancel", () => dialog.Set((object?)null)), new Button("Delete", async () => { await service.DeleteRevenueEntryAsync(t.RealId); dialog.Set((object?)null); query.Mutator.Revalidate(); }).Variant(ButtonVariant.Destructive))))).Icon(Icons.Trash).Variant(ButtonVariant.Ghost)
-        )).Take(100).ToArray().ToTable().Width(Size.Full()).Add(x => x.Id).Add(x => x.Name).Add(x => x.Date).Add(x => x.Actions).Header(x => x.Id, "ID").Header(x => x.Actions, ""));
+        )).Take(100).ToArray().ToTable().Width(Size.Full()).Add(x => x.Id).Add(x => x.Name).Add(x => x.Template).Add(x => x.Period).Add(x => x.UploadDate).Add(x => x.Actions).Header(x => x.Id, "ID").Header(x => x.Template, "Template").Header(x => x.Period, "Period").Header(x => x.UploadDate, "Upload Date").Header(x => x.Actions, ""));
   }
 
   private object RenderTemplates(List<TemplateTableItem> templates, IState<string> search, IState<object?> dialog, dynamic query, ArtistInsightService service, IClientProvider client)
