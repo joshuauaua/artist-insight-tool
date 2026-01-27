@@ -37,7 +37,7 @@ public class AssetViewSheet(int id, Action onClose) : ViewBase
     var a = assetState.Value;
     var totalAmount = a.AssetRevenues.Sum(ar => ar.Amount);
 
-    return Layout.Vertical().Gap(10)
+    var content = Layout.Vertical().Gap(10)
         // 1. Name & Description (Category/Type as sub-header effectively)
         .Add(Text.H4(a.Name))
 
@@ -111,5 +111,12 @@ public class AssetViewSheet(int id, Action onClose) : ViewBase
              .Add(isDeleting.Value ? new Button("Cancel", () => isDeleting.Set(false)).Variant(ButtonVariant.Ghost) : null)
              .Add(new Button("Close", _onClose).Variant(ButtonVariant.Primary))
         );
+
+    return new Sheet(
+        _ => _onClose(),
+        content,
+        a.Name,
+        $"A{a.Id:D3}"
+    ).Width(Size.Full());
   }
 }

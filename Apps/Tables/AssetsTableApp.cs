@@ -174,72 +174,72 @@ public class ImportSpotifyAssetSheet(Action onClose) : ViewBase
     var token = UseState("");
     var isImporting = UseState(false);
 
-    return new Dialog(
-        _ => onClose(),
-        new DialogHeader("Fetch Asset from Spotify"),
-        new DialogBody(
-            Layout.Vertical().Gap(10)
-            .Add(Text.Label("Import Type"))
-            .Add(importType.ToSelectInput([new Option<string>("Artist", "Artist"), new Option<string>("Song", "Song")]))
-            .Add(Text.Label("Spotify ID"))
-            .Add(id.ToTextInput().Placeholder("e.g. 0TnOYISbd1XYRBk9myaseg"))
-            .Add(Text.Label("Bearer Token"))
-            .Add(token.ToTextInput().Placeholder("Authorization: Bearer ..."))
-            .Add(Layout.Horizontal().Align(Align.Right).Gap(10).Padding(10, 0, 0, 0)
-                .Add(new Button("Cancel", onClose))
-                .Add(new Button("Fetch & Create", async () =>
+    var content = Layout.Vertical().Gap(10).Height(Size.Full())
+        .Add(Text.Label("Import Type"))
+        .Add(importType.ToSelectInput([new Option<string>("Artist", "Artist"), new Option<string>("Song", "Song")]))
+        .Add(Text.Label("Spotify ID"))
+        .Add(id.ToTextInput().Placeholder("e.g. 0TnOYISbd1XYRBk9myaseg"))
+        .Add(Text.Label("Bearer Token"))
+        .Add(token.ToTextInput().Placeholder("Authorization: Bearer ..."))
+        .Add(new Spacer())
+        .Add(Layout.Horizontal().Align(Align.Right).Gap(10).Padding(10, 0, 0, 0)
+            .Add(new Button("Cancel", onClose))
+            .Add(new Button("Fetch & Create", async () =>
+            {
+              if (string.IsNullOrWhiteSpace(id.Value) || string.IsNullOrWhiteSpace(token.Value))
+              {
+                // Error: ID and Token are required.
+                return;
+              }
+
+              isImporting.Set(true);
+
+              try
+              {
+                using var client = new HttpClient();
+                client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token.Value);
+
+                string endpoint = importType.Value == "Artist" ? "artists" : "tracks";
+                var url = $"https://api.spotify.com/v1/{endpoint}/{id.Value}";
+                var response = await client.GetAsync(url);
+
+                if (!response.IsSuccessStatusCode)
                 {
-                  if (string.IsNullOrWhiteSpace(id.Value) || string.IsNullOrWhiteSpace(token.Value))
-                  {
-                    // Error: ID and Token are required.
-                    return;
-                  }
-
-                  isImporting.Set(true);
-
-                  try
-                  {
-                    using var client = new HttpClient();
-                    client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token.Value);
-
-                    string endpoint = importType.Value == "Artist" ? "artists" : "tracks";
-                    var url = $"https://api.spotify.com/v1/{endpoint}/{id.Value}";
-                    var response = await client.GetAsync(url);
-
-                    if (!response.IsSuccessStatusCode)
-                    {
-                      // Error: API Error
-                      isImporting.Set(false);
-                      return;
-                    }
-
-                    var json = await response.Content.ReadAsStringAsync();
-                    using var doc = JsonDocument.Parse(json);
-
-                    if (doc.RootElement.TryGetProperty("name", out var nameProp))
-                    {
-                      var assetName = nameProp.GetString();
-                      if (!string.IsNullOrEmpty(assetName))
-                      {
-                        await service.CreateAssetAsync(new Asset
-                        {
-                          Name = assetName,
-                          Type = importType.Value, // "Artist" or "Song"
-                          AmountGenerated = 0
-                        });
-                        onClose();
-                      }
-                    }
-                  }
-                  catch (Exception)
-                  {
-                    // Error: Exception
-                  }
+                  // Error: API Error
                   isImporting.Set(false);
-                }).Variant(ButtonVariant.Primary).Disabled(isImporting.Value))
-            )
-        ),
-        new DialogFooter()
+                  return;
+                }
+
+                var json = await response.Content.ReadAsStringAsync();
+                using var doc = JsonDocument.Parse(json);
+
+                if (doc.RootElement.TryGetProperty("name", out var nameProp))
+                {
+                  var assetName = nameProp.GetString();
+                  if (!string.IsNullOrEmpty(assetName))
+                  {
+                    await service.CreateAssetAsync(new Asset
+                    {
+                      Name = assetName,
+                      Type = importType.Value, // "Artist" or "Song"
+                      AmountGenerated = 0
+                    });
+                    onClose();
+                  }
+                }
+              }
+              catch (Exception)
+              {
+                // Error: Exception
+              }
+              isImporting.Set(false);
+            }).Variant(ButtonVariant.Primary).Disabled(isImporting.Value))
+        );
+
+    return new Sheet(
+        _ => onClose(),
+        content,
+        "Fetch Asset from Spotify"
     );
   }
 }
@@ -263,56 +263,56 @@ public class CreateAssetSheet(Action onClose) : ViewBase
       _ => Array.Empty<string>()
     };
 
-    return new Dialog(
-        _ => onClose(),
-        new DialogHeader("Create Asset"),
-        new DialogBody(
-            Layout.Vertical().Gap(10)
-            .Add(Text.Label("Name"))
-            .Add(name.ToTextInput().Placeholder("Asset Name"))
-            .Add(Text.Label("Category"))
-            .Add(new SelectInput<string>(
-                value: category.Value,
-                onChange: e =>
-                {
-                  category.Set(e.Value);
-                  // Reset Type based on new Category
-                  if (e.Value == "Concerts") type.Set("Ticket Sales");
-                  else if (e.Value == "Merchandise") type.Set("Single Item");
-                  else if (e.Value == "Royalties") type.Set("Single");
-                  else if (e.Value == "Other") type.Set("Grant");
-                  else type.Set("");
-                },
-                new[] { "Concerts", "Merchandise", "Royalties", "Other" }.Select(c => new Option<string>(c, c))))
-            .Add(Text.Label("Collection Type"))
-            .Add(typeOptions.Length == 0
-                ? type.ToTextInput().Placeholder("Collection Type")
-                : new SelectInput<string>(
-                    value: type.Value,
-                    onChange: e => type.Set(e.Value),
-                    typeOptions.Select(t => new Option<string>(t, t))
-                  ))
-            .Add(Text.Label("Collection"))
-            .Add(collection.ToTextInput().Placeholder("Collection Name"))
-            .Add(Layout.Horizontal().Align(Align.Right).Gap(10).Padding(10, 0, 0, 0)
-                .Add(new Button("Cancel", onClose))
-                .Add(new Button("Create", async () =>
-                {
-                  if (string.IsNullOrEmpty(name.Value)) return;
+    var content = Layout.Vertical().Gap(10).Height(Size.Full())
+        .Add(Text.Label("Name"))
+        .Add(name.ToTextInput().Placeholder("Asset Name"))
+        .Add(Text.Label("Category"))
+        .Add(new SelectInput<string>(
+            value: category.Value,
+            onChange: e =>
+            {
+              category.Set(e.Value);
+              // Reset Type based on new Category
+              if (e.Value == "Concerts") type.Set("Ticket Sales");
+              else if (e.Value == "Merchandise") type.Set("Single Item");
+              else if (e.Value == "Royalties") type.Set("Single");
+              else if (e.Value == "Other") type.Set("Grant");
+              else type.Set("");
+            },
+            new[] { "Concerts", "Merchandise", "Royalties", "Other" }.Select(c => new Option<string>(c, c))))
+        .Add(Text.Label("Collection Type"))
+        .Add(typeOptions.Length == 0
+            ? type.ToTextInput().Placeholder("Collection Type")
+            : new SelectInput<string>(
+                value: type.Value,
+                onChange: e => type.Set(e.Value),
+                typeOptions.Select(t => new Option<string>(t, t))
+              ))
+        .Add(Text.Label("Collection"))
+        .Add(collection.ToTextInput().Placeholder("Collection Name"))
+        .Add(new Spacer())
+        .Add(Layout.Horizontal().Align(Align.Right).Gap(10).Padding(10, 0, 0, 0)
+            .Add(new Button("Cancel", onClose))
+            .Add(new Button("Create", async () =>
+            {
+              if (string.IsNullOrEmpty(name.Value)) return;
 
-                  await service.CreateAssetAsync(new Asset
-                  {
-                    Name = name.Value,
-                    Category = category.Value,
-                    Type = type.Value,
-                    Collection = collection.Value,
-                    AmountGenerated = 0 // Calculated dynamically later
-                  });
-                  onClose();
-                }).Variant(ButtonVariant.Primary))
-            )
-        ),
-        new DialogFooter()
+              await service.CreateAssetAsync(new Asset
+              {
+                Name = name.Value,
+                Category = category.Value,
+                Type = type.Value,
+                Collection = collection.Value,
+                AmountGenerated = 0 // Calculated dynamically later
+              });
+              onClose();
+            }).Variant(ButtonVariant.Primary))
+        );
+
+    return new Sheet(
+        _ => onClose(),
+        content,
+        "Create Asset"
     );
   }
 }
