@@ -13,6 +13,7 @@ using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Ivy.Core.Hooks;
+using ArtistInsightTool.Apps.Views.Kanban;
 
 namespace ArtistInsightTool.Apps.Dashboard;
 
@@ -40,6 +41,25 @@ public class DashboardApp : ViewBase
     var selectedTab = UseState(0);
     var showImportSheet = UseState(false);
     var selectedDialog = UseState<object?>(() => null);
+
+    // Kanban State
+    var overviewCards = UseState(new List<CardState>
+    {
+        // Col 1
+        new("quick-start", "Quick Start", " ", 0, 0),
+        new("data-imports", "Data Imports", " ", 1, 3),
+        new("p1", "", " ", 2, 4),
+
+        // Col 2
+        new("total-assets", "Total Assets", "  ", 0, 1),
+        new("p2", "", "  ", 1, 4),
+        new("p3", "", "  ", 2, 4),
+
+        // Col 3
+        new("total-revenue", "Total Revenue", "   ", 0, 2),
+        new("p4", "", "   ", 1, 4),
+        new("p5", "", "   ", 2, 4),
+    });
 
     var assetsQuery = UseQuery("dashboard_assets", async (ct) => await service.GetAssetsAsync());
     var revenueQuery = UseQuery("dashboard_revenue_entries", async (ct) => await service.GetRevenueEntriesAsync());
@@ -113,12 +133,12 @@ public class DashboardApp : ViewBase
     {
       body.Add(selectedTab.Value switch
       {
-        0 => RenderOverview(assets, totalRevenue, revenueEntries),
+        0 => RenderOverview(overviewCards, assets, totalRevenue, revenueEntries, selectedDialog),
         1 => RenderAssets(assets, globalSearch, selectedDialog, assetsQuery, service, selectedCategory, categories, revenueEntries),
         2 => RenderRevenue(revenueEntries, globalSearch, selectedDialog, revenueQuery),
         3 => RenderDataTables(revenueEntries, globalSearch, selectedDialog, revenueQuery, service),
         4 => RenderTemplates(templatesData, globalSearch, selectedDialog, tmplQuery, service, client),
-        _ => RenderOverview(assets, totalRevenue, revenueEntries)
+        _ => RenderOverview(overviewCards, assets, totalRevenue, revenueEntries, selectedDialog)
       });
     }
 
@@ -127,12 +147,79 @@ public class DashboardApp : ViewBase
 
   // --- Render Methods (Private class methods to ensure metadata stability) ---
 
-  private object RenderOverview(List<Asset> assets, MetricDto? totalRevenue, List<RevenueEntryDto> revenueEntries) => Layout.Vertical().Gap(20)
-      .Add(Layout.Grid().Columns(3).Gap(20)
-          .Add(new Card(Text.P("Welcome to your Artist Ledger. Use the tabs above to manage your assets and revenue.")).Title("Quick Start"))
-          .Add(new Card(Layout.Center().Add(Text.H2(assets.Count.ToString()))).Title("Total Assets"))
-          .Add(new Card(Layout.Center().Add(Text.H2(totalRevenue?.Value ?? "$0.00"))).Title("Total Revenue"))
-          .Add(new Card(Layout.Center().Add(Text.H2(revenueEntries.Count(x => !string.IsNullOrEmpty(x.JsonData)).ToString()))).Title("Data Imports")));
+  // Kanban State Record
+  public record CardState(string Id, string Title, string Column, int Order, int Type); // Type: 0=QuickStart, 1=Assets, 2=Revenue, 3=Imports, 4=Placeholder
+
+  private object RenderOverview(IState<List<CardState>> cardStates, List<Asset> assets, MetricDto? totalRevenue, List<RevenueEntryDto> revenueEntries, IState<object?> selectedDialog)
+  {
+    return cardStates.Value
+        .ToKanban(
+            groupBySelector: c => c.Column,
+            idSelector: c => c.Id,
+            orderSelector: c => c.Order)
+        .HideCounts()
+        .Gap(20)
+        .CardBuilder(c =>
+        {
+          // Render content based on Type/Id
+          var content = c.Type switch
+          {
+            0 => new Card(Text.P("Welcome to your Artist Ledger. Use the tabs above to manage your assets and revenue.")).Title(c.Title),
+            1 => new Card(Layout.Center().Add(Text.H2(assets.Count.ToString()))).Title(c.Title),
+            2 => new Card(Layout.Center().Add(Text.H2(totalRevenue?.Value ?? "$0.00"))).Title(c.Title),
+            3 => new Card(Layout.Center().Add(Text.H2(revenueEntries.Count(x => !string.IsNullOrEmpty(x.JsonData)).ToString()))).Title(c.Title),
+            _ => new Card(Layout.Center().Add(new Button("", () => selectedDialog.Set(RenderAddWidgetDialog(selectedDialog))).Icon(Icons.Plus).Variant(ButtonVariant.Ghost)))
+          };
+          return content.Height(Size.Units(75));
+        })
+        .ColumnOrder(c => c.Column)
+        .Width(Size.Full())
+        .ColumnWidth(Size.Fraction(0.33f))
+        .HandleMove(moveData =>
+        {
+          var cardId = moveData.CardId?.ToString();
+          if (string.IsNullOrEmpty(cardId)) return;
+
+          var currentList = cardStates.Value.ToList();
+          var item = currentList.FirstOrDefault(x => x.Id == cardId);
+          if (item == null) return;
+
+          // Remove item
+          currentList.Remove(item);
+
+          // Find target index in destination column
+          var targetColItems = currentList.Where(x => x.Column == moveData.ToColumn).OrderBy(x => x.Order).ToList();
+
+          int insertIndex = -1;
+          if (moveData.TargetIndex.HasValue)
+          {
+            // TargetIndex is relative to the column view
+            if (moveData.TargetIndex.Value < targetColItems.Count)
+            {
+              var targetItem = targetColItems[moveData.TargetIndex.Value];
+              insertIndex = currentList.IndexOf(targetItem);
+            }
+            else
+            {
+              // End of column
+              insertIndex = currentList.Count;
+            }
+          }
+
+          // Adjust item
+          var updatedItem = item with { Column = moveData.ToColumn };
+
+          if (insertIndex >= 0 && insertIndex <= currentList.Count)
+            currentList.Insert(insertIndex, updatedItem);
+          else
+            currentList.Add(updatedItem);
+
+          // Re-normalize orders (optional but good for stability)
+          for (int i = 0; i < currentList.Count; i++) currentList[i] = currentList[i] with { Order = i };
+
+          cardStates.Set(currentList);
+        });
+  }
 
   private object RenderAnalyticsCard(List<Asset> assets, IState<string> selectedCategory, List<string> categories)
   {
@@ -291,5 +378,15 @@ public class DashboardApp : ViewBase
                 .Add(new Button("", () => dialog.Set(new TemplateEditSheet(() => { dialog.Set((object?)null); query.Mutator.Revalidate(); }, t.RealId, client))).Icon(Icons.Pencil).Variant(ButtonVariant.Ghost))
                 .Add(new Button("", () => dialog.Set(new Dialog(_ => { dialog.Set((object?)null); return ValueTask.CompletedTask; }, new DialogHeader("Delete Template"), new DialogBody(Text.Label($"Delete {t.Name}?")), new DialogFooter(new Button("Cancel", () => dialog.Set((object?)null)), new Button("Delete", async () => { await service.DeleteTemplateAsync(t.RealId); dialog.Set((object?)null); query.Mutator.Revalidate(); }).Variant(ButtonVariant.Destructive))))).Icon(Icons.Trash).Variant(ButtonVariant.Ghost))
         )).Take(100).ToArray().ToTable().Width(Size.Full()).Add(x => x.Id).Add(x => x.Name).Add(x => x.Category).Add(x => x.Linked).Add(x => x.Actions).Header(x => x.Id, "ID").Header(x => x.Linked, "Files").Header(x => x.Actions, ""));
+  }
+
+  private object RenderAddWidgetDialog(IState<object?> selectedDialog)
+  {
+    return new Dialog(
+        _ => { selectedDialog.Set((object?)null); return ValueTask.CompletedTask; },
+        new DialogHeader("Add a Widget"),
+        new DialogBody(Layout.Vertical().Gap(10).Add(Text.P("Select a widget to add to your dashboard."))),
+        new DialogFooter(new Button("Close", () => selectedDialog.Set((object?)null)).Variant(ButtonVariant.Ghost))
+    );
   }
 }
