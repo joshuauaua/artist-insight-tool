@@ -19,9 +19,7 @@ namespace ArtistInsightTool.Apps.Dashboard;
 [App(icon: Icons.LayoutDashboard, title: "Artist Ledger", path: ["Main"])]
 public class DashboardApp : ViewBase
 {
-  // Concrete records for Hot Reload stability
-  public record CategoryRevenue(string Category, double Amount);
-  public record AssetRevenueItem(string Asset, double Amount);
+  public record PieChartData(string Dimension, double Measure);
   public record DataTableItem(int RealId, string Id, string Name, string Template, string Date);
   public record TemplateTableItem(int RealId, string Id, string Name, string Category, int Files, DateTime CreatedAt);
 
@@ -63,13 +61,20 @@ public class DashboardApp : ViewBase
         .OrderBy(c => c == "Royalties" ? 0 : 1)
         .ThenBy(c => c)
         .ToList();
+
     var selectedCategory = UseState("");
 
-    if (string.IsNullOrEmpty(selectedCategory.Value) && categories.Count > 0)
+    async Task<IDisposable?> InitCategory()
     {
-      var defaultCat = categories.FirstOrDefault(c => string.Equals(c, "Royalties", StringComparison.OrdinalIgnoreCase)) ?? categories[0];
-      selectedCategory.Set(defaultCat);
+      if (string.IsNullOrEmpty(selectedCategory.Value) && categories.Count > 0)
+      {
+        var defaultCat = categories.FirstOrDefault(c => string.Equals(c, "Royalties", StringComparison.OrdinalIgnoreCase)) ?? categories[0];
+        selectedCategory.Set(defaultCat);
+      }
+      return await Task.FromResult<IDisposable?>(null);
     }
+    UseEffect(InitCategory);
+
 
     // --- 2. Early Return (Hooks ABOVE this) ---
     if (showImportSheet.Value) return new ExcelDataReaderSheet(() => showImportSheet.Set(false));
@@ -94,10 +99,7 @@ public class DashboardApp : ViewBase
                      .Icon(Icons.FileUp)
                      .Variant(ButtonVariant.Primary))
             )
-            .Add(Layout.Vertical().Gap(6)
-                .Add(globalSearch.ToTextInput().Placeholder("Global search...").Width(Size.Full()))
-                .Add(Layout.Horizontal().Gap(2).Add(tabButtons))
-            )
+            .Add(Layout.Horizontal().Gap(2).Add(tabButtons))
     );
 
     var body = Layout.Vertical().Height(Size.Full()).Padding(20);
@@ -130,6 +132,7 @@ public class DashboardApp : ViewBase
           .Add(new Card(Layout.Center().Add(Text.H2(totalRevenue?.Value ?? "$0.00"))).Title("Total Revenue"))
           .Add(new Card(Layout.Center().Add(Text.H2(revenueEntries.Count(x => !string.IsNullOrEmpty(x.JsonData)).ToString()))).Title("Data Imports")))
       .Add(new Card(Text.P("Welcome to your Artist Ledger. Use the tabs above to manage your assets and revenue.")).Title("Quick Start"));
+
   private object RenderAnalyticsTab(List<Asset> assets, IState<string> selectedCategory, List<string> categories)
   {
     if (assets.Count == 0 || !categories.Any()) return Layout.Center().Add(Text.Label("No asset data available."));
@@ -137,29 +140,38 @@ public class DashboardApp : ViewBase
     var currentCat = selectedCategory.Value;
     if (string.IsNullOrEmpty(currentCat)) currentCat = categories.FirstOrDefault() ?? "Uncategorized";
 
+    // Summary data for left chart
     var categoryData = assets
         .GroupBy(a => (a.Category ?? "Uncategorized").Trim())
-        .Select(g => new CategoryRevenue(g.Key, (double)g.Sum(a => a.AmountGenerated)))
+        .Select(g => new PieChartData(g.Key, (double)g.Sum(a => a.AmountGenerated)))
+        .Where(x => x.Measure > 0)
         .ToList();
 
-    var assetBreakdown = assets
+    // Asset breakdown for selected category (right chart)
+    var selectedCategoryAssets = assets
         .Where(a => string.Equals((a.Category ?? "Uncategorized").Trim(), currentCat.Trim(), StringComparison.OrdinalIgnoreCase))
-        .Select(a => new AssetRevenueItem(a.Name, (double)a.AmountGenerated))
-        .OrderByDescending(a => a.Amount)
+        .Select(a => new PieChartData(a.Name, (double)a.AmountGenerated))
+        .Where(x => x.Measure > 0)
+        .OrderByDescending(x => x.Measure)
         .ToList();
 
     return Layout.Vertical().Gap(20)
         .Add(Layout.Horizontal().Gap(20).Width(Size.Full())
-            .Add(new Card(
-                new PieChart(categoryData)
-                    .Pie("Amount", "Category")
-                    .Tooltip()
-            ).Title("Revenue by Category").Width(Size.Fraction(0.5f)))
-            .Add(new Card(
-                new PieChart(assetBreakdown)
-                    .Pie("Amount", "Asset")
-                    .Tooltip()
-            ).Title($"{currentCat} Breakdown").Width(Size.Fraction(0.5f))))
+            .Add(Layout.Vertical().Width(Size.Fraction(0.5f))
+                .Add(Text.Label("Revenue by Category").Small())
+                .Add(new Card(
+                    new PieChart(categoryData)
+                        .Pie("Measure", "Dimension")
+                        .Tooltip()
+                ).Height(Size.Units(80))))
+            .Add(Layout.Vertical().Width(Size.Fraction(0.5f))
+                .Add(Text.Label($"{currentCat} - Asset Breakdown").Small())
+                .Add(new Card(
+                    new PieChart(selectedCategoryAssets)
+                        .Pie("Measure", "Dimension")
+                        .Tooltip()
+                ).Height(Size.Units(80))))
+        )
         .Add(Layout.Horizontal().Align(Align.Center).Gap(10)
             .Add(Text.Label("Drilldown Category:"))
             .Add(selectedCategory.ToSelectInput(categories.ToOptions()).Width(300)));
