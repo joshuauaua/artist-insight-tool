@@ -113,18 +113,19 @@ public class DashboardApp : ViewBase
     }
 
     var headerCard = new Card(
-        Layout.Horizontal().Align(Align.Center).Gap(10).Width(Size.Full())
-            .Padding(0, 20, 0, 20) // Zero vertical padding
-            .Add(Text.H3("Artist Ledger").NoWrap()) // Shrunk font to H3
+        Layout.Horizontal().Align(Align.Center).Width(Size.Full())
+            .Padding(2, 0, 2, 20)
+            .Add(Text.H3("Artist Ledger").NoWrap())
             .Add(new Spacer().Width(Size.Fraction(1)))
-            .Add(Layout.Horizontal().Gap(2).Add(tabButtons))
-            .Add(new Spacer().Width(10))
-            .Add(new Button("Import Data", () => showImportSheet.Set(true))
-                .Icon(Icons.FileUp)
-                .Outline())
+            .Add(Layout.Horizontal().Gap(10).Align(Align.Center).Padding(0, 4, 0, 0)
+                .Add(Layout.Horizontal().Gap(2).Add(tabButtons))
+                .Add(new Button("Import Data", () => showImportSheet.Set(true))
+                    .Icon(Icons.FileUp)
+                    .Outline())
+            )
     );
 
-    var body = Layout.Vertical().Height(Size.Full()).Padding(20, 4, 20, 20);
+    var body = Layout.Vertical().Height(Size.Full()).Padding(4, 20, 20, 20);
     if (assetsQuery.Loading || revenueQuery.Loading || totalRevenueQuery.Loading || tmplQuery.Loading)
     {
       body.Add(Layout.Center().Add(Text.Label("Syncing Ledger...")));
