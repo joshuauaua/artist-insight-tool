@@ -113,15 +113,15 @@ public class DashboardApp : ViewBase
     }
 
     var headerCard = new Card(
-        Layout.Vertical().Gap(8)
-            .Add(Layout.Horizontal().Align(Align.Center).Width(Size.Full())
-                 .Add(Text.H2("Artist Ledger"))
-                 .Add(new Spacer().Width(Size.Fraction(1)))
-                 .Add(new Button("Import Data", () => showImportSheet.Set(true))
-                     .Icon(Icons.FileUp)
-                     .Variant(ButtonVariant.Primary))
-            )
+        Layout.Horizontal().Align(Align.Center).Gap(10).Width(Size.Full())
+            .Padding(0, 20, 0, 20) // Zero vertical padding
+            .Add(Text.H3("Artist Ledger").NoWrap()) // Shrunk font to H3
+            .Add(new Spacer().Width(Size.Fraction(1)))
             .Add(Layout.Horizontal().Gap(2).Add(tabButtons))
+            .Add(new Spacer().Width(10))
+            .Add(new Button("Import Data", () => showImportSheet.Set(true))
+                .Icon(Icons.FileUp)
+                .Outline())
     );
 
     var body = Layout.Vertical().Height(Size.Full()).Padding(20, 4, 20, 20);
@@ -165,23 +165,36 @@ public class DashboardApp : ViewBase
           var content = c.Type switch
           {
             0 => new Card(
-                Layout.Vertical().Gap(10).Padding(4)
-                    .Add(Text.H2(c.Title))
-                    .Add(Layout.Vertical().Gap(4)
-                        .Add(Layout.Horizontal().Gap(10).Align(Align.Center)
-                            .Add(Text.Bold("1."))
-                            .Add(Text.Label("Use the 'Uploads' tab to begin importing your data")))
-                        .Add(Layout.Horizontal().Gap(10).Align(Align.Center)
-                            .Add(Text.Bold("2."))
-                            .Add(Text.Label("Manage your products in 'Assets'")))
-                        .Add(Layout.Horizontal().Gap(10).Align(Align.Center)
-                            .Add(Text.Bold("3."))
-                            .Add(Text.Label("Customize your experience and track what you want in Overview")))
+                Layout.Vertical().Gap(5).Padding(10).Align(Align.Center)
+                    .Add(Text.H4(c.Title)) // Centered Title
+                    .Add(Layout.Vertical().Gap(4).Padding(10, 10, 10, 10).Align(Align.Left) // Left aligned content
+                        .Add(Text.Label("Use the 'Uploads' tab to begin importing your data").Small())
+                        .Add(Text.Label("Manage your products in 'Assets'").Small())
+                        .Add(Text.Label("Customize your experience in Overview").Small())
                     )
+            )
+            .BorderThickness(1)
+            .BorderStyle(BorderStyle.Dashed)
+            .BorderColor(Colors.Primary),
+
+            1 => new Card(
+                Layout.Vertical().Gap(10).Padding(10).Align(Align.Center) // Symmetrical padding
+                    .Add(Text.H4(c.Title))
+                    .Add(new Icon(Icons.Package).Size(18).Color(Colors.Primary))
+                    .Add(Text.H2(assets.Count.ToString()))
             ),
-            1 => new Card(Layout.Center().Add(Text.H2(assets.Count.ToString()))).Title(c.Title),
-            2 => new Card(Layout.Center().Add(Text.H2(totalRevenue?.Value ?? "$0.00"))).Title(c.Title),
-            3 => new Card(Layout.Center().Add(Text.H2(revenueEntries.Count(x => !string.IsNullOrEmpty(x.JsonData)).ToString()))).Title(c.Title),
+            2 => new Card(
+                Layout.Vertical().Gap(10).Padding(10).Align(Align.Center) // Symmetrical padding
+                    .Add(Text.H4(c.Title))
+                    .Add(new Icon(Icons.DollarSign).Size(18).Color(Colors.Green))
+                    .Add(Text.H2((totalRevenue?.Value.Replace("$", "").Replace("USD", "").Replace("SEK", "").Trim() ?? "0") + " SEK"))
+            ),
+            3 => new Card(
+                Layout.Vertical().Gap(10).Padding(10).Align(Align.Center) // Symmetrical padding
+                    .Add(Text.H4(c.Title))
+                    .Add(new Icon(Icons.FileClock).Size(18).Color(Colors.Blue))
+                    .Add(Text.H2(revenueEntries.Count(x => !string.IsNullOrEmpty(x.JsonData)).ToString()))
+            ),
             _ => new Card(Layout.Center().Add(new Button("", () => selectedDialog.Set(RenderAddWidgetDialog(selectedDialog))).Icon(Icons.Plus).Variant(ButtonVariant.Ghost)))
           };
           return content.Height(Size.Units(75));

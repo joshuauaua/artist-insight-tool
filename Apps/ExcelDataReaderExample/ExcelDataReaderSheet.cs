@@ -308,13 +308,13 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
         );
       }
 
-      var container = Layout.Vertical().Height(Size.Full()).Width(Size.Full()).Padding(20);
+      var container = Layout.Vertical().Height(Size.Full()).Width(Size.Full()).Padding(10, 20, 10, 20);
       var mainSplit = Layout.Horizontal().Gap(40).Width(Size.Full()).Grow();
 
       // Left Pane: Controls
       var leftPane = Layout.Vertical().Width(300).Height(Size.Full());
       leftPane.Add(new Card(
-          Layout.Vertical().Gap(15).Align(Align.Center).Padding(10, 20, 20, 20)
+          Layout.Vertical().Gap(15).Align(Align.Center).Padding(5, 20, 15, 20)
               .Add(Layout.Vertical().Gap(5).Align(Align.Center)
                   .Add(new Icon(Icons.Sheet).Size(48))
                   .Add(Text.H4("Import Data")))
@@ -370,7 +370,7 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
       // Footer: Actions
       if (hasFiles && ready && !isProcessing)
       {
-        container.Add(Layout.Horizontal().Padding(0, 20, 0, 0).Align(Align.Center).Width(Size.Full())
+        container.Add(Layout.Horizontal().Padding(5, 20, 0, 0).Align(Align.Center).Width(Size.Full())
             .Add(new Button("Import All", () =>
             {
               if (files.Any(f => f.MatchedTemplate == null))
