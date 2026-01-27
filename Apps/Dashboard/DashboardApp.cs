@@ -22,13 +22,13 @@ public class DashboardApp : ViewBase
 {
   public record PieChartData(string Dimension, double Measure);
   public record DataTableItem(int RealId, string Id, string Name, string Template, string UploadDate, string Period);
-  public record TemplateTableItem(int RealId, string Id, string Name, string Category, int Files, DateTime CreatedAt);
+  public record TemplateTableItem(int RealId, string Id, string Name, string Source, string Category, int Files, DateTime CreatedAt);
 
   // Table projection records
   public record RevenueRow(object Id, string Date, string Name, string Type, string Source, string Amount);
   public record AssetRow(object Id, string Name, string? Category, string? Type, string Amount, object Actions);
   public record DataTableRow(object Id, string Name, string Template, string Period, string UploadDate, object Actions);
-  public record TemplateRow(string Id, string Name, string Category, int Linked, object Actions);
+  public record TemplateRow(string Id, string Name, string Source, string Category, int Linked, object Actions);
 
   public override object Build()
   {
@@ -67,7 +67,7 @@ public class DashboardApp : ViewBase
     var tmplQuery = UseQuery("dashboard_templates", async (ct) =>
     {
       var tmpls = await service.GetTemplatesAsync();
-      return tmpls.Select(t => new TemplateTableItem(t.Id, $"T{t.Id:D3}", t.Name, t.Category ?? "Other", t.RevenueEntries?.Count ?? 0, t.CreatedAt)).ToList();
+      return tmpls.Select(t => new TemplateTableItem(t.Id, $"T{t.Id:D3}", t.Name, t.SourceName ?? "-", t.Category ?? "Other", t.RevenueEntries?.Count ?? 0, t.CreatedAt)).ToList();
     });
 
     // Derive collections
@@ -378,11 +378,13 @@ public class DashboardApp : ViewBase
     var filtered = templates.Where(t => string.IsNullOrWhiteSpace(search.Value) || t.Name.Contains(search.Value, StringComparison.OrdinalIgnoreCase)).ToList();
     return Layout.Vertical().Gap(20)
         .Add(filtered.Select(t => new TemplateRow(
-            $"T{t.RealId:D3}", t.Name, t.Category, t.Files,
+            $"T{t.RealId:D3}", t.Name, t.Source, t.Category, t.Files,
             Layout.Horizontal().Gap(5)
                 .Add(new Button("", () => dialog.Set(new TemplateEditSheet(() => { dialog.Set((object?)null); query.Mutator.Revalidate(); }, t.RealId, client))).Icon(Icons.Pencil).Variant(ButtonVariant.Ghost))
                 .Add(new Button("", () => dialog.Set(new Dialog(_ => { dialog.Set((object?)null); return ValueTask.CompletedTask; }, new DialogHeader("Delete Template"), new DialogBody(Text.Label($"Delete {t.Name}?")), new DialogFooter(new Button("Cancel", () => dialog.Set((object?)null)), new Button("Delete", async () => { await service.DeleteTemplateAsync(t.RealId); dialog.Set((object?)null); query.Mutator.Revalidate(); }).Variant(ButtonVariant.Destructive))))).Icon(Icons.Trash).Variant(ButtonVariant.Ghost))
-        )).Take(100).ToArray().ToTable().Width(Size.Full()).Add(x => x.Id).Add(x => x.Name).Add(x => x.Category).Add(x => x.Linked).Add(x => x.Actions).Header(x => x.Id, "ID").Header(x => x.Linked, "Files").Header(x => x.Actions, ""));
+        )).Take(100).ToArray().ToTable().Width(Size.Full())
+            .Add(x => x.Id).Add(x => x.Name).Add(x => x.Source).Add(x => x.Category).Add(x => x.Linked).Add(x => x.Actions)
+            .Header(x => x.Id, "ID").Header(x => x.Source, "Source").Header(x => x.Linked, "Files").Header(x => x.Actions, ""));
   }
 
   private object RenderAddWidgetDialog(IState<object?> selectedDialog)

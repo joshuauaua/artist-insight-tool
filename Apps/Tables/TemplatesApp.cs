@@ -12,7 +12,7 @@ namespace ArtistInsightTool.Apps.Tables;
 public class TemplatesApp : ViewBase
 {
   // Define Table Item
-  public record TemplateItem(int RealId, string Id, string Name, string Category, int Files, DateTime CreatedAt);
+  public record TemplateItem(int RealId, string Id, string Name, string Source, string Category, int Files, DateTime CreatedAt);
 
   public override object Build()
   {
@@ -28,6 +28,7 @@ public class TemplatesApp : ViewBase
               t.Id,
               $"T{t.Id:D3}",
               t.Name,
+              t.SourceName ?? "-",
               t.Category ?? "Other",
               t.RevenueEntries?.Count ?? 0,
               t.CreatedAt
@@ -60,6 +61,7 @@ public class TemplatesApp : ViewBase
     {
       IdButton = new Button(t.Id, () => { }).Variant(ButtonVariant.Ghost),
       t.Name,
+      t.Source,
       t.Category,
       t.Files,
       Actions = Layout.Horizontal().Gap(5)
@@ -113,6 +115,7 @@ public class TemplatesApp : ViewBase
                      .Add(x => x.IdButton)
                      .Header(x => x.IdButton, "ID")
                      .Header(x => x.Name, "Name")
+                     .Header(x => x.Source, "Source")
                      .Header(x => x.Category, "Category")
                      .Header(x => x.Files, "Linked Files")
                      .Header(x => x.Actions, "")
@@ -149,6 +152,7 @@ public class CreateTemplateSheet(Action onClose) : ViewBase
   {
     var service = UseService<ArtistInsightService>();
     var name = UseState("");
+    var sourceName = UseState("");
     var category = UseState("Other");
 
     return new Dialog(
@@ -158,6 +162,8 @@ public class CreateTemplateSheet(Action onClose) : ViewBase
             Layout.Vertical().Gap(10)
             .Add(Text.Label("Template Name"))
             .Add(name.ToTextInput().Placeholder("e.g. Distrokid CSV"))
+            .Add(Text.Label("Source Name"))
+            .Add(sourceName.ToTextInput().Placeholder("e.g. Distrokid"))
             .Add(Text.Label("Category"))
             .Add(category.ToSelectInput(new[] { "Merchandise", "Royalties", "Concerts", "Other" }.Select(c => new Option<string>(c, c))))
             .Add(Layout.Horizontal().Align(Align.Right).Gap(10).Padding(10, 0, 0, 0)
@@ -169,6 +175,7 @@ public class CreateTemplateSheet(Action onClose) : ViewBase
                   await service.CreateTemplateAsync(new ImportTemplate
                   {
                     Name = name.Value,
+                    SourceName = sourceName.Value,
                     Category = category.Value,
                     HeadersJson = "[]",
                     CreatedAt = DateTime.UtcNow,
@@ -204,6 +211,7 @@ public class TemplateEditSheet : ViewBase
 
     // Mappings State
     var name = UseState("");
+    var sourceName = UseState("");
     var category = UseState("");
     var headers = UseState<List<string>>([]);
 
@@ -223,6 +231,7 @@ public class TemplateEditSheet : ViewBase
       {
         template.Set(t);
         name.Set(t.Name);
+        sourceName.Set(t.SourceName ?? "");
         category.Set(t.Category ?? "Other");
         headers.Set(t.GetHeaders());
 
@@ -242,6 +251,7 @@ public class TemplateEditSheet : ViewBase
       if (template.Value == null) return;
       var t = template.Value;
       t.Name = name.Value;
+      t.SourceName = sourceName.Value;
       t.Category = category.Value;
       t.AssetColumn = assetColumn.Value;
       t.NetColumn = amountColumn.Value;
@@ -316,6 +326,9 @@ public class TemplateEditSheet : ViewBase
                 .Add(Layout.Vertical().Gap(5)
                      .Add(Text.Label("Template Name"))
                      .Add(name.ToTextInput()))
+                .Add(Layout.Vertical().Gap(5)
+                     .Add(Text.Label("Source Name"))
+                     .Add(sourceName.ToTextInput()))
                 .Add(Layout.Vertical().Gap(5)
                      .Add(Text.Label("Category"))
                      .Add(category.ToSelectInput(new[] { "Merchandise", "Royalties", "Concerts", "Other" }.Select(c => new Option<string>(c, c)))))
