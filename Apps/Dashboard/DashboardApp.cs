@@ -26,7 +26,7 @@ public class DashboardApp : ViewBase
   public record TemplateTableItem(int RealId, string Id, string Name, string Category, int Files, DateTime CreatedAt);
 
   // Table projection records
-  public record RevenueRow(string Id, string Date, object Name, string Type, string Source, string Amount);
+  public record RevenueRow(object Id, string Date, string Name, string Type, string Source, string Amount);
   public record AssetRow(object Id, string Name, string? Category, string? Type, string Amount, object Actions);
   public record DataTableRow(object Id, string Name, string Date, object Actions);
   public record TemplateRow(string Id, string Name, string Category, int Linked, object Actions);
@@ -130,7 +130,6 @@ public class DashboardApp : ViewBase
           .Add(new Card(Layout.Center().Add(Text.H2(totalRevenue?.Value ?? "$0.00"))).Title("Total Revenue"))
           .Add(new Card(Layout.Center().Add(Text.H2(revenueEntries.Count(x => !string.IsNullOrEmpty(x.JsonData)).ToString()))).Title("Data Imports")))
       .Add(new Card(Text.P("Welcome to your Artist Ledger. Use the tabs above to manage your assets and revenue.")).Title("Quick Start"));
-
   private object RenderAnalyticsTab(List<Asset> assets, IState<string> selectedCategory, List<string> categories)
   {
     if (assets.Count == 0 || !categories.Any()) return Layout.Center().Add(Text.Label("No asset data available."));
@@ -140,25 +139,25 @@ public class DashboardApp : ViewBase
 
     var categoryData = assets
         .GroupBy(a => (a.Category ?? "Uncategorized").Trim())
-        .Select(g => new { Dimension = g.Key, Measure = (double)g.Sum(a => a.AmountGenerated) })
+        .Select(g => new CategoryRevenue(g.Key, (double)g.Sum(a => a.AmountGenerated)))
         .ToList();
 
     var assetBreakdown = assets
         .Where(a => string.Equals((a.Category ?? "Uncategorized").Trim(), currentCat.Trim(), StringComparison.OrdinalIgnoreCase))
-        .Select(a => new { Dimension = a.Name, Measure = (double)a.AmountGenerated })
-        .OrderByDescending(a => a.Measure)
+        .Select(a => new AssetRevenueItem(a.Name, (double)a.AmountGenerated))
+        .OrderByDescending(a => a.Amount)
         .ToList();
 
     return Layout.Vertical().Gap(20)
         .Add(Layout.Horizontal().Gap(20).Width(Size.Full())
             .Add(new Card(
                 new PieChart(categoryData)
-                    .Pie("Measure", "Dimension")
+                    .Pie("Amount", "Category")
                     .Tooltip()
             ).Title("Revenue by Category").Width(Size.Fraction(0.5f)))
             .Add(new Card(
                 new PieChart(assetBreakdown)
-                    .Pie("Measure", "Dimension")
+                    .Pie("Amount", "Asset")
                     .Tooltip()
             ).Title($"{currentCat} Breakdown").Width(Size.Fraction(0.5f))))
         .Add(Layout.Horizontal().Align(Align.Center).Gap(10)
@@ -173,8 +172,9 @@ public class DashboardApp : ViewBase
     return Layout.Vertical().Gap(20)
         .Add(Layout.Horizontal().Align(Align.Center).Add(Text.H4($"{filtered.Count} Streams")).Add(new Spacer().Width(Size.Fraction(1))).Add(new Button("Create Entry", () => dialog.Set(new RevenueCreateSheet(() => { dialog.Set((object?)null); query.Mutator.Revalidate(); }))).Icon(Icons.Plus).Variant(ButtonVariant.Outline)))
         .Add(filtered.Select(r => new RevenueRow(
-            $"E{r.Id:D3}", r.RevenueDate.ToShortDateString(),
-            new Button(r.Description ?? "-", () => dialog.Set(new RevenueViewSheet(r.Id, () => dialog.Set((object?)null), () => dialog.Set(new RevenueEditSheet(r.Id, () => dialog.Set((object?)null)))))).Variant(ButtonVariant.Link),
+            new Button($"E{r.Id:D3}", () => dialog.Set(new RevenueViewSheet(r.Id, () => dialog.Set((object?)null), () => dialog.Set(new RevenueEditSheet(r.Id, () => dialog.Set((object?)null)))))).Variant(ButtonVariant.Ghost),
+            r.RevenueDate.ToShortDateString(),
+            r.Description ?? "-",
             r.Source ?? "Unknown", r.Integration ?? "Manual", r.Amount.ToString("C", CultureInfo.GetCultureInfo("sv-SE"))
         )).Take(100).ToArray().ToTable().Width(Size.Full()).Add(x => x.Id).Add(x => x.Date).Add(x => x.Name).Add(x => x.Type).Add(x => x.Source).Add(x => x.Amount));
   }

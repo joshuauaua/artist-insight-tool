@@ -78,7 +78,11 @@ public class RevenueViewSheet(int id, Action onClose, Action onEdit) : ViewBase
     }
 
 
-    // --- RENDER annex data view ---
+    var type = "Other";
+
+    // --- Prepare Content ---
+    object content;
+
     if (viewingSheetIndex.Value.HasValue && viewingSheetIndex.Value < sheets.Count)
     {
       var currentSheet = sheets[viewingSheetIndex.Value.Value];
@@ -105,7 +109,7 @@ public class RevenueViewSheet(int id, Action onClose, Action onEdit) : ViewBase
           ColType = ColType.Text
         }).Cast<DataTableColumn>().ToArray();
 
-        return Layout.Vertical().Gap(5).Width(Size.Full())
+        content = Layout.Vertical().Gap(5).Width(Size.Full())
            .Add(Layout.Horizontal().Align(Align.Center).Gap(10)
                .Add(new Button("Back", () => viewingSheetIndex.Set((int?)null)).Variant(ButtonVariant.Primary).Icon(Icons.ArrowLeft))
                .Add(Text.H4(currentSheet.Title ?? "Annexed Data"))
@@ -116,65 +120,63 @@ public class RevenueViewSheet(int id, Action onClose, Action onEdit) : ViewBase
       }
       else
       {
-        return Layout.Vertical().Gap(10)
+        content = Layout.Vertical().Gap(10)
             .Add(new Button("Back", () => viewingSheetIndex.Set((int?)null)).Variant(ButtonVariant.Link))
             .Add(Text.Muted("No valid data found in this sheet."));
       }
     }
+    else
+    {
+      content = Layout.Vertical().Gap(10)
+          .Add(Text.H4(e.Description ?? "-"))
+          .Add(new Card(
+               Layout.Vertical().Gap(10)
+                   .Add(Layout.Horizontal().Gap(10).Align(Align.Center)
+                       .Add(Layout.Vertical().Gap(2)
+                           .Add(Text.Label("Source"))
+                           .Add(Text.Muted(e.Source.DescriptionText))
+                       )
+                       .Add(new Spacer())
+                       .Add(Layout.Vertical().Gap(2).Align(Align.Center)
+                           .Add(Text.Label("Category"))
+                           .Add(Text.Muted(type))
+                       )
+                   )
+                   .Add(Layout.Horizontal().Gap(10).Align(Align.Center)
+                      .Add(Layout.Vertical().Gap(2)
+                          .Add(Text.Label("Date"))
+                          .Add(Text.Muted(e.RevenueDate.ToShortDateString()))
+                      )
+                      .Add(new Spacer())
+                      .Add(Layout.Vertical().Gap(2).Align(Align.Center)
+                          .Add(Text.Label("Amount"))
+                          .Add(Text.Muted(e.Amount.ToString("C", CultureInfo.GetCultureInfo("sv-SE"))))
+                      )
+                  )
+          ))
+          .Add(Layout.Vertical().Gap(5)
+              .Add(Text.Label("Annexed Data"))
+              .Add(sheets.Count > 0
+                  ? viewingSheetIndex.ToSelectInput(
+                      sheets.Select((s, i) => new Option<int?>(
+                          $"{(!string.IsNullOrEmpty(s.Title) ? s.Title : s.FileName)} | {s.TemplateName ?? "-"}",
+                          i
+                      )).ToList()
+                  ).Placeholder("Select annexed file to view...")
+                  : Text.Muted("No annexed data available")
+              )
+          )
+          .Add(Layout.Horizontal().Align(Align.Right).Gap(10).Padding(10, 0, 0, 0)
+               .Add(new Button("Edit", _onEdit).Variant(ButtonVariant.Primary).Icon(Icons.Pencil))
+               .Add(new Button("Close", _onClose))
+          );
+    }
 
-
-    var type = "Other";
-
-    return Layout.Vertical().Gap(10)
-        // 1. Name & Description
-        // 1. Name & Description
-        .Add(Text.H4(e.Description ?? "-"))
-        // 2. Info Card (Date, Amount, Source, Category)
-        .Add(new Card(
-             Layout.Vertical().Gap(10) // Increased gap between rows
-                                       // Row 1: Source & Category
-                 .Add(Layout.Horizontal().Gap(10).Align(Align.Center)
-                     .Add(Layout.Vertical().Gap(2)
-                         .Add(Text.Label("Source"))
-                         .Add(Text.Muted(e.Source.DescriptionText))
-                     )
-                     .Add(new Spacer())
-                     .Add(Layout.Vertical().Gap(2).Align(Align.Center)
-                         .Add(Text.Label("Category"))
-                         .Add(Text.Muted(type))
-                     )
-                 )
-                 // Row 2: Date & Amount
-                 .Add(Layout.Horizontal().Gap(10).Align(Align.Center)
-                    .Add(Layout.Vertical().Gap(2)
-                        .Add(Text.Label("Date"))
-                        .Add(Text.Muted(e.RevenueDate.ToShortDateString()))
-                    )
-                    .Add(new Spacer())
-                    .Add(Layout.Vertical().Gap(2).Align(Align.Center)
-                        .Add(Text.Label("Amount"))
-                        .Add(Text.Muted(e.Amount.ToString("C", CultureInfo.GetCultureInfo("sv-SE"))))
-                    )
-                )
-        ))
-        // 4. Annexed Data
-        // 4. Annexed Data
-        .Add(Layout.Vertical().Gap(5)
-            .Add(Text.Label("Annexed Data"))
-            .Add(sheets.Count > 0
-                ? viewingSheetIndex.ToSelectInput(
-                    sheets.Select((s, i) => new Option<int?>(
-                        $"{(!string.IsNullOrEmpty(s.Title) ? s.Title : s.FileName)} | {s.TemplateName ?? "-"}",
-                        i
-                    )).ToList()
-                ).Placeholder("Select annexed file to view...")
-                : Text.Muted("No annexed data available")
-            )
-        )
-        // Actions
-        .Add(Layout.Horizontal().Align(Align.Right).Gap(10).Padding(10, 0, 0, 0)
-             .Add(new Button("Edit", _onEdit).Variant(ButtonVariant.Primary).Icon(Icons.Pencil))
-             .Add(new Button("Close", _onClose))
-        );
+    return new Sheet(
+        _ => _onClose(),
+        content,
+        e.Description ?? "Revenue Entry",
+        $"E{e.Id:D3}"
+    ).Width(Size.Full());
   }
 }

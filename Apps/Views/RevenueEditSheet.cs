@@ -90,7 +90,11 @@ public class RevenueEditSheet(int id, Action onClose) : ViewBase
     }
 
 
-    // --- RENDER annex data view ---
+    var type = "Other";
+
+    // --- Prepare Content ---
+    object content;
+
     if (viewingSheetIndex.Value.HasValue && viewingSheetIndex.Value < sheets.Count)
     {
       var currentSheet = sheets[viewingSheetIndex.Value.Value];
@@ -117,7 +121,7 @@ public class RevenueEditSheet(int id, Action onClose) : ViewBase
           ColType = ColType.Text
         }).Cast<DataTableColumn>().ToArray();
 
-        return Layout.Vertical().Gap(5).Width(Size.Full())
+        content = Layout.Vertical().Gap(5).Width(Size.Full())
            .Add(Layout.Horizontal().Align(Align.Center).Gap(10)
                .Add(new Button("Back", () => viewingSheetIndex.Set((int?)null)).Variant(ButtonVariant.Primary).Icon(Icons.ArrowLeft))
                .Add(Text.H4(currentSheet.Title ?? "Annexed Data"))
@@ -128,100 +132,101 @@ public class RevenueEditSheet(int id, Action onClose) : ViewBase
       }
       else
       {
-        // Empty
-        return Layout.Vertical().Gap(10)
+        content = Layout.Vertical().Gap(10)
             .Add(new Button("Back", () => viewingSheetIndex.Set((int?)null)).Variant(ButtonVariant.Link))
             .Add(Text.Muted("No valid data found in this sheet."));
       }
     }
-
-    // --- RENDER Edit Form ---
-    var type = "Other";
-
-    // --- RENDER Edit Form ---
-    // infoName was unused in duplication, reusing original logic if helpful or just removing dupes.
-    var infoName = "-";
-
-    return Layout.Vertical().Gap(10)
-        // 1. Name (Description)
-        .Add(Layout.Vertical().Gap(2)
-            .Add(Text.Label("Name"))
-            .Add(descriptionState.ToTextInput().Placeholder("Enter name..."))
-        )
-        // 2. Date
-        .Add(Layout.Vertical().Gap(2)
-            .Add(Text.Label("Date (MM/dd/yyyy)"))
-            .Add(dateStringState.ToTextInput())
-        )
-        // 3. Amount
-        .Add(Layout.Vertical().Gap(2)
-            .Add(Text.Label("Amount ($)"))
-            .Add(amountState.ToTextInput().Placeholder("0.00"))
-        )
-        // 4. Category & Source Info
-        .Add(new Card(
-             Layout.Vertical().Gap(5)
-                 .Add(Layout.Horizontal().Gap(10).Align(Align.Center)
-                     .Add(Layout.Vertical().Gap(2)
-                         .Add(Text.Label("Source"))
-                         .Add(Text.Muted(e.Source.DescriptionText))
-                     )
-                     .Add(new Spacer())
-                     .Add(Layout.Vertical().Gap(2).Align(Align.Center)
-                         .Add(Text.Label("Category"))
-                         .Add(Text.Muted(type))
-                     )
-                 )
-                 .Add(Text.Muted($"Linked to: {infoName}"))
-        ))
-        // 5. Annexed Data
-        .Add(sheets.Count > 0
-            ? Layout.Vertical().Gap(5)
-                .Add(Text.Label("Annexed Data"))
-                .Add(
-                    viewingSheetIndex.ToSelectInput(
-                        sheets.Select((s, i) => new Option<int?>(
-                            $"{(!string.IsNullOrEmpty(s.Title) ? s.Title : s.FileName)} | {s.TemplateName ?? "-"}",
-                            i
-                        )).ToList()
-                    ).Placeholder("Select annexed file to view...")
-                )
-            : null
-        )
-        // Actions
-        .Add(Layout.Horizontal().Align(Align.Center).Gap(10)
-             .Add(new Button("Delete", async () =>
-             {
-               await using var db = factory.CreateDbContext();
-               var entry = await db.RevenueEntries.FindAsync(_id);
-               if (entry != null)
-               {
-                 db.RevenueEntries.Remove(entry);
-                 await db.SaveChangesAsync();
-               }
-               _onClose();
-             }).Variant(ButtonVariant.Destructive))
-             .Add(new Spacer())
-             .Add(new Button("Save Changes", async () =>
-             {
-               if (decimal.TryParse(amountState.Value, out var newAmount))
+    else
+    {
+      content = Layout.Vertical().Gap(10)
+          // 1. Name (Description)
+          .Add(Layout.Vertical().Gap(2)
+              .Add(Text.Label("Name"))
+              .Add(descriptionState.ToTextInput().Placeholder("Enter name..."))
+          )
+          // 2. Date
+          .Add(Layout.Vertical().Gap(2)
+              .Add(Text.Label("Date (MM/dd/yyyy)"))
+              .Add(dateStringState.ToTextInput())
+          )
+          // 3. Amount
+          .Add(Layout.Vertical().Gap(2)
+              .Add(Text.Label("Amount ($)"))
+              .Add(amountState.ToTextInput().Placeholder("0.00"))
+          )
+          // 4. Category & Source Info
+          .Add(new Card(
+               Layout.Vertical().Gap(5)
+                   .Add(Layout.Horizontal().Gap(10).Align(Align.Center)
+                       .Add(Layout.Vertical().Gap(2)
+                           .Add(Text.Label("Source"))
+                           .Add(Text.Muted(e.Source.DescriptionText))
+                       )
+                       .Add(new Spacer())
+                       .Add(Layout.Vertical().Gap(2).Align(Align.Center)
+                           .Add(Text.Label("Category"))
+                           .Add(Text.Muted(type))
+                       )
+                   )
+                   .Add(Text.Muted($"Linked to: {e.Artist.Name}"))
+          ))
+          // 5. Annexed Data
+          .Add(sheets.Count > 0
+              ? Layout.Vertical().Gap(5)
+                  .Add(Text.Label("Annexed Data"))
+                  .Add(
+                      viewingSheetIndex.ToSelectInput(
+                          sheets.Select((s, i) => new Option<int?>(
+                              $"{(!string.IsNullOrEmpty(s.Title) ? s.Title : s.FileName)} | {s.TemplateName ?? "-"}",
+                              i
+                          )).ToList()
+                      ).Placeholder("Select annexed file to view...")
+                  )
+              : null
+          )
+          // Actions
+          .Add(Layout.Horizontal().Align(Align.Center).Gap(10)
+               .Add(new Button("Delete", async () =>
                {
                  await using var db = factory.CreateDbContext();
                  var entry = await db.RevenueEntries.FindAsync(_id);
                  if (entry != null)
                  {
-                   entry.Amount = newAmount;
-                   entry.Description = descriptionState.Value;
-                   if (DateTime.TryParse(dateStringState.Value, out var newDate))
-                   {
-                     entry.RevenueDate = newDate;
-                   }
+                   db.RevenueEntries.Remove(entry);
                    await db.SaveChangesAsync();
                  }
                  _onClose();
-               }
-             }).Variant(ButtonVariant.Primary))
-        );
+               }).Variant(ButtonVariant.Destructive))
+               .Add(new Spacer())
+               .Add(new Button("Save Changes", async () =>
+               {
+                 if (decimal.TryParse(amountState.Value, out var newAmount))
+                 {
+                   await using var db = factory.CreateDbContext();
+                   var entry = await db.RevenueEntries.FindAsync(_id);
+                   if (entry != null)
+                   {
+                     entry.Amount = newAmount;
+                     entry.Description = descriptionState.Value;
+                     if (DateTime.TryParse(dateStringState.Value, out var newDate))
+                     {
+                       entry.RevenueDate = newDate;
+                     }
+                     await db.SaveChangesAsync();
+                   }
+                   _onClose();
+                 }
+               }).Variant(ButtonVariant.Primary))
+          );
+    }
+
+    return new Sheet(
+        _ => _onClose(),
+        content,
+        "Edit Revenue Entry",
+        $"E{e.Id:D3}"
+    ).Width(Size.Full());
   }
 }
 

@@ -51,34 +51,29 @@ public class RevenueCreateSheet(Action onClose) : ViewBase
       return new Option<int?>(label, s.Id);
     }).OrderBy(o => o.Label).ToList();
 
-    return new Dialog(
-        _ => _onClose(),
-        new DialogHeader("Create New Entry"),
-        new DialogBody(
-            Layout.Vertical().Gap(15)
-                .Add(Layout.Vertical().Gap(5)
-                    .Add("Name")
-                    .Add(descriptionState.ToTextInput().Placeholder("e.g. Monthly Payout"))
-                )
-                .Add(Layout.Vertical().Gap(5)
-                     .Add("Type")
-                     .Add(selectedTypeId.ToSelectInput(typeOptions).Placeholder("Select Type"))
-                )
-                .Add(Layout.Vertical().Gap(5)
-                     .Add("Source")
-                     .Add(sourceState.ToTextInput().Placeholder("e.g. Spotify, MerchTable"))
-                )
-                .Add(Layout.Vertical().Gap(5)
-                    .Add("Amount (kr)")
-                    .Add(amountState.ToTextInput().Placeholder("0.00"))
-                )
-                 .Add(Layout.Vertical().Gap(5)
-                    .Add("Date (MM/dd/yyyy)")
-                    .Add(dateStringState.ToTextInput())
-                )
-        ),
-        new DialogFooter(
-             Layout.Horizontal().Gap(10).Align(Align.Right).Width(Size.Full())
+    var content = Layout.Vertical().Gap(15)
+        .Add(Layout.Vertical().Gap(5)
+            .Add("Name")
+            .Add(descriptionState.ToTextInput().Placeholder("e.g. Monthly Payout"))
+        )
+        .Add(Layout.Vertical().Gap(5)
+             .Add("Type")
+             .Add(selectedTypeId.ToSelectInput(typeOptions).Placeholder("Select Type"))
+        )
+        .Add(Layout.Vertical().Gap(5)
+             .Add("Source")
+             .Add(sourceState.ToTextInput().Placeholder("e.g. Spotify, MerchTable"))
+        )
+        .Add(Layout.Vertical().Gap(5)
+            .Add("Amount (kr)")
+            .Add(amountState.ToTextInput().Placeholder("0.00"))
+        )
+        .Add(Layout.Vertical().Gap(5)
+            .Add("Date (MM/dd/yyyy)")
+            .Add(dateStringState.ToTextInput())
+        )
+        .Add(new Spacer())
+        .Add(Layout.Horizontal().Gap(10).Align(Align.Right).Width(Size.Full())
              .Add(new Button("Create Entry", async () =>
              {
                if (string.IsNullOrWhiteSpace(descriptionState.Value))
@@ -135,7 +130,12 @@ public class RevenueCreateSheet(Action onClose) : ViewBase
                  client.Toast("Invalid Amount", "Error");
                }
              }).Variant(ButtonVariant.Primary))
-        )
+        );
+
+    return new Sheet(
+        _ => _onClose(),
+        content,
+        "Create New Entry"
     );
   }
 }
