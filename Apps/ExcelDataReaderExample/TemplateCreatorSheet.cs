@@ -132,6 +132,49 @@ public class TemplateCreatorSheet(CurrentFile? file, Action onSuccess, Action on
         }
       }
 
+      // Add state for dialog
+      var showMappingDialog = UseState(false);
+
+      var mapButton = new Button("Confirm Mapping", () =>
+              {
+                if (selectedHeaderToMap.Value != null && selectedFieldToMap.Value != null)
+                {
+                  var list = mappedPairs.Value.ToList();
+                  list.Add((selectedHeaderToMap.Value, selectedFieldToMap.Value));
+                  mappedPairs.Set(_ => list);
+                  selectedHeaderToMap.Set((string?)null);
+                  selectedFieldToMap.Set((string?)null);
+                }
+              }).Variant(ButtonVariant.Primary)
+                .Disabled(selectedHeaderToMap.Value == null || selectedFieldToMap.Value == null)
+                .Icon(Icons.Link);
+
+      var mappingDialog = showMappingDialog.Value ? new Dialog(
+          _ => showMappingDialog.Set(false),
+          new DialogHeader("Mapped Columns"),
+          new DialogBody(
+             Layout.Vertical().Padding(15).Gap(5)
+              .Add(mapped.Count == 0 ?
+                  Layout.Horizontal().Align(Align.Center).Add(Text.Muted("No columns mapped yet."))
+                  : Layout.Vertical().Gap(5).Add(mapped.Select(m =>
+                      Layout.Horizontal().Gap(10).Align(Align.Center).Padding(5)
+                          .Add(new Icon(Icons.Check).Size(16))
+                          .Add(Text.Label($"{m.Header}"))
+                          .Add(new Icon(Icons.ArrowRight).Size(14))
+                          .Add(Text.Label($"{allFieldsMap.GetValueOrDefault(m.FieldKey, m.FieldKey)}"))
+                          .Add(Layout.Horizontal().Grow())
+                          .Add(new Button("", () =>
+                          {
+                            var list = mappedPairs.Value.ToList();
+                            list.RemoveAll(x => x.Header == m.Header && x.FieldKey == m.FieldKey);
+                            mappedPairs.Set(_ => list);
+                          }).Variant(ButtonVariant.Ghost).Icon(Icons.Trash).Size(24))
+                  ).ToArray())
+              )
+          ),
+          new DialogFooter(new Button("Close", () => showMappingDialog.Set(false)))
+      ) : null;
+
       content
           .Add(Layout.Horizontal().Align(Align.Center).Add(Text.H4("Step 2: Map Columns")))
           .Add(Layout.Horizontal().Gap(20).Width(Size.Full())
@@ -150,41 +193,11 @@ public class TemplateCreatorSheet(CurrentFile? file, Action onSuccess, Action on
               ).Width(Size.Fraction(0.5f)))
           )
           .Add(Layout.Horizontal().Align(Align.Center).Padding(10)
-              .Add(new Button("Confirm Mapping", () =>
-              {
-                if (selectedHeaderToMap.Value != null && selectedFieldToMap.Value != null)
-                {
-                  var list = mappedPairs.Value.ToList();
-                  list.Add((selectedHeaderToMap.Value, selectedFieldToMap.Value));
-                  mappedPairs.Set(_ => list);
-                  selectedHeaderToMap.Set((string?)null);
-                  selectedFieldToMap.Set((string?)null);
-                }
-              }).Variant(ButtonVariant.Primary)
-                .Disabled(selectedHeaderToMap.Value == null || selectedFieldToMap.Value == null)
-                .Icon(Icons.Link))
-          )
-          .Add(Text.H5("Mapped Columns"))
-          .Add(Layout.Vertical().Padding(15).Gap(5)
-              .Add(mapped.Count == 0 ?
-                  Layout.Horizontal().Align(Align.Center).Add(Text.Muted("No columns mapped yet."))
-                  : Layout.Vertical().Gap(5).Add(mapped.Select(m =>
-                      Layout.Horizontal().Gap(10).Align(Align.Center).Padding(5)
-                          .Add(new Icon(Icons.Check).Size(16))
-                          .Add(Text.Label($"{m.Header}"))
-                          .Add(new Icon(Icons.ArrowRight).Size(14))
-                          .Add(Text.Label($"{allFieldsMap.GetValueOrDefault(m.FieldKey, m.FieldKey)}"))
-                          .Add(Layout.Horizontal().Grow())
-                          .Add(new Button("", () =>
-                          {
-                            var list = mappedPairs.Value.ToList();
-                            list.RemoveAll(x => x.Header == m.Header && x.FieldKey == m.FieldKey);
-                            mappedPairs.Set(_ => list);
-                          }).Variant(ButtonVariant.Ghost).Icon(Icons.Trash).Size(24))
-                  ).ToArray())
-              )
+              .Add(mapButton)
           )
           .Add(Layout.Horizontal().Gap(10).Align(Align.Right).Padding(10, 0, 0, 0)
+              .Add(new Button("View Mapped Columns", () => showMappingDialog.Set(true))
+                  .Variant(ButtonVariant.Outline).Icon(Icons.List))
               .Add(new Button("Back", () => templateCreationStep.Set(1)).Variant(ButtonVariant.Ghost).Icon(Icons.ArrowLeft))
               .Add(new Button("Save Template", async () =>
               {
@@ -230,8 +243,20 @@ public class TemplateCreatorSheet(CurrentFile? file, Action onSuccess, Action on
                 _onSuccess();
               }).Variant(ButtonVariant.Primary).Disabled(mapped.Count == 0))
           );
+
+      // Return fragment to support dialog
+      return new Fragment(
+        new Sheet(
+            _ => { _onCancel(); return ValueTask.CompletedTask; },
+            content,
+            "Create Import Template",
+            "Define how to import this file format."
+        ).Width(Size.Full()),
+        mappingDialog
+      );
     }
 
+    // Fallback for Step 1
     return new Sheet(
         _ => { _onCancel(); return ValueTask.CompletedTask; },
         content,

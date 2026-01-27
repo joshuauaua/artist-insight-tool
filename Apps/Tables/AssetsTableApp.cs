@@ -109,17 +109,7 @@ public class AssetsTableApp : ViewBase
     var headerCard = new Card(
         Layout.Vertical().Gap(10)
             .Add(Layout.Horizontal().Align(Align.Center).Width(Size.Full())
-                 .Add(Text.H1("Assets Table"))
                  .Add(new Spacer().Width(Size.Fraction(1)))
-                 .Add(new DropDownMenu(
-                         DropDownMenu.DefaultSelectHandler(),
-                         new Button("Create Asset").Icon(Icons.Plus).Variant(ButtonVariant.Primary)
-                     )
-                     | MenuItem.Default("Manual Entry").Icon(Icons.Plus)
-                         .HandleSelect(() => showCreate.Set(true))
-                     | MenuItem.Default("Fetch from Spotify").Icon(Icons.CloudDownload)
-                         .HandleSelect(() => showSpotifyImport.Set(true))
-                 )
             )
             .Add(Layout.Horizontal().Width(Size.Full()).Gap(10)
                  .Add(searchQuery.ToTextInput().Placeholder("Search assets...").Width(300))

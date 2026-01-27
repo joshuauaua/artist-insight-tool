@@ -1,18 +1,19 @@
-Entries Count: 14
- - ID: 17, Desc: 2026 Q1 Artists, DataLen: 221, Source: Other, Created: 1/20/2026 3:53:38 PM
+Entries Count: 15
  - ID: 18, Desc: 2026 Q1 Extended, DataLen: 123526, Source: Other, Created: 1/21/2026 8:19:45 AM
  - ID: 19, Desc: 2026 Q1 Assets, DataLen: 2505, Source: Other, Created: 1/21/2026 8:20:24 AM
  - ID: 21, Desc: 2023 Q1 Assets Template, DataLen: 2509, Source: Other, Created: 1/21/2026 3:00:08 PM
  - ID: 26, Desc: 2026 Q1 Artists, DataLen: 221, Source: Other, Created: 1/26/2026 12:46:33 PM
  - ID: 27, Desc: Shopify Products, DataLen: 23570, Source: Other, Created: 1/26/2026 12:46:55 PM
- - ID: 28, Desc: sad - ALOADED2025Q3LABELS_JoshuaNg-artists.csv, DataLen: 238, Source: Excel Import, Created: 1/26/2026 2:09:29 PM
  - ID: 29, Desc: Assets - ALOADED2025Q3LABELS_JoshuaNg-assets.csv, DataLen: 2522, Source: Excel Import, Created: 1/26/2026 2:29:24 PM
- - ID: 30, Desc: Products - ALOADED2025Q3LABELS_JoshuaNg-products.csv, DataLen: 697, Source: Excel Import, Created: 1/26/2026 2:35:42 PM
  - ID: 31, Desc: Products - ALOADED2025Q3LABELS_JoshuaNg-products.csv, DataLen: 697, Source: Excel Import, Created: 1/26/2026 2:35:42 PM
- - ID: 33, Desc: 2024 Q2 Countries Distributor Template - ALOADED2024Q2LABELS_JoshuaNg-countries.csv, DataLen: 2503, Source: Excel Import, Created: 1/26/2026 5:47:27 PM
  - ID: 34, Desc: 2025 Q1 Assets - ALOADED2025Q1LABELS_JoshuaNg-assets.csv, DataLen: 2508, Source: Excel Import, Created: 1/26/2026 6:21:22 PM
- - ID: 35, Desc: 2024 Q1 Countries Distributor Template - ALOADED2025Q1LABELS_JoshuaNg-countries.csv, DataLen: 3456, Source: Excel Import, Created: 1/26/2026 6:28:15 PM
- - ID: 36, Desc: Event  - Eventbrite_Orders-1981588673064.xlsx, DataLen: 2973, Source: Excel Import, Created: 1/26/2026 6:38:02 PM
+ - ID: 37, Desc: 2025 Q3 Artists Distributor Template - ALOADED2025Q3LABELS_JoshuaNg-artists.csv, DataLen: 259, Source: Excel Import, Created: 1/26/2026 8:12:46 PM
+ - ID: 39, Desc: Eventbrite - Eventbrite_Orders-1981588673064 (1).xlsx, DataLen: 2974, Source: Excel Import, Created: 1/27/2026 9:01:17 AM
+ - ID: 40, Desc: asd - Eventbrite_Orders-1981588673064 (1).xlsx, DataLen: 2974, Source: Excel Import, Created: 1/27/2026 9:21:43 AM
+ - ID: 41, Desc: sdsadasd - Eventbrite_Orders-1981588673064 (1).xlsx, DataLen: 2974, Source: Excel Import, Created: 1/27/2026 9:23:27 AM
+ - ID: 42, Desc: asdsad - product_template.csv, DataLen: 23570, Source: Excel Import, Created: 1/27/2026 9:26:40 AM
+ - ID: 43, Desc: ads - Eventbrite_Orders-1981588673064 (1).xlsx, DataLen: 2974, Source: Excel Import, Created: 1/27/2026 9:32:44 AM
+ - ID: 44, Desc: asdasd - Shopify_product_template (1).csv, DataLen: 23582, Source: Excel Import, Created: 1/27/2026 9:49:02 AM
 
 Sources Count: 6
  - ID: 0, Desc: Excel Import
@@ -28,20 +29,21 @@ Total Assets: 6
  - [008] Runaway (Unknown)
  - [009] Muddy Waters (Unknown)
  - [010] Patience (Revisited) (Unknown)
- - [016] Test event (1)
+ - [018] Test event (Ticket Sales)
 
 --- Data Tables Analysis ---
- - Entry 17: Multi-sheet (1 tables)
  - Entry 18: Multi-sheet (1 tables)
  - Entry 19: Multi-sheet (1 tables)
  - Entry 21: Multi-sheet (1 tables)
  - Entry 26: Multi-sheet (1 tables)
  - Entry 27: Multi-sheet (1 tables)
- - Entry 28: Multi-sheet (1 tables)
  - Entry 29: Multi-sheet (1 tables)
- - Entry 30: Multi-sheet (1 tables)
  - Entry 31: Multi-sheet (1 tables)
- - Entry 33: Multi-sheet (1 tables)
  - Entry 34: Multi-sheet (1 tables)
- - Entry 35: Multi-sheet (1 tables)
- - Entry 36: Multi-sheet (1 tables)
+ - Entry 37: Multi-sheet (1 tables)
+ - Entry 39: Multi-sheet (1 tables)
+ - Entry 40: Multi-sheet (1 tables)
+ - Entry 41: Multi-sheet (1 tables)
+ - Entry 42: Multi-sheet (1 tables)
+ - Entry 43: Multi-sheet (1 tables)
+ - Entry 44: Multi-sheet (1 tables)

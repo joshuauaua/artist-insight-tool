@@ -76,6 +76,25 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
     // --- Analysis State ---
     var filePaths = UseState<List<CurrentFile>>(() => new());
     var isAnalyzing = UseState(false);
+    var templatesUpdateTrigger = UseState(0);
+    var lastTemplateCount = UseState(0);
+
+    // Stable analysis trigger
+    UseEffect((Func<Task>)(async () =>
+    {
+      // Detect template count changes
+      var currentCount = templatesQuery.Value?.Count ?? 0;
+      if (currentCount != lastTemplateCount.Value)
+      {
+        lastTemplateCount.Set(currentCount);
+      }
+
+      // Wait for query to refresh (race condition fix)
+      await Task.Delay(300);
+
+      // Fire and forget
+      await RunAnalysis();
+    }), filePaths, activeMode, templatesUpdateTrigger);
 
     // --- Upload State ---
     var uploadState = UseState(ImmutableArray.Create<FileUpload<byte[]>>());
@@ -87,77 +106,78 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
 
     // Handle File Upload
     UseEffect(() =>
-    {
-      if (uploadState.Value.Length > 0)
       {
-        var list = filePaths.Value.ToList();
-        bool added = false;
-
-        foreach (var upload in uploadState.Value)
+        if (uploadState.Value.Length > 0)
         {
-          if (upload.Content is byte[] bytes && bytes.Length > 0)
+          var list = filePaths.Value.ToList();
+          bool added = false;
+
+          foreach (var upload in uploadState.Value)
           {
-            try
+            if (upload.Content is byte[] bytes && bytes.Length > 0)
             {
-              var tempPath = System.IO.Path.GetTempFileName();
-              var extension = ".xlsx";
-              if (bytes.Length >= 4)
+              try
               {
-                if (bytes[0] == 0x50 && bytes[1] == 0x4B) extension = ".xlsx";
-                else if (bytes[0] == 0xD0 && bytes[1] == 0xCF) extension = ".xls";
-                else
+                var tempPath = System.IO.Path.GetTempFileName();
+                var extension = ".xlsx";
+                if (bytes.Length >= 4)
                 {
-                  var content = System.Text.Encoding.UTF8.GetString(bytes.Take(100).ToArray());
-                  if (content.Contains(',')) extension = ".csv";
+                  if (bytes[0] == 0x50 && bytes[1] == 0x4B) extension = ".xlsx";
+                  else if (bytes[0] == 0xD0 && bytes[1] == 0xCF) extension = ".xls";
+                  else
+                  {
+                    var content = System.Text.Encoding.UTF8.GetString(bytes.Take(100).ToArray());
+                    if (content.Contains(',')) extension = ".csv";
+                  }
                 }
+                var finalPath = tempPath + extension;
+                File.WriteAllBytes(finalPath, bytes);
+
+                var newFile = new CurrentFile
+                {
+                  Path = finalPath,
+                  OriginalName = upload.FileName ?? "Unknown",
+                  FileSize = bytes.Length
+                };
+
+                list.Add(newFile);
+                added = true;
               }
-              var finalPath = tempPath + extension;
-              File.WriteAllBytes(finalPath, bytes);
-
-              var newFile = new CurrentFile
+              catch (Exception ex)
               {
-                Path = finalPath,
-                OriginalName = upload.FileName ?? "Unknown",
-                FileSize = bytes.Length
-              };
-
-              list.Add(newFile);
-              added = true;
-            }
-            catch (Exception ex)
-            {
-              try { client.Toast($"File upload error: {ex.Message}", "Error"); } catch { }
+                try { client.Toast($"File upload error: {ex.Message}", "Error"); } catch { }
+              }
             }
           }
-        }
 
-        if (added)
-        {
-          filePaths.Set(list);
-          uploadState.Set(ImmutableArray<FileUpload<byte[]>>.Empty);
+          if (added)
+          {
+            filePaths.Set(list);
+            uploadState.Set(ImmutableArray<FileUpload<byte[]>>.Empty);
+          }
         }
-      }
-    }, [uploadState]);
+      }, [uploadState]);
 
     // Analysis Logic
-    async Task<IDisposable?> RunAnalysis()
+    async Task RunAnalysis(CancellationToken ct = default)
     {
-      await Task.Yield();
-      if (!isAnalyzing.Value)
+      if (!isAnalyzing.Value && filePaths.Value.Any(f => f.Status == "Pending" || (f.Status == "Analyzed" && f.MatchedTemplate == null)))
       {
-        var files = filePaths.Value;
-        var templates = templatesQuery.Value ?? [];
-        bool changed = false;
-        var list = files.ToList();
-
-        // Re-match logic: Try to find templates for files that are analyzed but have no template
-        for (int i = 0; i < list.Count; i++)
+        // Wait for pending query if simple debounce needed, or just proceed
+        try
         {
-          var f = list[i];
-          if (f.Status == "Analyzed" && f.MatchedTemplate == null)
+          // Check for rematching first (Synchronous part)
+          var files = filePaths.Value;
+          var templates = templatesQuery.Value ?? [];
+          bool changed = false;
+          var list = files.ToList();
+
+          for (int i = 0; i < list.Count; i++)
           {
-            if (f.Analysis?.Sheets.Count > 0)
+            var f = list[i];
+            if (f.Status == "Analyzed" && f.MatchedTemplate == null && f.Analysis?.Sheets.Count > 0)
             {
+              // Match logic
               var firstSheetHeaders = f.Analysis.Sheets[0].Headers;
               var jsonHeaders = JsonSerializer.Serialize(firstSheetHeaders);
               var match = templates.FirstOrDefault(t => t.HeadersJson == jsonHeaders);
@@ -168,70 +188,71 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
               }
             }
           }
-        }
 
-        if (changed)
-        {
-          filePaths.Set(list);
-        }
-        else
-        {
+          if (changed)
+          {
+            filePaths.Set(list);
+            return; // State update will trigger re-run
+          }
+
+          // Find pending file
           var pending = files.FirstOrDefault(f => f.Status == "Pending");
           if (pending != null)
           {
             isAnalyzing.Set(true);
-            _ = Task.Run(async () =>
+
+            // Run background analysis
+            await Task.Run(async () =>
             {
+              if (ct.IsCancellationRequested) return;
+
+              FileAnalysis? result = null;
               try
               {
-                FileAnalysis? result = null;
-                try
+                result = await Task.Run(() =>
                 {
-                  result = await Task.Run(() =>
-                  {
-                    try { return AnalyzeFile(pending.Path); }
-                    catch { return null; }
-                  });
-                }
-                catch { }
-
-                var currentList = filePaths.Value.ToList();
-                var index = currentList.FindIndex(f => f.Id == pending.Id);
-                if (index != -1)
-                {
-                  var updated = currentList[index] with
-                  {
-                    Status = result != null ? "Analyzed" : "Error",
-                    Analysis = result
-                  };
-
-                  if (result?.Sheets.Count > 0)
-                  {
-                    var firstSheetHeaders = result.Sheets[0].Headers;
-                    var jsonHeaders = JsonSerializer.Serialize(firstSheetHeaders);
-                    var match = (templatesQuery.Value ?? []).FirstOrDefault(t => t.HeadersJson == jsonHeaders);
-                    updated = updated with
-                    {
-                      MatchedTemplate = match,
-                      IsNewTemplate = match == null
-                    };
-                  }
-                  currentList[index] = updated;
-                  filePaths.Set(currentList);
-                }
+                  try { return AnalyzeFile(pending.Path); } catch { return null; }
+                }, ct);
               }
-              finally
+              catch { }
+
+              if (ct.IsCancellationRequested) return;
+
+              // Update State safely
+              // We need to fetch latest list again in case it changed
+              var currentList = filePaths.Value.ToList();
+              var index = currentList.FindIndex(f => f.Id == pending.Id);
+
+              if (index != -1)
               {
-                isAnalyzing.Set(false);
+                var updated = currentList[index] with
+                {
+                  Status = result != null ? "Analyzed" : "Error",
+                  Analysis = result
+                };
+
+                if (result?.Sheets.Count > 0)
+                {
+                  var firstSheetHeaders = result.Sheets[0].Headers;
+                  var jsonHeaders = JsonSerializer.Serialize(firstSheetHeaders);
+                  var match = (templatesQuery.Value ?? []).FirstOrDefault(t => t.HeadersJson == jsonHeaders);
+                  updated = updated with { MatchedTemplate = match, IsNewTemplate = match == null };
+                }
+
+                currentList[index] = updated;
+                filePaths.Set(currentList);
               }
-            });
+
+            }, ct);
           }
         }
+        finally
+        {
+          isAnalyzing.Set(false);
+        }
       }
-      return null;
     }
 
-    UseEffect(RunAnalysis, filePaths, activeMode);
 
     // --- Helpers ---
 
@@ -306,6 +327,7 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
             targetFile,
             () =>
             {
+              templatesUpdateTrigger.Set(v => v + 1);
               activeMode.Set(AnalyzerMode.Home);
             },
             () => activeMode.Set(AnalyzerMode.Home)

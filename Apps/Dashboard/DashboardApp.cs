@@ -64,15 +64,17 @@ public class DashboardApp : ViewBase
 
     var selectedCategory = UseState("");
 
-    async Task<IDisposable?> InitCategory()
+    void InitCategory()
     {
       if (string.IsNullOrEmpty(selectedCategory.Value) && categories.Count > 0)
       {
         var defaultCat = categories.FirstOrDefault(c => string.Equals(c, "Royalties", StringComparison.OrdinalIgnoreCase)) ?? categories[0];
+        // Schedule update to avoid render loop conflict if called directly (though Set usually handles it)
         selectedCategory.Set(defaultCat);
       }
-      return await Task.FromResult<IDisposable?>(null);
     }
+
+    // Trigger initialization on every render (guarded by logic inside)
     UseEffect(InitCategory);
 
 
@@ -81,7 +83,7 @@ public class DashboardApp : ViewBase
 
     // --- 3. View Components ---
 
-    var tabNames = new[] { "Overview", "Analytics", "Revenue", "Assets", "Data Tables", "Templates" };
+    var tabNames = new[] { "Overview", "Assets", "Revenue", "Data Tables", "Templates" };
     var tabButtons = new List<object>();
     for (int i = 0; i < tabNames.Length; i++)
     {
@@ -112,11 +114,10 @@ public class DashboardApp : ViewBase
       body.Add(selectedTab.Value switch
       {
         0 => RenderOverview(assets, totalRevenue, revenueEntries),
-        1 => RenderAnalyticsTab(assets, selectedCategory, categories),
+        1 => RenderAssets(assets, globalSearch, selectedDialog, assetsQuery, service, selectedCategory, categories, revenueEntries),
         2 => RenderRevenue(revenueEntries, globalSearch, selectedDialog, revenueQuery),
-        3 => RenderAssets(assets, globalSearch, selectedDialog, assetsQuery, service),
-        4 => RenderDataTables(revenueEntries, globalSearch, selectedDialog, revenueQuery, service),
-        5 => RenderTemplates(templatesData, globalSearch, selectedDialog, tmplQuery, service, client),
+        3 => RenderDataTables(revenueEntries, globalSearch, selectedDialog, revenueQuery, service),
+        4 => RenderTemplates(templatesData, globalSearch, selectedDialog, tmplQuery, service, client),
         _ => RenderOverview(assets, totalRevenue, revenueEntries)
       });
     }
@@ -128,12 +129,12 @@ public class DashboardApp : ViewBase
 
   private object RenderOverview(List<Asset> assets, MetricDto? totalRevenue, List<RevenueEntryDto> revenueEntries) => Layout.Vertical().Gap(20)
       .Add(Layout.Grid().Columns(3).Gap(20)
+          .Add(new Card(Text.P("Welcome to your Artist Ledger. Use the tabs above to manage your assets and revenue.")).Title("Quick Start"))
           .Add(new Card(Layout.Center().Add(Text.H2(assets.Count.ToString()))).Title("Total Assets"))
           .Add(new Card(Layout.Center().Add(Text.H2(totalRevenue?.Value ?? "$0.00"))).Title("Total Revenue"))
-          .Add(new Card(Layout.Center().Add(Text.H2(revenueEntries.Count(x => !string.IsNullOrEmpty(x.JsonData)).ToString()))).Title("Data Imports")))
-      .Add(new Card(Text.P("Welcome to your Artist Ledger. Use the tabs above to manage your assets and revenue.")).Title("Quick Start"));
+          .Add(new Card(Layout.Center().Add(Text.H2(revenueEntries.Count(x => !string.IsNullOrEmpty(x.JsonData)).ToString()))).Title("Data Imports")));
 
-  private object RenderAnalyticsTab(List<Asset> assets, IState<string> selectedCategory, List<string> categories)
+  private object RenderAnalyticsCard(List<Asset> assets, IState<string> selectedCategory, List<string> categories)
   {
     if (assets.Count == 0 || !categories.Any()) return Layout.Center().Add(Text.Label("No asset data available."));
 
@@ -155,34 +156,59 @@ public class DashboardApp : ViewBase
         .OrderByDescending(x => x.Measure)
         .ToList();
 
-    return Layout.Vertical().Gap(20)
-        .Add(Layout.Horizontal().Gap(20).Width(Size.Full())
-            .Add(Layout.Vertical().Width(Size.Fraction(0.5f))
-                .Add(Text.Label("Revenue by Category").Small())
-                .Add(new Card(
-                    new PieChart(categoryData)
+    return new Card(
+        Layout.Vertical().Gap(10)
+            .Add(Layout.Horizontal().Align(Align.Center).Gap(10)
+                .Add(Text.H4("Revenue Analytics"))
+                .Add(new Spacer())
+                .Add(Text.Label("Drilldown Category:"))
+                .Add(selectedCategory.ToSelectInput(categories.ToOptions()).Width(150))
+            )
+            .Add(Layout.Horizontal().Gap(10).Width(Size.Full())
+                .Add(Layout.Vertical().Width(Size.Fraction(0.5f)).Gap(5)
+                    .Add(Layout.Center().Add(Text.Label("Total Revenue by Category").Small()))
+                    .Add(new PieChart(categoryData)
                         .Pie("Measure", "Dimension")
                         .Tooltip()
-                ).Height(Size.Units(80))))
-            .Add(Layout.Vertical().Width(Size.Fraction(0.5f))
-                .Add(Text.Label($"{currentCat} - Asset Breakdown").Small())
-                .Add(new Card(
-                    new PieChart(selectedCategoryAssets)
+                        .Height(Size.Units(100)))
+                )
+                .Add(Layout.Vertical().Width(Size.Fraction(0.5f)).Gap(5)
+                    .Add(Layout.Center().Add(Text.Label($"{currentCat} - Asset Breakdown").Small()))
+                    .Add(new PieChart(selectedCategoryAssets)
                         .Pie("Measure", "Dimension")
                         .Tooltip()
-                ).Height(Size.Units(80))))
-        )
-        .Add(Layout.Horizontal().Align(Align.Center).Gap(10)
-            .Add(Text.Label("Drilldown Category:"))
-            .Add(selectedCategory.ToSelectInput(categories.ToOptions()).Width(300)));
+                        .Height(Size.Units(100)))
+                )
+            )
+    ).Width(Size.Full())
+    .BorderStyle(BorderStyle.Dashed)
+    .BorderColor(Colors.Primary);
   }
 
 
   private object RenderRevenue(List<RevenueEntryDto> entries, IState<string> search, IState<object?> dialog, dynamic query)
   {
     var filtered = entries.Where(e => string.IsNullOrWhiteSpace(search.Value) || (e.Description ?? "").Contains(search.Value, StringComparison.OrdinalIgnoreCase)).ToList();
+
+    // Calculate metrics
+    var totalAmount = entries.Sum(e => e.Amount); // Metric "Revenue"
+    var target = 1000m;
+    var progress = target > 0 ? (double)(totalAmount / target) : 0;
+    var percentage = progress * 100;
+
     return Layout.Vertical().Gap(20)
-        .Add(Layout.Horizontal().Align(Align.Center).Add(Text.H4($"{filtered.Count} Streams")).Add(new Spacer().Width(Size.Fraction(1))).Add(new Button("Create Entry", () => dialog.Set(new RevenueCreateSheet(() => { dialog.Set((object?)null); query.Mutator.Revalidate(); }))).Icon(Icons.Plus).Variant(ButtonVariant.Outline)))
+        .Add(new Card(
+             Layout.Horizontal().Align(Align.Center).Gap(15)
+                .Add(new Icon(Icons.DollarSign).Size(24))
+                .Add(Layout.Vertical().Gap(5)
+                    .Add(Text.Label("Total Revenue").Small())
+                    .Add(Text.H3(totalAmount.ToString("C", CultureInfo.GetCultureInfo("sv-SE"))))
+                    .Add(Layout.Horizontal().Gap(5).Align(Align.Center)
+                        .Add(Text.Label($"{percentage:F0}% of Goal").Color(Colors.Green))
+                        .Add(Text.Label($"Target: {target.ToString("C0", CultureInfo.GetCultureInfo("sv-SE"))}").Small())
+                    )
+                )
+        ).Width(Size.Full()))
         .Add(filtered.Select(r => new RevenueRow(
             new Button($"E{r.Id:D3}", () => dialog.Set(new RevenueViewSheet(r.Id, () => dialog.Set((object?)null), () => dialog.Set(new RevenueEditSheet(r.Id, () => dialog.Set((object?)null)))))).Variant(ButtonVariant.Ghost),
             r.RevenueDate.ToShortDateString(),
@@ -191,11 +217,41 @@ public class DashboardApp : ViewBase
         )).Take(100).ToArray().ToTable().Width(Size.Full()).Add(x => x.Id).Add(x => x.Date).Add(x => x.Name).Add(x => x.Type).Add(x => x.Source).Add(x => x.Amount));
   }
 
-  private object RenderAssets(List<Asset> assets, IState<string> search, IState<object?> dialog, dynamic query, ArtistInsightService service)
+  private object RenderAssets(List<Asset> assets, IState<string> search, IState<object?> dialog, dynamic query, ArtistInsightService service, IState<string> selectedCategory, List<string> categories, List<RevenueEntryDto> revenueEntries)
   {
     var filtered = assets.Where(a => string.IsNullOrWhiteSpace(search.Value) || a.Name.Contains(search.Value, StringComparison.OrdinalIgnoreCase)).ToList();
+
+    // Prepare Line Chart Data
+    var lineChartData = revenueEntries
+        .GroupBy(e => new { e.RevenueDate.Year, e.RevenueDate.Month })
+        .Select(g => new
+        {
+          Date = new DateTime(g.Key.Year, g.Key.Month, 1),
+          Total = (double)g.Sum(e => e.Amount)
+        })
+        .OrderBy(x => x.Date)
+        .ToList();
+
+    // Format for chart
+    var chartData = lineChartData.Select(x => new
+    {
+      Month = x.Date.ToString("MMM yyyy"),
+      Revenue = x.Total
+    }).ToArray();
+
     return Layout.Vertical().Gap(20)
-        .Add(Layout.Horizontal().Align(Align.Center).Add(Text.H4($"{filtered.Count} Assets")).Add(new Spacer().Width(Size.Fraction(1))).Add(new Button("Create Asset", () => dialog.Set(new CreateAssetSheet(() => { dialog.Set((object?)null); query.Mutator.Revalidate(); }))).Icon(Icons.Plus).Variant(ButtonVariant.Outline)))
+        .Add(RenderAnalyticsCard(assets, selectedCategory, categories))
+        .Add(new Card(
+             Layout.Vertical().Gap(10)
+                .Add(Text.H4("Revenue History"))
+                .Add(Layout.Vertical().Height(Size.Units(300))
+                    .Add(chartData.ToLineChart(style: LineChartStyles.Dashboard)
+                        .Dimension("Month", e => e.Month)
+                        .Measure("Revenue", e => e.Sum(f => f.Revenue))
+                        .Toolbox()
+                    )
+                )
+        ).Width(Size.Full()).BorderStyle(BorderStyle.Dashed).BorderColor(Colors.Primary))
         .Add(filtered.Select(a => new AssetRow(
             new Button($"A{a.Id:D3}", () => dialog.Set(new AssetViewSheet(a.Id, () => { dialog.Set((object?)null); query.Mutator.Revalidate(); }))).Variant(ButtonVariant.Ghost),
             a.Name, a.Category, a.Type, a.AmountGenerated.ToString("C", CultureInfo.GetCultureInfo("sv-SE")),
@@ -217,7 +273,7 @@ public class DashboardApp : ViewBase
       catch { }
     }
     var filtered = items.Where(t => string.IsNullOrWhiteSpace(search.Value) || t.Name.Contains(search.Value, StringComparison.OrdinalIgnoreCase)).ToList();
-    return Layout.Vertical().Gap(20).Add(Text.H4($"{filtered.Count} Tables"))
+    return Layout.Vertical().Gap(20)
         .Add(filtered.Select(t => new DataTableRow(
             new Button(t.Id, () => dialog.Set(new DataTableViewSheet(t.RealId, () => dialog.Set((object?)null)))).Variant(ButtonVariant.Ghost),
             t.Name, t.Date,
@@ -229,7 +285,6 @@ public class DashboardApp : ViewBase
   {
     var filtered = templates.Where(t => string.IsNullOrWhiteSpace(search.Value) || t.Name.Contains(search.Value, StringComparison.OrdinalIgnoreCase)).ToList();
     return Layout.Vertical().Gap(20)
-        .Add(Layout.Horizontal().Align(Align.Center).Add(Text.H4($"{filtered.Count} Templates")).Add(new Spacer().Width(Size.Fraction(1))).Add(new Button("New Template", () => dialog.Set(new CreateTemplateSheet(() => { dialog.Set((object?)null); query.Mutator.Revalidate(); }))).Icon(Icons.Plus).Variant(ButtonVariant.Outline)))
         .Add(filtered.Select(t => new TemplateRow(
             $"T{t.RealId:D3}", t.Name, t.Category, t.Files,
             Layout.Horizontal().Gap(5)
