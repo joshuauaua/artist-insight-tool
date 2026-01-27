@@ -62,6 +62,7 @@ public class TemplatesController : ControllerBase
 
     // Update scalar properties
     existingTemplate.Name = template.Name;
+    existingTemplate.SourceName = template.SourceName;
     existingTemplate.Category = template.Category;
     existingTemplate.HeadersJson = template.HeadersJson;
     existingTemplate.AssetColumn = template.AssetColumn;

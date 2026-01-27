@@ -20,6 +20,7 @@ public class TemplateCreatorSheet(CurrentFile? file, Action onSuccess, Action on
 
     // --- Template Creation State ---
     var newTemplateName = UseState("");
+    var newTemplateSourceName = UseState("");
     var newTemplateCategory = UseState("Merchandise");
     var templateCreationStep = UseState(1);
 
@@ -89,6 +90,9 @@ public class TemplateCreatorSheet(CurrentFile? file, Action onSuccess, Action on
           .Add(Layout.Vertical().Gap(2)
               .Add(Text.Label("Template Name"))
               .Add(newTemplateName.ToTextInput().Placeholder("e.g. Spotify Report")))
+          .Add(Layout.Vertical().Gap(2)
+              .Add(Text.Label("Source Name (Provider)"))
+              .Add(newTemplateSourceName.ToTextInput().Placeholder("e.g. Spotify, Distrokid, etc.")))
           .Add(Layout.Vertical().Gap(2)
               .Add(Text.Label("Category"))
               .Add(newTemplateCategory.ToSelectInput(new[] { "Merchandise", "Royalties", "Concerts", "Other" }.Select(c => new Option<string>(c, c)))))
@@ -205,6 +209,7 @@ public class TemplateCreatorSheet(CurrentFile? file, Action onSuccess, Action on
                 var newT = new ImportTemplate
                 {
                   Name = newTemplateName.Value,
+                  SourceName = newTemplateSourceName.Value,
                   Category = newTemplateCategory.Value,
                   HeadersJson = JsonSerializer.Serialize(headers),
                   AssetColumn = getHeader("Asset"),

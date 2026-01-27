@@ -14,6 +14,8 @@ public partial class ImportTemplate
   [Required]
   public string Name { get; set; } = null!;
 
+  public string? SourceName { get; set; }
+
   [Required]
   public string HeadersJson { get; set; } = "[]";
 
