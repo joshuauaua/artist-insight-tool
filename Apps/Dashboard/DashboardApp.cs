@@ -114,18 +114,18 @@ public class DashboardApp : ViewBase
 
     var headerCard = new Card(
         Layout.Horizontal().Align(Align.Center).Width(Size.Full())
-            .Padding(2, 0, 2, 20)
+            .Padding(2, 0, 2, 2)
             .Add(Text.H3("Artist Ledger").NoWrap())
             .Add(new Spacer().Width(Size.Fraction(1)))
-            .Add(Layout.Horizontal().Gap(10).Align(Align.Center).Padding(0, 4, 0, 0)
-                .Add(Layout.Horizontal().Gap(2).Add(tabButtons))
+            .Add(Layout.Horizontal().Gap(10).Align(Align.Center).Padding(0, 0, 0, 0)
+                .Add(Layout.Horizontal().Gap(0).Add(tabButtons))
                 .Add(new Button("Import Data", () => showImportSheet.Set(true))
                     .Icon(Icons.FileUp)
                     .Outline())
             )
     );
 
-    var body = Layout.Vertical().Height(Size.Full()).Padding(4, 20, 20, 20);
+    var body = Layout.Vertical().Height(Size.Full()).Padding(4, 4, 4, 4);
     if (assetsQuery.Loading || revenueQuery.Loading || totalRevenueQuery.Loading || tmplQuery.Loading)
     {
       body.Add(Layout.Center().Add(Text.Label("Syncing Ledger...")));

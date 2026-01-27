@@ -289,7 +289,7 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
         AnalyzerMode.Annex => "Annex Data",
         AnalyzerMode.DataView => "Data Preview",
         AnalyzerMode.Preview => "Preview File",
-        AnalyzerMode.Upload => "Upload Table",
+        AnalyzerMode.Upload => "Confirm Import",
         _ => "Import Data"
       };
 
@@ -311,15 +311,15 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
       var contentHeader = Layout.Vertical().Align(Align.Center).Gap(5).Width(Size.Full())
           .Add(Text.H3("Import Data"))
           .Add(Text.Label("Upload and process multiple financial data files.").Muted())
-          .Add(new Spacer().Height(20));
+          .Add(new Spacer().Height(10));
 
-      var container = Layout.Vertical().Height(Size.Full()).Width(Size.Full()).Padding(10, 20, 10, 20).Add(contentHeader);
+      var container = Layout.Vertical().Height(Size.Full()).Width(Size.Full()).Padding(10, 6, 10, 6).Add(contentHeader);
       var mainSplit = Layout.Horizontal().Gap(40).Width(Size.Full()).Grow();
 
       // Left Pane: Controls
       var leftPane = Layout.Vertical().Width(300).Height(Size.Full());
       leftPane.Add(new Card(
-          Layout.Vertical().Gap(15).Align(Align.Center).Padding(5, 20, 15, 20)
+          Layout.Vertical().Gap(15).Align(Align.Center).Padding(5, 14, 15, 14)
               .Add(Layout.Vertical().Gap(5).Align(Align.Center)
                   .Add(new Icon(Icons.Sheet).Size(48)))
               .Add(uploadState.ToFileInput(uploadContext).Placeholder("Select Files").Width(Size.Full()))
@@ -336,14 +336,14 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
         var fileTableData = files.Select(f => new
         {
           FileName = f.OriginalName,
-          Template = Layout.Horizontal().Width(200).Add(Text.Label(f.MatchedTemplate != null ? f.MatchedTemplate.Name : (f.Status == "Analyzed" ? "No Template" : "-"))),
+          Template = Layout.Horizontal().Width(160).Add(Text.Label(f.MatchedTemplate != null ? f.MatchedTemplate.Name : (f.Status == "Analyzed" ? "No Template" : "-"))),
           Actions = Layout.Horizontal().Gap(5).Width(80)
                   .Add(f.Status == "Analyzed" && f.MatchedTemplate == null ?
                       new Button("", () =>
                       {
                         templateTargetFileId.Set(f.Id);
                         activeMode.Set(AnalyzerMode.TemplateCreation);
-                      }).Variant(ButtonVariant.Secondary).Icon(Icons.Plus).Size(24) : null)
+                      }).Variant(ButtonVariant.Secondary).Icon(Icons.Plus).Size(20) : null)
                   .Add(new Button("", () =>
                   {
                     var l = filePaths.Value.ToList();

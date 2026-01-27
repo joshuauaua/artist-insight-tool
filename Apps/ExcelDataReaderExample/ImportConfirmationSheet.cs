@@ -36,20 +36,19 @@ public class ImportConfirmationSheet(List<CurrentFile> files, Action onSuccess, 
 
     if (_files.Count == 0) return Text.Muted("No valid files to import.");
 
-    return Layout.Vertical().Gap(20).Width(Size.Full())
-         .Add(Layout.Horizontal().Gap(10).Align(Align.Center)
-             .Add(new Button("Back", () => _onCancel()).Variant(ButtonVariant.Link).Icon(Icons.ArrowLeft))
-             .Add(Text.H4("Confirm Import")))
-         .Add(Text.Label($"Ready to import {_files.Count} files."))
-         .Add(Layout.Vertical().Gap(5).Add(_files.Select(f => Text.Muted($"• {f.OriginalName} ({f.MatchedTemplate?.Name})")).ToArray()))
-         .Add(Layout.Vertical().Gap(10)
-             .Add(Text.Label("Batch Name (Revenue Entry Description)"))
-             .Add(uploadName.ToTextInput().Placeholder("e.g. 2024 Q1 Royalties")))
-         .Add(Layout.Vertical().Gap(10)
-             .Add("Smart Naming (Royalties)")
+    return Layout.Vertical().Gap(10).Width(Size.Full())
+         .Add(Layout.Vertical().Gap(4)
+             .Add(Text.Label("Select Timeframe (Royalties)").Small())
              .Add(Layout.Horizontal().Gap(10)
                  .Add(uploadYear.ToSelectInput(Enumerable.Range(2020, 10).Select(y => new Option<int>(y.ToString(), y))).Width(100))
                  .Add(uploadQuarter.ToSelectInput(new[] { "Q1", "Q2", "Q3", "Q4" }.Select(q => new Option<string>(q, q))).Width(100))))
+         .Add(Layout.Vertical().Gap(4)
+             .Add(Text.Label("Batch Name (Revenue Entry Description)").Small())
+             .Add(uploadName.ToTextInput().Placeholder("e.g. 2024 Q1 Royalties")))
+         .Add(Layout.Vertical().Gap(2)
+             .Add(Text.Label($"{_files.Count} Files Selected").Muted().Small())
+             .Add(Layout.Vertical().Gap(2).Add(_files.Select(f => Text.Muted($"• {f.OriginalName} ({f.MatchedTemplate?.Name})").Small()).ToArray())))
+         .Add(new Spacer().Height(5))
          .Add(new Button("Import Data", async () =>
          {
            if (string.IsNullOrWhiteSpace(uploadName.Value)) { client.Toast("Name required", "Warning"); return; }
