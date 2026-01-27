@@ -271,32 +271,6 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
 
     CurrentFile? GetActiveFile() => filePaths.Value.FirstOrDefault();
 
-    IView RenderFileRow(CurrentFile f)
-    {
-      return Layout.Horizontal().Gap(10).Align(Align.Center).Padding(10)
-            .Add(new Icon(Icons.FileText).Size(20))
-            .Add(Layout.Vertical()
-                .Add(Text.Label(f.OriginalName))
-                .Add(Text.Muted($"{FormatFileSize(f.FileSize)} - {f.Status}"))
-            )
-            .Add(Layout.Horizontal().Grow())
-            .Add(f.MatchedTemplate != null ? Text.Success(f.MatchedTemplate.Name) :
-                 f.Status == "Analyzed" ?
-                    Layout.Horizontal().Gap(5).Align(Align.Center)
-                          .Add(Text.Warning("No Template"))
-                          .Add(new Button("Create", () =>
-                          {
-                            templateTargetFileId.Set(f.Id);
-                            activeMode.Set(AnalyzerMode.TemplateCreation);
-                          }).Variant(ButtonVariant.Secondary))
-                 : Text.Muted("-"))
-            .Add(new Button("", () =>
-            {
-              var l = filePaths.Value.ToList();
-              l.RemoveAll(x => x.Id == f.Id);
-              filePaths.Set(l);
-            }).Variant(ButtonVariant.Ghost).Icon(Icons.Trash));
-    }
 
     object RenderHome()
     {
@@ -330,29 +304,73 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
               templatesUpdateTrigger.Set(v => v + 1);
               activeMode.Set(AnalyzerMode.Home);
             },
-            () => activeMode.Set(AnalyzerMode.Home)
+          () => activeMode.Set(AnalyzerMode.Home)
         );
       }
 
       var container = Layout.Vertical().Height(Size.Full()).Width(Size.Full()).Padding(20);
-      var content = Layout.Vertical().Gap(20).Align(Align.Center).Width(Size.Full());
-      content.Add(new Icon(Icons.Sheet).Size(48));
-      content.Add(Text.H4("Import Data"));
-      content.Add(uploadState.ToFileInput(uploadContext).Placeholder("Select Files (Excel/CSV)").Width(200));
+      var mainSplit = Layout.Horizontal().Gap(40).Width(Size.Full()).Grow();
 
-      if (isProcessing) content.Add(Text.Label("Processing..."));
+      // Left Pane: Controls
+      var leftPane = Layout.Vertical().Width(300).Height(Size.Full());
+      leftPane.Add(new Card(
+          Layout.Vertical().Gap(15).Align(Align.Center).Padding(10, 20, 20, 20)
+              .Add(Layout.Vertical().Gap(5).Align(Align.Center)
+                  .Add(new Icon(Icons.Sheet).Size(48))
+                  .Add(Text.H4("Import Data")))
+              .Add(uploadState.ToFileInput(uploadContext).Placeholder("Select Files").Width(Size.Full()))
+              .Add(isProcessing ? Layout.Horizontal().Align(Align.Center).Add(Text.Label("Processing...")) : null)
+      ).Width(Size.Full()));
 
+      mainSplit.Add(leftPane);
+
+      // Right Pane: Table
+      var rightPane = Layout.Vertical().Gap(5).Grow().Height(Size.Full());
       if (hasFiles)
       {
-        var fileList = Layout.Vertical().Gap(10).Width(Size.Full());
-        foreach (var f in files) fileList.Add(RenderFileRow(f));
-        content.Add(fileList);
+        rightPane.Add(Text.H4("Preview"));
+        var fileTableData = files.Select(f => new
+        {
+          FileName = f.OriginalName,
+          Template = Layout.Horizontal().Width(200).Add(Text.Label(f.MatchedTemplate != null ? f.MatchedTemplate.Name : (f.Status == "Analyzed" ? "No Template" : "-"))),
+          Actions = Layout.Horizontal().Gap(5).Width(80)
+                  .Add(f.Status == "Analyzed" && f.MatchedTemplate == null ?
+                      new Button("", () =>
+                      {
+                        templateTargetFileId.Set(f.Id);
+                        activeMode.Set(AnalyzerMode.TemplateCreation);
+                      }).Variant(ButtonVariant.Secondary).Icon(Icons.Plus).Size(24) : null)
+                  .Add(new Button("", () =>
+                  {
+                    var l = filePaths.Value.ToList();
+                    l.RemoveAll(x => x.Id == f.Id);
+                    filePaths.Set(l);
+                  }).Variant(ButtonVariant.Ghost).Icon(Icons.Trash).Size(24))
+        }).ToArray();
+
+        rightPane.Add(fileTableData.ToTable()
+                .Width(Size.Full())
+                .Add(x => x.FileName)
+                .Add(x => x.Template)
+                .Add(x => x.Actions)
+                .Header(x => x.FileName, "File Name")
+                .Header(x => x.Template, "Template")
+                .Header(x => x.Actions, "")
+        );
+      }
+      else
+      {
+        rightPane.Add(Layout.Center().Height(Size.Full())
+            .Add(Text.Muted("Upload files to see preview")));
       }
 
+      mainSplit.Add(rightPane);
+      container.Add(mainSplit);
+
+      // Footer: Actions
       if (hasFiles && ready && !isProcessing)
       {
-        content.Add(Layout.Horizontal().Gap(10).Align(Align.Center).Width(Size.Full())
-            .Add(new Button("Clear All", () => filePaths.Set(new List<CurrentFile>())).Variant(ButtonVariant.Outline))
+        container.Add(Layout.Horizontal().Padding(0, 20, 0, 0).Align(Align.Center).Width(Size.Full())
             .Add(new Button("Import All", () =>
             {
               if (files.Any(f => f.MatchedTemplate == null))
@@ -361,11 +379,9 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
                 return;
               }
               activeMode.Set(AnalyzerMode.Upload);
-            }).Variant(ButtonVariant.Primary))
+            }).Variant(ButtonVariant.Primary).Width(200))
         );
       }
-
-      container.Add(content);
 
       if (showDialog)
       {

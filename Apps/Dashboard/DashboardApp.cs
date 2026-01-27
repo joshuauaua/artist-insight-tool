@@ -164,7 +164,21 @@ public class DashboardApp : ViewBase
           // Render content based on Type/Id
           var content = c.Type switch
           {
-            0 => new Card(Layout.Vertical().Gap(10).Add(Text.H2(c.Title)).Add(Text.P("Welcome to your Artist Ledger. Use the 'Uploads' tab to import your data, or manage your portfolio in 'Assets'. Track your performance in real-time."))),
+            0 => new Card(
+                Layout.Vertical().Gap(10).Padding(4)
+                    .Add(Text.H2(c.Title))
+                    .Add(Layout.Vertical().Gap(4)
+                        .Add(Layout.Horizontal().Gap(10).Align(Align.Center)
+                            .Add(Text.Bold("1."))
+                            .Add(Text.Label("Use the 'Uploads' tab to begin importing your data")))
+                        .Add(Layout.Horizontal().Gap(10).Align(Align.Center)
+                            .Add(Text.Bold("2."))
+                            .Add(Text.Label("Manage your products in 'Assets'")))
+                        .Add(Layout.Horizontal().Gap(10).Align(Align.Center)
+                            .Add(Text.Bold("3."))
+                            .Add(Text.Label("Customize your experience and track what you want in Overview")))
+                    )
+            ),
             1 => new Card(Layout.Center().Add(Text.H2(assets.Count.ToString()))).Title(c.Title),
             2 => new Card(Layout.Center().Add(Text.H2(totalRevenue?.Value ?? "$0.00"))).Title(c.Title),
             3 => new Card(Layout.Center().Add(Text.H2(revenueEntries.Count(x => !string.IsNullOrEmpty(x.JsonData)).ToString()))).Title(c.Title),
