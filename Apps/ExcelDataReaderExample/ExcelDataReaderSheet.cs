@@ -56,6 +56,7 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
     public bool IsNewTemplate { get; set; }
     public List<Dictionary<string, object?>>? ParsedData { get; set; }
     public string Status { get; set; } = "Pending"; // Pending, Analyzing, Ready, Error
+    public bool IsPartialMatch { get; set; }
   }
 
   public override object? Build()
@@ -121,6 +122,7 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
 
           foreach (var upload in uploadState.Value)
           {
+            Console.WriteLine($"[DEBUG] Uploaded File Name: '{upload.FileName}'");
             if (upload.Content is byte[] bytes && bytes.Length > 0)
             {
               try
@@ -187,10 +189,33 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
               // Match logic
               var firstSheetHeaders = f.Analysis.Sheets[0].Headers;
               var jsonHeaders = JsonSerializer.Serialize(firstSheetHeaders);
+
+              // 1. Exact Match
               var match = templates.FirstOrDefault(t => t.HeadersJson == jsonHeaders);
+              bool partial = false;
+
+              // 2. Fuzzy Match
+              if (match == null)
+              {
+                foreach (var t in templates)
+                {
+                  var tHeaders = t.GetHeaders();
+                  if (tHeaders != null)
+                  {
+                    double score = CalculateSimilarity(firstSheetHeaders, tHeaders);
+                    if (score >= 0.8)
+                    {
+                      match = t;
+                      partial = true;
+                      break;
+                    }
+                  }
+                }
+              }
+
               if (match != null)
               {
-                list[i] = f with { MatchedTemplate = match, IsNewTemplate = false };
+                list[i] = f with { MatchedTemplate = match, IsNewTemplate = false, IsPartialMatch = partial };
                 changed = true;
               }
             }
@@ -242,8 +267,30 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
                 {
                   var firstSheetHeaders = result.Sheets[0].Headers;
                   var jsonHeaders = JsonSerializer.Serialize(firstSheetHeaders);
-                  var match = (templatesState.Value ?? []).FirstOrDefault(t => t.HeadersJson == jsonHeaders);
-                  updated = updated with { MatchedTemplate = match, IsNewTemplate = match == null };
+
+                  var templates = templatesState.Value ?? [];
+                  var match = templates.FirstOrDefault(t => t.HeadersJson == jsonHeaders);
+                  bool partial = false;
+
+                  if (match == null)
+                  {
+                    foreach (var t in templates)
+                    {
+                      var tHeaders = t.GetHeaders();
+                      if (tHeaders != null)
+                      {
+                        double score = CalculateSimilarity(firstSheetHeaders, tHeaders);
+                        if (score >= 0.8)
+                        {
+                          match = t;
+                          partial = true;
+                          break;
+                        }
+                      }
+                    }
+                  }
+
+                  updated = updated with { MatchedTemplate = match, IsNewTemplate = match == null, IsPartialMatch = partial };
                 }
 
                 currentList[index] = updated;
@@ -326,10 +373,31 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
                     {
                       var firstSheetHeaders = f.Analysis.Sheets[0].Headers;
                       var jsonHeaders = JsonSerializer.Serialize(firstSheetHeaders);
+
                       var match = fresh.FirstOrDefault(t => t.HeadersJson == jsonHeaders);
+                      bool partial = false;
+
+                      if (match == null)
+                      {
+                        foreach (var t in fresh)
+                        {
+                          var tHeaders = t.GetHeaders();
+                          if (tHeaders != null)
+                          {
+                            double score = CalculateSimilarity(firstSheetHeaders, tHeaders);
+                            if (score >= 0.8)
+                            {
+                              match = t;
+                              partial = true;
+                              break;
+                            }
+                          }
+                        }
+                      }
+
                       if (match != null)
                       {
-                        files[idx] = f with { MatchedTemplate = match, IsNewTemplate = false };
+                        files[idx] = f with { MatchedTemplate = match, IsNewTemplate = false, IsPartialMatch = partial };
                         filePaths.Set(files);
                       }
                     }
@@ -373,7 +441,13 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
         var fileTableData = files.Select(f => new
         {
           FileName = f.OriginalName,
-          Template = Layout.Horizontal().Width(160).Add(Text.Label(f.MatchedTemplate != null ? f.MatchedTemplate.Name : (f.Status == "Analyzed" ? "No Template" : "-"))),
+          Template = Layout.Horizontal().Width(160).Add(
+              f.MatchedTemplate != null
+                  ? (f.IsPartialMatch
+                      ? Text.Label($"Similar to {f.MatchedTemplate.Name}").Color(Colors.Amber)
+                      : Text.Label(f.MatchedTemplate.Name))
+                  : (f.Status == "Analyzed" ? Text.Label("No Template") : Text.Label("-"))
+          ),
           Actions = Layout.Horizontal().Gap(5).Width(80)
                   .Add(f.Status == "Analyzed" && f.MatchedTemplate == null ?
                       new Button("", () =>
@@ -643,5 +717,14 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
     int order = 0;
     while (len >= 1024 && order < sizes.Length - 1) { order++; len /= 1024; }
     return $"{len:0.##} {sizes[order]}";
+  }
+
+  private double CalculateSimilarity(List<string> headers1, List<string> headers2)
+  {
+    if (headers1.Count == 0 || headers2.Count == 0) return 0;
+    var set1 = headers1.ToHashSet(StringComparer.OrdinalIgnoreCase);
+    var intersection = headers2.Count(h => set1.Contains(h));
+    var maxCount = Math.Max(headers1.Count, headers2.Count);
+    return (double)intersection / maxCount;
   }
 }
