@@ -217,8 +217,9 @@ public class ImportConfirmationSheet(List<CurrentFile> files, Action onSuccess, 
 
            await db.SaveChangesAsync();
            client.Toast($"Imported {_files.Count} files", "Success");
-           queryService.RevalidateByTag("RevenueEntries");
-           queryService.RevalidateByTag("Assets");
+           queryService.RevalidateByTag("revenue_entries");
+           queryService.RevalidateByTag("assets");
+           queryService.RevalidateByTag("datatables_list");
            _onSuccess();
          }).Variant(ButtonVariant.Primary).Width(Size.Full()).WithConfetti(AnimationTrigger.Click));
   }

@@ -99,7 +99,7 @@ public class DashboardApp : ViewBase
 
 
     // --- 2. Early Return (Hooks ABOVE this) ---
-    if (showImportSheet.Value) return new ExcelDataReaderSheet(() => showImportSheet.Set(false));
+    if (showImportSheet.Value) return new ExcelDataReaderSheet(() => showImportSheet.Set(false), () => selectedTab.Set(3));
 
     // --- 3. View Components ---
 
@@ -137,7 +137,7 @@ public class DashboardApp : ViewBase
         0 => RenderOverview(showImportSheet, overviewCards, assets, totalRevenue, revenueEntries, selectedDialog),
         1 => RenderAssets(assets, globalSearch, selectedDialog, assetsQuery, service, selectedCategory, categories, revenueEntries),
         2 => RenderRevenue(revenueEntries, globalSearch, selectedDialog, revenueQuery),
-        3 => RenderDataTables(revenueEntries, globalSearch, selectedDialog, revenueQuery, service),
+        3 => RenderUploads(revenueEntries, globalSearch, selectedDialog, revenueQuery, service),
         4 => RenderTemplates(templatesData, globalSearch, selectedDialog, tmplQuery, service, client),
         _ => RenderOverview(showImportSheet, overviewCards, assets, totalRevenue, revenueEntries, selectedDialog)
       });
@@ -379,7 +379,7 @@ public class DashboardApp : ViewBase
         )).Take(100).ToArray().ToTable().Width(Size.Full()).Add(x => x.Id).Add(x => x.Name).Add(x => x.Category).Add(x => x.Type).Add(x => x.Amount).Add(x => x.Actions).Header(x => x.Id, "ID").Header(x => x.Actions, ""));
   }
 
-  private object RenderDataTables(List<RevenueEntryDto> entries, IState<string> search, IState<object?> dialog, dynamic query, ArtistInsightService service)
+  private object RenderUploads(List<RevenueEntryDto> entries, IState<string> search, IState<object?> dialog, dynamic query, ArtistInsightService service)
   {
     var items = new List<DataTableItem>();
     foreach (var e in entries.Where(x => !string.IsNullOrEmpty(x.JsonData)))

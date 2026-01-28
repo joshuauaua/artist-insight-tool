@@ -73,15 +73,8 @@ public class RevenueTableView : ViewBase
 
 
     // State for Create Sheet
-    var showCreateSheet = UseState(false);
-    if (showCreateSheet.Value)
-    {
-      return new RevenueCreateSheet(() =>
-      {
-        showCreateSheet.Set(false);
-        refetch();
-      });
-    }
+    // State for Create Sheet (Previously here, now removed)
+
 
     // Apply Filters and Search
     var filteredEntries = allEntries;

@@ -10,10 +10,10 @@ using ArtistInsightTool.Apps.Services;
 
 namespace ArtistInsightTool.Apps.Tables;
 
-// [App(icon: Icons.Database, title: "Data Tables", path: ["Tables"])]
-public class DataTablesApp : ViewBase
+// [App(icon: Icons.Database, title: "Uploads", path: ["Tables"])]
+public class UploadsApp : ViewBase
 {
-  public record TableItem(int RealId, string Id, string Name, string Template, string Date);
+  public record TableItem(int RealId, string Id, string Name, string Template, string Period, string Date);
 
   public override object? Build()
   {
@@ -54,7 +54,11 @@ public class DataTablesApp : ViewBase
           var root = doc.RootElement;
 
           // Logic to parse items... (Compact helper to keep code short)
-          void AddItem(string title, string template) => items.Add(new TableItem(entry.Id, $"DT{index++:D3}", title, template, entry.UpdatedAt.ToShortDateString()));
+          void AddItem(string title, string template)
+          {
+            string period = (entry.Year.HasValue && !string.IsNullOrEmpty(entry.Quarter)) ? $"{entry.Year} {entry.Quarter}" : "-";
+            items.Add(new TableItem(entry.Id, $"DT{index++:D3}", title, template, period, entry.UpdatedAt.ToShortDateString()));
+          }
 
           if (root.ValueKind == JsonValueKind.Array && root.GetArrayLength() > 0)
           {
@@ -136,7 +140,7 @@ public class DataTablesApp : ViewBase
     var headerCard = new Card(
         Layout.Vertical().Gap(10)
             .Add(Layout.Horizontal().Align(Align.Center).Width(Size.Full())
-                 .Add(Text.H1("Data Tables"))
+                 .Add(Text.H1("Uploads"))
                  .Add(new Spacer().Width(Size.Fraction(1)))
                  .Add(new Button("Import Data", () => showImportSheet.Set(true))
                      .Icon(Icons.FileUp)
@@ -162,6 +166,7 @@ public class DataTablesApp : ViewBase
                       IdButton = new Button(t.Id, () => selectedTableId.Set(t.RealId)).Variant(ButtonVariant.Ghost),
                       t.Name,
                       t.Template,
+                      t.Period,
                       t.Date,
                       Actions = new Button("", () => confirmDeleteId.Set(t.RealId)).Icon(Icons.Trash).Variant(ButtonVariant.Ghost)
                     }).ToArray().ToTable()
@@ -169,11 +174,13 @@ public class DataTablesApp : ViewBase
                         .Add(x => x.IdButton)
                         .Add(x => x.Name)
                         .Add(x => x.Template)
+                        .Add(x => x.Period)
                         .Add(x => x.Date)
                         .Add(x => x.Actions)
                         .Header(x => x.IdButton, "ID")
                         .Header(x => x.Name, "Name")
                         .Header(x => x.Template, "Template")
+                        .Header(x => x.Period, "Period")
                         .Header(x => x.Date, "Uploaded")
                         .Header(x => x.Actions, "")
                         .Header(x => x.Date, "Uploaded")

@@ -13,9 +13,10 @@ using System.Collections.Immutable;
 
 namespace ExcelDataReaderExample;
 
-public class ExcelDataReaderSheet(Action onClose) : ViewBase
+public class ExcelDataReaderSheet(Action onClose, Action? onImportSuccess = null) : ViewBase
 {
   private readonly Action _onClose = onClose;
+  private readonly Action? _onImportSuccess = onImportSuccess;
 
   private enum AnalyzerMode
   {
@@ -511,7 +512,7 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
                   activeMode.Value == AnalyzerMode.Annex ? new AnnexSheet(GetActiveFile(), () => activeMode.Set(AnalyzerMode.Home)) :
                   activeMode.Value == AnalyzerMode.DataView ? RenderDataTableView() :
                   activeMode.Value == AnalyzerMode.Preview ? RenderPreviewContent() :
-                  activeMode.Value == AnalyzerMode.Upload ? new ImportConfirmationSheet(files.Where(f => f.Status == "Analyzed" && f.MatchedTemplate != null).ToList(), () => { filePaths.Set(new List<CurrentFile>()); activeMode.Set(AnalyzerMode.Home); }, () => activeMode.Set(AnalyzerMode.Home)) :
+                  activeMode.Value == AnalyzerMode.Upload ? new ImportConfirmationSheet(files.Where(f => f.Status == "Analyzed" && f.MatchedTemplate != null).ToList(), () => { filePaths.Set(new List<CurrentFile>()); activeMode.Set(AnalyzerMode.Home); _onClose(); _onImportSuccess?.Invoke(); }, () => activeMode.Set(AnalyzerMode.Home)) :
                   Text.Muted("Not implemented view")
              ),
              new DialogFooter()
