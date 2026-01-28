@@ -67,11 +67,19 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
 
     // --- Global State ---
     var activeMode = UseState(AnalyzerMode.Home);
-    var templatesQuery = UseQuery<List<ImportTemplate>, string>("ImportTemplates", async (ct) =>
+    var templatesState = UseState<List<ImportTemplate>>([]);
+
+    // Load templates on mount
+    UseEffect(async () =>
     {
-      await using var db = factory.CreateDbContext();
-      return await db.ImportTemplates.ToListAsync(ct);
-    }, tags: ["ImportTemplates"]);
+      try
+      {
+        await using var db = factory.CreateDbContext();
+        var list = await db.ImportTemplates.ToListAsync();
+        templatesState.Set(list);
+      }
+      catch { }
+    }, []);
 
     // --- Analysis State ---
     var filePaths = UseState<List<CurrentFile>>(() => new());
@@ -80,21 +88,20 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
     var lastTemplateCount = UseState(0);
 
     // Stable analysis trigger
+    var currentTmplCount = templatesState.Value?.Count ?? 0;
+    if (currentTmplCount != lastTemplateCount.Value)
+    {
+      lastTemplateCount.Set(currentTmplCount);
+    }
+
     UseEffect((Func<Task>)(async () =>
     {
-      // Detect template count changes
-      var currentCount = templatesQuery.Value?.Count ?? 0;
-      if (currentCount != lastTemplateCount.Value)
-      {
-        lastTemplateCount.Set(currentCount);
-      }
-
       // Wait for query to refresh (race condition fix)
       await Task.Delay(300);
 
       // Fire and forget
       await RunAnalysis();
-    }), filePaths, activeMode, templatesUpdateTrigger);
+    }), filePaths, activeMode, templatesUpdateTrigger, lastTemplateCount);
 
     // --- Upload State ---
     var uploadState = UseState(ImmutableArray.Create<FileUpload<byte[]>>());
@@ -168,7 +175,7 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
         {
           // Check for rematching first (Synchronous part)
           var files = filePaths.Value;
-          var templates = templatesQuery.Value ?? [];
+          var templates = templatesState.Value ?? [];
           bool changed = false;
           var list = files.ToList();
 
@@ -235,7 +242,7 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
                 {
                   var firstSheetHeaders = result.Sheets[0].Headers;
                   var jsonHeaders = JsonSerializer.Serialize(firstSheetHeaders);
-                  var match = (templatesQuery.Value ?? []).FirstOrDefault(t => t.HeadersJson == jsonHeaders);
+                  var match = (templatesState.Value ?? []).FirstOrDefault(t => t.HeadersJson == jsonHeaders);
                   updated = updated with { MatchedTemplate = match, IsNewTemplate = match == null };
                 }
 
@@ -301,7 +308,37 @@ public class ExcelDataReaderSheet(Action onClose) : ViewBase
             targetFile,
             () =>
             {
-              templatesUpdateTrigger.Set(v => v + 1);
+              Task.Run(async () =>
+              {
+                await using var db = factory.CreateDbContext();
+                var fresh = await db.ImportTemplates.ToListAsync();
+                templatesState.Set(fresh);
+
+                // Manual Match Update
+                if (targetFile != null)
+                {
+                  var files = filePaths.Value.ToList();
+                  var idx = files.FindIndex(f => f.Id == targetFile.Id);
+                  if (idx != -1)
+                  {
+                    var f = files[idx];
+                    if (f.Analysis?.Sheets.Count > 0)
+                    {
+                      var firstSheetHeaders = f.Analysis.Sheets[0].Headers;
+                      var jsonHeaders = JsonSerializer.Serialize(firstSheetHeaders);
+                      var match = fresh.FirstOrDefault(t => t.HeadersJson == jsonHeaders);
+                      if (match != null)
+                      {
+                        files[idx] = f with { MatchedTemplate = match, IsNewTemplate = false };
+                        filePaths.Set(files);
+                      }
+                    }
+                  }
+                }
+
+                templatesUpdateTrigger.Set(v => v + 1);
+              });
+
               activeMode.Set(AnalyzerMode.Home);
             },
           () => activeMode.Set(AnalyzerMode.Home)

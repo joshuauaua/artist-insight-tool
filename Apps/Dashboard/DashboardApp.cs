@@ -421,12 +421,14 @@ public class DashboardApp : ViewBase
             .Header(x => x.Id, "ID").Header(x => x.Source, "Source").Header(x => x.Linked, "Files").Header(x => x.Actions, ""));
   }
 
+
+  //Dialog/Modal for adding a new insight card
   private object RenderAddWidgetDialog(IState<object?> selectedDialog)
   {
     return new Dialog(
         _ => { selectedDialog.Set((object?)null); return ValueTask.CompletedTask; },
-        new DialogHeader("Add a Widget"),
-        new DialogBody(Layout.Vertical().Gap(10).Add(Text.P("Select a widget to add to your dashboard."))),
+        new DialogHeader("Add an Insight Card"),
+        new DialogBody(Layout.Vertical().Gap(10).Add(Text.P("Select an insight to add to your dashboard."))),
         new DialogFooter(new Button("Close", () => selectedDialog.Set((object?)null)).Variant(ButtonVariant.Ghost))
     );
   }
