@@ -51,7 +51,7 @@ public class TemplateCreatorSheet(CurrentFile? file, Action onSuccess, Action on
     // --- Template Creation State ---
     var newTemplateName = UseState("");
     var newTemplateSourceName = UseState("");
-    var newTemplateCategory = UseState("Merchandise");
+    var newTemplateCategory = UseState("Royalties");
     var templateCreationStep = UseState(1);
 
     // --- Mapping State ---
@@ -106,13 +106,13 @@ public class TemplateCreatorSheet(CurrentFile? file, Action onSuccess, Action on
               .Add(newTemplateSourceName.ToTextInput().Placeholder("e.g. Spotify, Distrokid, etc.")))
           .Add(Layout.Vertical().Gap(2)
               .Add(Text.Label("Category"))
-              .Add(newTemplateCategory.ToSelectInput(new[] { "Merchandise", "Royalties", "Concerts", "Other" }.Select(c => new Option<string>(c, c)))))
-          .Add(Layout.Horizontal().Align(Align.Right).Padding(10, 0, 0, 0)
-              .Add(new Button("Next", () =>
+              .Add(newTemplateCategory.ToSelectInput(new[] { "Royalties", "Merchandise", "Concerts", "Other" }.Select(c => new Option<string>(c, c)))))
+          .Add(Layout.Horizontal().Align(Align.Center).Padding(10, 0, 0, 0)
+              .Add(new Button("Continue →", () =>
               {
                 if (string.IsNullOrWhiteSpace(newTemplateName.Value)) { client.Toast("Name required", "Warning"); return; }
                 templateCreationStep.Set(2);
-              }).Variant(ButtonVariant.Primary).Icon(Icons.ArrowRight)));
+              }).Variant(ButtonVariant.Primary)));
     }
     else
     {
