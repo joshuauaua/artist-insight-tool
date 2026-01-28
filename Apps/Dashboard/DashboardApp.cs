@@ -179,22 +179,29 @@ public class DashboardApp : ViewBase
             1 => new Card(
                 Layout.Vertical().Gap(10).Padding(10).Align(Align.Center) // Symmetrical padding
                     .Add(Text.H4(c.Title))
-                    .Add(new Icon(Icons.Package).Size(18).Color(Colors.Primary))
+                    .Add(new Icon(Icons.Package).Size(14).Color(Colors.Gray))
                     .Add(Text.H2(assets.Count.ToString()))
             ),
             2 => new Card(
                 Layout.Vertical().Gap(10).Padding(10).Align(Align.Center) // Symmetrical padding
                     .Add(Text.H4(c.Title))
-                    .Add(new Icon(Icons.DollarSign).Size(18).Color(Colors.Green))
+                    .Add(new Icon(Icons.DollarSign).Size(14).Color(Colors.Gray))
                     .Add(Text.H2((totalRevenue?.Value.Replace("$", "").Replace("USD", "").Replace("SEK", "").Trim() ?? "0") + " SEK"))
             ),
             3 => new Card(
                 Layout.Vertical().Gap(10).Padding(10).Align(Align.Center) // Symmetrical padding
                     .Add(Text.H4(c.Title))
-                    .Add(new Icon(Icons.FileClock).Size(18).Color(Colors.Blue))
+                    .Add(new Icon(Icons.FileClock).Size(14).Color(Colors.Gray))
                     .Add(Text.H2(revenueEntries.Count(x => !string.IsNullOrEmpty(x.JsonData)).ToString()))
             ),
-            _ => new Card(Layout.Center().Add(new Button("", () => selectedDialog.Set(RenderAddWidgetDialog(selectedDialog))).Icon(Icons.Plus).Variant(ButtonVariant.Ghost)))
+            _ => new Card(
+                    Layout.Center().Size(Size.Full())
+                        .Add(new Button("", () => selectedDialog.Set(RenderAddWidgetDialog(selectedDialog))).Icon(Icons.Plus).Variant(ButtonVariant.Ghost))
+                )
+                .BorderColor(Colors.Gray)
+                .BorderStyle(BorderStyle.Dashed)
+                .BorderThickness(1)
+                .BorderRadius(BorderRadius.Rounded)
           };
           return content.Height(Size.Units(75));
         })
