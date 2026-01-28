@@ -25,5 +25,7 @@ public record RevenueEntryDto(
     string? ArtistName,
     string? ImportTemplateName,
     string? JsonData, // For annex data
-    DateTime? UploadDate
+    DateTime? UploadDate,
+    int? Year,
+    string? Quarter
 );

@@ -8,7 +8,7 @@ namespace ArtistInsightTool.Apps.Tables;
 
 public class RevenueTableView : ViewBase
 {
-  private record RevenueTableItem(int Id, object DateDisplay, object NameDisplay, object TypeDisplay, object SourceDisplay, object AmountDisplay, DateTime RevenueDate, string Name, string Type, string Source, decimal Amount);
+  private record RevenueTableItem(int Id, object DateDisplay, object PeriodDisplay, object NameDisplay, object TypeDisplay, object SourceDisplay, object AmountDisplay, DateTime RevenueDate, string Period, string Name, string Type, string Source, decimal Amount);
 
   public override object? Build()
   {
@@ -29,13 +29,15 @@ public class RevenueTableView : ViewBase
         Type = e.Source ?? "Unknown",
 
         e.Amount,
-        Source = e.Integration ?? "Manual"
+        Source = e.Integration ?? "Manual",
+        Period = (e.Year.HasValue && !string.IsNullOrEmpty(e.Quarter)) ? $"{e.Year} {e.Quarter}" : "-"
       })
      .OrderBy(e => e.Id)
      .Take(1000)
      .Select(r => new RevenueTableItem(
         r.Id,
         Layout.Horizontal().Width(Size.Fraction(1)).Add(r.RevenueDate.ToShortDateString()),
+        Layout.Horizontal().Width(Size.Fraction(1)).Add(r.Period),
         Layout.Horizontal()
             .Width(Size.Fraction(3))
             .Align(Align.Left)
@@ -48,6 +50,7 @@ public class RevenueTableView : ViewBase
 
         Layout.Horizontal().Width(Size.Fraction(1)).Align(Align.Right).Add(r.Amount.ToString("C", CultureInfo.GetCultureInfo("sv-SE"))),
         r.RevenueDate,
+        r.Period,
         r.Name,
         r.Type,
         r.Source,
@@ -147,6 +150,7 @@ public class RevenueTableView : ViewBase
         isEditingDetails.Set(false);
       }).Variant(ButtonVariant.Ghost),
       Date = r.RevenueDate.ToShortDateString(),
+      Period = r.Period,
       Name = r.Name,
       Type = r.Type,
       Source = r.Source,
@@ -158,12 +162,14 @@ public class RevenueTableView : ViewBase
          .Width(Size.Full())
          .Add(x => x.IdButton)
          .Add(x => x.Date)
+         .Add(x => x.Period)
          .Add(x => x.Name)
          .Add(x => x.Type)
          .Add(x => x.Source)
          .Add(x => x.Amount)
          .Header(x => x.IdButton, "ID")
          .Header(x => x.Date, "Date")
+         .Header(x => x.Period, "Period")
          .Header(x => x.Name, "Name")
          .Header(x => x.Type, "Type")
          .Header(x => x.Source, "Source")

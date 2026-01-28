@@ -16,6 +16,7 @@ public class ImportConfirmationSheet(List<CurrentFile> files, Action onSuccess, 
   {
     var factory = UseService<ArtistInsightToolContextFactory>();
     var client = UseService<IClientProvider>();
+    var queryService = UseService<IQueryService>();
 
     // --- Upload/Save State ---
     var uploadName = UseState("");
@@ -37,6 +38,9 @@ public class ImportConfirmationSheet(List<CurrentFile> files, Action onSuccess, 
     if (_files.Count == 0) return Text.Muted("No valid files to import.");
 
     return Layout.Vertical().Gap(10).Width(Size.Full())
+         .Add(Layout.Vertical().Gap(2)
+             .Add(Text.Label($"{_files.Count} Files Selected").Muted().Small())
+             .Add(Layout.Vertical().Gap(2).Add(_files.Select(f => Text.Muted($"• {f.OriginalName} ({f.MatchedTemplate?.Name})").Small()).ToArray())))
          .Add(Layout.Vertical().Gap(4)
              .Add(Text.Label("Select Timeframe (Royalties)").Small())
              .Add(Layout.Horizontal().Gap(10)
@@ -45,9 +49,6 @@ public class ImportConfirmationSheet(List<CurrentFile> files, Action onSuccess, 
          .Add(Layout.Vertical().Gap(4)
              .Add(Text.Label("Batch Name (Revenue Entry Description)").Small())
              .Add(uploadName.ToTextInput().Placeholder("e.g. 2024 Q1 Royalties")))
-         .Add(Layout.Vertical().Gap(2)
-             .Add(Text.Label($"{_files.Count} Files Selected").Muted().Small())
-             .Add(Layout.Vertical().Gap(2).Add(_files.Select(f => Text.Muted($"• {f.OriginalName} ({f.MatchedTemplate?.Name})").Small()).ToArray())))
          .Add(new Spacer().Height(5))
          .Add(new Button("Import Data", async () =>
          {
@@ -216,7 +217,9 @@ public class ImportConfirmationSheet(List<CurrentFile> files, Action onSuccess, 
 
            await db.SaveChangesAsync();
            client.Toast($"Imported {_files.Count} files", "Success");
+           queryService.RevalidateByTag("RevenueEntries");
+           queryService.RevalidateByTag("Assets");
            _onSuccess();
-         }).Variant(ButtonVariant.Primary).Width(Size.Full()));
+         }).Variant(ButtonVariant.Primary).Width(Size.Full()).WithConfetti(AnimationTrigger.Click));
   }
 }

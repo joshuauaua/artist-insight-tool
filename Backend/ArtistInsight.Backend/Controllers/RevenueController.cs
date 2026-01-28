@@ -36,7 +36,9 @@ public class RevenueController : ControllerBase
             r.Artist.Name,
             r.ImportTemplate != null ? r.ImportTemplate.Name : null,
             r.JsonData,
-            r.UploadDate ?? r.CreatedAt
+            r.UploadDate ?? r.CreatedAt,
+            r.Year,
+            r.Quarter
         ))
         .ToListAsync();
   }
