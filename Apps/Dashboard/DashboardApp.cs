@@ -40,6 +40,7 @@ public class DashboardApp : ViewBase
     var globalSearch = UseState("");
     var selectedTab = UseState(0);
     var showImportSheet = UseState(false);
+    var showActionPanel = UseState(true);
     var selectedDialog = UseState<object?>(() => null);
     var widgetType = UseState<int?>(() => null);
     var widgetTarget = UseState("");
@@ -146,12 +147,12 @@ public class DashboardApp : ViewBase
     {
       body.Add(selectedTab.Value switch
       {
-        0 => RenderOverview(showImportSheet, overviewCards, assets, totalRevenue, revenueEntries, selectedDialog, widgetType, widgetTarget, addWidgetCardId),
+        0 => RenderOverview(showImportSheet, overviewCards, assets, totalRevenue, revenueEntries, selectedDialog, widgetType, widgetTarget, addWidgetCardId, showActionPanel),
         1 => RenderAssets(assets, globalSearch, selectedDialog, assetsQuery, service, selectedCategory, categories, revenueEntries),
         2 => RenderRevenue(revenueEntries, globalSearch, selectedDialog, revenueQuery),
         3 => RenderUploads(revenueEntries, globalSearch, selectedDialog, revenueQuery, service),
         4 => RenderTemplates(templatesData, globalSearch, selectedDialog, tmplQuery, service, client),
-        _ => RenderOverview(showImportSheet, overviewCards, assets, totalRevenue, revenueEntries, selectedDialog, widgetType, widgetTarget, addWidgetCardId)
+        _ => RenderOverview(showImportSheet, overviewCards, assets, totalRevenue, revenueEntries, selectedDialog, widgetType, widgetTarget, addWidgetCardId, showActionPanel)
       });
     }
 
@@ -169,7 +170,28 @@ public class DashboardApp : ViewBase
         modal = RenderConfigurePieChartDialog(selectedDialog, overviewCards, configPieChartCardId.Value, widgetType, widgetTarget, addWidgetCardId, configPieChartCardId);
     }
 
-    return new Fragment(mainView, modal);
+    object? actionPanel = (selectedTab.Value == 0 && showActionPanel.Value) ? new FloatingPanel(
+        Layout.Horizontal().Gap(2)
+            .Add(new Button("New", () =>
+            {
+              var placeholder = overviewCards.Value.FirstOrDefault(x => x.Type == 4);
+              if (placeholder != null) addWidgetCardId.Set(placeholder.Id);
+            })
+                .Icon(Icons.Plus)
+                .Primary()
+                .BorderRadius(BorderRadius.Full))
+            .Add(new Button("Edit", () => { })
+                .Icon(Icons.Pencil)
+                .Secondary()
+                .BorderRadius(BorderRadius.Full))
+            .Add(new Button("Delete", () => { })
+                .Icon(Icons.Trash)
+                .Destructive()
+                .BorderRadius(BorderRadius.Full))
+    , Align.BottomCenter)
+        .Offset(new Thickness(0, 0, 0, 20)) : null;
+
+    return new Fragment(mainView, modal, actionPanel);
   }
 
   // --- Render Methods (Private class methods to ensure metadata stability) ---
@@ -177,9 +199,9 @@ public class DashboardApp : ViewBase
   // Kanban State Record
   public record CardState(string Id, string Title, string Column, int Order, int Type, decimal? Target = null, string? CategoryFilter = null); // Type: 0=QuickStart, 1=Assets, 2=Revenue, 3=Imports, 4=Placeholder, 5=TargetedRevenue, 6=GrossNetPie
 
-  private object RenderOverview(IState<bool> showImportSheet, IState<List<CardState>> cardStates, List<Asset> assets, MetricDto? totalRevenue, List<RevenueEntryDto> revenueEntries, IState<object?> selectedDialog, IState<int?> widgetType, IState<string> widgetTarget, IState<string?> addWidgetCardId)
+  private object RenderOverview(IState<bool> showImportSheet, IState<List<CardState>> cardStates, List<Asset> assets, MetricDto? totalRevenue, List<RevenueEntryDto> revenueEntries, IState<object?> selectedDialog, IState<int?> widgetType, IState<string> widgetTarget, IState<string?> addWidgetCardId, IState<bool> showActionPanel)
   {
-    return cardStates.Value
+    var kanban = cardStates.Value
         .ToKanban(
             groupBySelector: c => c.Column,
             idSelector: c => c.Id,
@@ -290,6 +312,14 @@ public class DashboardApp : ViewBase
 
           cardStates.Set(currentList);
         });
+
+    return Layout.Vertical().Gap(4)
+        .Add(new Card(
+            Layout.Horizontal().Gap(2).Align(Align.Center)
+                .Add(new Button("Show Panel", () => showActionPanel.Set(true)).Variant(showActionPanel.Value ? ButtonVariant.Primary : ButtonVariant.Outline))
+                .Add(new Button("Hide Panel", () => showActionPanel.Set(false)).Variant(!showActionPanel.Value ? ButtonVariant.Primary : ButtonVariant.Outline))
+        ).Width(Size.Full()))
+        .Add(kanban);
   }
 
   private object RenderAnalyticsCard(List<Asset> assets, IState<string> selectedCategory, List<string> categories)
