@@ -192,13 +192,16 @@ public class DashboardApp : ViewBase
           var content = c.Type switch
           {
             0 => new Card(
-                Layout.Vertical().Gap(5)
+                Layout.Vertical().Gap(2)
+                    .Add(Text.H4("Get Started"))
+                    .Add(Text.P("Build your catalog and start tracking your revenue.").Muted())
+                    .Add(new Spacer().Height(2))
                     .Add(Text.P("1. Use the 'Uploads' tab to begin importing your data."))
                     .Add(Text.P("2. Manage your products in 'Assets'."))
-                    .Add(Text.P("3. Customize your experience in Overview.")),
-                new Button("Get Started", _ => showImportSheet.Set(true))
-            ).Title("Get Started")
-             .Description("Build your catalog and start tracking your revenue.")
+                    .Add(Text.P("3. Customize your experience in Overview."))
+                    .Add(new Spacer().Height(4))
+                    .Add(Layout.Horizontal().Width(Size.Full()).Align(Align.Center).Add(new Button("Get Started", _ => showImportSheet.Set(true))))
+            )
              .BorderThickness(1)
              .BorderStyle(BorderStyle.Dashed)
              .BorderColor(Colors.Primary)
@@ -237,6 +240,7 @@ public class DashboardApp : ViewBase
             6 => new AssetPieChartView(c.CategoryFilter ?? "All"),
             _ => (object)Layout.Center().Add(Text.Label("Unknown Card Type"))
           };
+
           return content;
         })
         .ColumnOrder(c => c.Column)
