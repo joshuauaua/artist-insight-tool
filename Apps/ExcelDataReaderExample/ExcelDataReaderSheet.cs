@@ -69,19 +69,13 @@ public class ExcelDataReaderSheet(Action onClose, Action? onImportSuccess = null
 
     // --- Global State ---
     var activeMode = UseState(AnalyzerMode.Home);
-    var templatesState = UseState<List<ImportTemplate>>([]);
-
-    // Load templates on mount
-    UseEffect(async () =>
+    // Load templates with UseQuery
+    var templatesQuery = UseQuery("templates_list", async (ct) =>
     {
-      try
-      {
-        await using var db = factory.CreateDbContext();
-        var list = await db.ImportTemplates.ToListAsync();
-        templatesState.Set(list);
-      }
-      catch { }
-    }, []);
+      await using var db = factory.CreateDbContext();
+      return await db.ImportTemplates.ToListAsync();
+    });
+    var templatesState = templatesQuery;
 
     // --- Analysis State ---
     var filePaths = UseState<List<CurrentFile>>(() => new());
@@ -360,7 +354,7 @@ public class ExcelDataReaderSheet(Action onClose, Action? onImportSuccess = null
               {
                 await using var db = factory.CreateDbContext();
                 var fresh = await db.ImportTemplates.ToListAsync();
-                templatesState.Set(fresh);
+                templatesQuery.Mutator.Revalidate();
 
                 // Manual Match Update
                 if (targetFile != null)

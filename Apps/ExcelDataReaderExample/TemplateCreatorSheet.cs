@@ -16,14 +16,14 @@ public class TemplateCreatorSheet(CurrentFile? file, Action onSuccess, Action on
 
   public enum SystemField
   {
-    // Common / Global
-    [Display(Name = "Asset Name (Title)")] Asset,
-    [Display(Name = "Net Revenue")] Net,
-    [Display(Name = "Gross Revenue")] Gross,
-    [Display(Name = "Currency")] Currency,
-    [Display(Name = "Transaction Date")] TransactionDate,
-    [Display(Name = "Artist")] Artist,
-    [Display(Name = "Category")] Category
+    [Display(Name = "Asset Title")] AssetTitle,
+    [Display(Name = "Asset Type")] AssetType,
+    [Display(Name = "Gross")] Gross,
+    [Display(Name = "Net")] Net,
+    [Display(Name = "ID")] Id,
+    [Display(Name = "Territory")] Territory,
+    [Display(Name = "Store")] Store,
+    [Display(Name = "Date")] Date
   }
 
   public override object Build()
@@ -35,6 +35,28 @@ public class TemplateCreatorSheet(CurrentFile? file, Action onSuccess, Action on
     // --- Template Creation State ---
     var newTemplateName = UseState("");
     var newTemplateSourceName = UseState("");
+    var isNameCustom = UseState(false);
+    var autoNameValue = UseState("");
+
+    UseEffect(() =>
+    {
+      if (!isNameCustom.Value && !string.IsNullOrWhiteSpace(newTemplateSourceName.Value))
+      {
+        var baseName = string.IsNullOrWhiteSpace(newTemplateName.Value) || newTemplateName.Value == "New Template" ? "Template" : newTemplateName.Value.Split('(')[0].Trim();
+        var nextName = $"{baseName} ({newTemplateSourceName.Value})";
+        autoNameValue.Set(nextName);
+        newTemplateName.Set(nextName);
+      }
+    }, [newTemplateSourceName]);
+
+    UseEffect(() =>
+    {
+      if (newTemplateName.Value != autoNameValue.Value)
+      {
+        isNameCustom.Set(true);
+      }
+    }, [newTemplateName]);
+
     var newTemplateCategory = UseState("Royalties");
     var templateCreationStep = UseState(1);
 
@@ -49,7 +71,7 @@ public class TemplateCreatorSheet(CurrentFile? file, Action onSuccess, Action on
 
     var fieldGroups = new Dictionary<string, List<SystemField>>
         {
-            { "Global", new() { SystemField.Asset, SystemField.Net, SystemField.Gross, SystemField.Currency, SystemField.TransactionDate, SystemField.Artist, SystemField.Category } }
+            { "Fields", new() { SystemField.AssetTitle, SystemField.AssetType, SystemField.Gross, SystemField.Net, SystemField.Id, SystemField.Territory, SystemField.Store, SystemField.Date } }
         };
 
     var activeGroups = fieldGroups;
@@ -191,7 +213,7 @@ public class TemplateCreatorSheet(CurrentFile? file, Action onSuccess, Action on
                 db.ImportTemplates.Add(newT);
                 await db.SaveChangesAsync();
 
-                queryService.RevalidateByTag("ImportTemplates");
+                queryService.RevalidateByTag("templates_list");
 
                 client.Toast("Template Created", "Success");
                 _onSuccess();

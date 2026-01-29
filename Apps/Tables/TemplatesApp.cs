@@ -286,11 +286,7 @@ public class TemplateEditSheet : ViewBase
 
     var fieldOptions = new[]
     {
-        "Asset", "Net", "Gross", "Currency", "TransactionDate", "Artist", "Category",
-        "Isrc", "Upc", "Dsp", "Duration", "Version", "Territory",
-        "Sku", "ProductCategory", "Status", "Tags",
-        "VenueName", "EventName", "OrderId", "TicketRevenue",
-        "Ignore"
+        "AssetTitle", "AssetType", "Gross", "Net", "Id", "Territory", "Store", "Date", "Ignore"
     };
 
     var mappingSection = Layout.Vertical().Gap(12).Align(Align.Stretch);

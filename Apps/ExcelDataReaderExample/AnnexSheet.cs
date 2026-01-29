@@ -119,8 +119,8 @@ public class AnnexSheet(CurrentFile? file, Action onClose) : ViewBase
                try
                {
                  var mappings = tmpl.GetMappings();
-                 var assetCol = mappings.FirstOrDefault(x => x.Value == "Asset").Key;
-                 var amountCol = mappings.FirstOrDefault(x => x.Value == "Net" || x.Value == "Amount").Key;
+                 var assetCol = mappings.FirstOrDefault(x => x.Value == "AssetTitle").Key;
+                 var amountCol = mappings.FirstOrDefault(x => x.Value == "Net").Key;
 
                  if (!string.IsNullOrEmpty(assetCol))
                  {

@@ -103,8 +103,8 @@ public class ImportConfirmationSheet(List<CurrentFile> files, Action onSuccess, 
              var mappings = tmpl.GetMappings();
              string? GetHeader(string systemField) => mappings.FirstOrDefault(x => x.Value == systemField).Key;
 
-             var amountCol = GetHeader("Net") ?? GetHeader("Amount");
-             var assetCol = GetHeader("Asset");
+             var amountCol = GetHeader("Net");
+             var assetCol = GetHeader("AssetTitle");
 
              decimal totalAmount = 0;
              if (!string.IsNullOrEmpty(amountCol))
