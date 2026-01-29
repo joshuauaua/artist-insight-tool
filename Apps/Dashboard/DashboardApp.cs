@@ -109,27 +109,7 @@ public class DashboardApp : ViewBase
 
     // --- 3. View Components ---
 
-    var tabNames = new[] { "Overview", "Assets", "Revenue", "Uploads", "Templates" };
-    var tabButtons = new List<object>();
-    for (int i = 0; i < tabNames.Length; i++)
-    {
-      int index = i;
-      tabButtons.Add(new Button(tabNames[i], _ => selectedTab.Set(index))
-          .Variant(selectedTab.Value == index ? ButtonVariant.Primary : ButtonVariant.Ghost));
-    }
-
-    var headerCard = new Card(
-        Layout.Horizontal().Align(Align.Center).Width(Size.Full())
-            .Padding(2, 0, 2, 2)
-            .Add(Text.H3("Artist Ledger").NoWrap())
-            .Add(new Spacer().Width(Size.Fraction(1)))
-            .Add(Layout.Horizontal().Gap(10).Align(Align.Center).Padding(0, 0, 0, 0)
-                .Add(Layout.Horizontal().Gap(0).Add(tabButtons))
-                .Add(new Button("Import Data", () => showImportSheet.Set(true))
-                    .Icon(Icons.FileUp)
-                    .Outline())
-            )
-    );
+    // --- 3. View Components and Layout ---
 
     var body = Layout.Vertical().Height(Size.Full()).Padding(4, 4, 4, 4);
     if (assetsQuery.Loading || revenueQuery.Loading || totalRevenueQuery.Loading || tmplQuery.Loading)
@@ -149,7 +129,10 @@ public class DashboardApp : ViewBase
       });
     }
 
-    return new Fragment(new HeaderLayout(headerCard, body), selectedDialog.Value);
+    var header = new DashboardHeader(selectedTab, () => showImportSheet.Set(true));
+    var mainView = new HeaderLayout(header, body);
+
+    return new Fragment(mainView, selectedDialog.Value);
   }
 
   // --- Render Methods (Private class methods to ensure metadata stability) ---
