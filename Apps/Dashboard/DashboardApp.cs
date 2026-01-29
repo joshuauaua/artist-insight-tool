@@ -41,7 +41,6 @@ public class DashboardApp : ViewBase
     var selectedTab = UseState(0);
     var showImportSheet = UseState(false);
     var showActionPanel = UseState(false);
-    var selectedCardId = UseState<string?>(() => null);
     var selectedDialog = UseState<object?>(() => null);
     var widgetType = UseState<int?>(() => null);
     var widgetTarget = UseState("");
@@ -68,6 +67,33 @@ public class DashboardApp : ViewBase
         new("p5", "", "   ", 2, 4),
         new("p6", "", "   ", 3, 4),
     });
+
+    // --- Focal Card Logic (Target top-middle card) ---
+    var columns = overviewCards.Value.Select(c => c.Column).Distinct().OrderBy(c => c).ToList();
+    string? focalCardId = null;
+    if (columns.Count > 0)
+    {
+      var middleColIndex = columns.Count / 2;
+      var middleCol = columns[middleColIndex];
+      var topCard = overviewCards.Value
+          .Where(c => c.Column == middleCol && c.Type != 4) // Exclude placeholders if possible
+          .OrderBy(c => c.Order)
+          .FirstOrDefault();
+
+      // Fallback to top-middle even if it's a placeholder if no others exist
+      if (topCard == null)
+      {
+        topCard = overviewCards.Value
+         .Where(c => c.Column == middleCol)
+         .OrderBy(c => c.Order)
+         .FirstOrDefault();
+      }
+
+      if (topCard != null)
+      {
+        focalCardId = topCard.Id;
+      }
+    }
 
     // Persistence Logic (Backend)
     UseEffect(async () =>
@@ -148,12 +174,12 @@ public class DashboardApp : ViewBase
     {
       body.Add(selectedTab.Value switch
       {
-        0 => RenderOverview(showImportSheet, overviewCards, assets, totalRevenue, revenueEntries, selectedDialog, widgetType, widgetTarget, addWidgetCardId, showActionPanel, selectedCardId),
+        0 => RenderOverview(showImportSheet, overviewCards, assets, totalRevenue, revenueEntries, selectedDialog, widgetType, widgetTarget, addWidgetCardId, showActionPanel, focalCardId),
         1 => RenderAssets(assets, globalSearch, selectedDialog, assetsQuery, service, selectedCategory, categories, revenueEntries),
         2 => RenderRevenue(revenueEntries, globalSearch, selectedDialog, revenueQuery),
         3 => RenderUploads(revenueEntries, globalSearch, selectedDialog, revenueQuery, service),
         4 => RenderTemplates(templatesData, globalSearch, selectedDialog, tmplQuery, service, client),
-        _ => RenderOverview(showImportSheet, overviewCards, assets, totalRevenue, revenueEntries, selectedDialog, widgetType, widgetTarget, addWidgetCardId, showActionPanel, selectedCardId)
+        _ => RenderOverview(showImportSheet, overviewCards, assets, totalRevenue, revenueEntries, selectedDialog, widgetType, widgetTarget, addWidgetCardId, showActionPanel, focalCardId)
       });
     }
 
@@ -190,15 +216,15 @@ public class DashboardApp : ViewBase
                 .BorderRadius(BorderRadius.Full))
             .Add(new Button("Delete", () =>
             {
-              if (selectedCardId.Value != null)
+              if (focalCardId != null)
               {
                 var currentList = overviewCards.Value.ToList();
-                var item = currentList.FirstOrDefault(x => x.Id == selectedCardId.Value);
+                var item = currentList.FirstOrDefault(x => x.Id == focalCardId);
                 if (item != null)
                 {
                   currentList.Remove(item);
                   overviewCards.Set(currentList);
-                  selectedCardId.Set((string?)null);
+                  // Focal will re-calculate on next build
                 }
               }
             })
@@ -225,7 +251,7 @@ public class DashboardApp : ViewBase
   // Kanban State Record
   public record CardState(string Id, string Title, string Column, int Order, int Type, decimal? Target = null, string? CategoryFilter = null); // Type: 0=QuickStart, 1=Assets, 2=Revenue, 3=Imports, 4=Placeholder, 5=TargetedRevenue, 6=GrossNetPie
 
-  private object RenderOverview(IState<bool> showImportSheet, IState<List<CardState>> cardStates, List<Asset> assets, MetricDto? totalRevenue, List<RevenueEntryDto> revenueEntries, IState<object?> selectedDialog, IState<int?> widgetType, IState<string> widgetTarget, IState<string?> addWidgetCardId, IState<bool> showActionPanel, IState<string?> selectedCardId)
+  private object RenderOverview(IState<bool> showImportSheet, IState<List<CardState>> cardStates, List<Asset> assets, MetricDto? totalRevenue, List<RevenueEntryDto> revenueEntries, IState<object?> selectedDialog, IState<int?> widgetType, IState<string> widgetTarget, IState<string?> addWidgetCardId, IState<bool> showActionPanel, string? focalCardId)
   {
     var kanban = cardStates.Value
         .ToKanban(
@@ -241,10 +267,6 @@ public class DashboardApp : ViewBase
           {
             0 => new Card(
                 Layout.Vertical().Gap(2)
-                    .Add(Layout.Horizontal().Align(Align.Right)
-                        .Add(new Button("", () => selectedCardId.Set(c.Id))
-                            .Icon(selectedCardId.Value == c.Id ? Icons.Check : Icons.Circle)
-                            .Variant(ButtonVariant.Ghost)))
                     .Add(Text.H4("Get Started"))
                     .Add(Text.P("Build your catalog and start tracking your revenue.").Muted())
                     .Add(new Spacer().Height(2))
@@ -255,38 +277,26 @@ public class DashboardApp : ViewBase
                     .Add(Layout.Horizontal().Width(Size.Full()).Align(Align.Center).Add(new Button("Get Started", _ => showImportSheet.Set(true))))
             )
              .BorderThickness(1)
-             .BorderStyle(selectedCardId.Value == c.Id ? BorderStyle.Dashed : BorderStyle.Dashed)
-             .BorderColor(selectedCardId.Value == c.Id ? Colors.Primary : Colors.Primary)
+             .BorderStyle(BorderStyle.Dashed)
+             .BorderColor(Colors.Primary)
              .BorderRadius(BorderRadius.Rounded)
              .Width(Size.Fraction(1.0f))
              .Height(Size.Units(75)),
 
             1 => new Card(
                 Layout.Vertical().Gap(10).Padding(10).Align(Align.Center)
-                    .Add(Layout.Horizontal().Width(Size.Full()).Align(Align.Right)
-                        .Add(new Button("", () => selectedCardId.Set(c.Id))
-                            .Icon(selectedCardId.Value == c.Id ? Icons.Check : Icons.Circle)
-                            .Variant(ButtonVariant.Ghost)))
                     .Add(Text.H4(c.Title))
                     .Add(new Icon(Icons.Package).Size(14).Color(Colors.Gray))
                     .Add(Text.H2(assets.Count.ToString()))
             ).Height(Size.Units(75)),
             2 => new Card(
                 Layout.Vertical().Gap(10).Padding(10).Align(Align.Center)
-                    .Add(Layout.Horizontal().Width(Size.Full()).Align(Align.Right)
-                        .Add(new Button("", () => selectedCardId.Set(c.Id))
-                            .Icon(selectedCardId.Value == c.Id ? Icons.Check : Icons.Circle)
-                            .Variant(ButtonVariant.Ghost)))
                     .Add(Text.H4(c.Title))
                     .Add(new Icon(Icons.DollarSign).Size(14).Color(Colors.Gray))
                     .Add(Text.H2((totalRevenue?.Value.Replace("$", "").Replace("USD", "").Replace("SEK", "").Trim() ?? "0") + " SEK"))
             ).Height(Size.Units(75)),
             3 => new Card(
                 Layout.Vertical().Gap(10).Padding(10).Align(Align.Center)
-                    .Add(Layout.Horizontal().Width(Size.Full()).Align(Align.Right)
-                        .Add(new Button("", () => selectedCardId.Set(c.Id))
-                            .Icon(selectedCardId.Value == c.Id ? Icons.Check : Icons.Circle)
-                            .Variant(ButtonVariant.Ghost)))
                     .Add(Text.H4(c.Title))
                     .Add(new Icon(Icons.FileClock).Size(14).Color(Colors.Gray))
                     .Add(Text.H2(revenueEntries.Count(x => !string.IsNullOrEmpty(x.JsonData)).ToString()))
@@ -300,27 +310,25 @@ public class DashboardApp : ViewBase
                 .BorderThickness(1)
                 .BorderRadius(BorderRadius.Rounded)
                 .Height(Size.Units(75)),
-            5 => Layout.Vertical()
-                    .Add(Layout.Horizontal().Align(Align.Right)
-                        .Add(new Button("", () => selectedCardId.Set(c.Id))
-                            .Icon(selectedCardId.Value == c.Id ? Icons.Check : Icons.Circle)
-                            .Variant(ButtonVariant.Ghost)))
-                    .Add(new TargetedRevenueMetricView(c.Target ?? 0)),
-            6 => Layout.Vertical()
-                    .Add(Layout.Horizontal().Align(Align.Right)
-                        .Add(new Button("", () => selectedCardId.Set(c.Id))
-                            .Icon(selectedCardId.Value == c.Id ? Icons.Check : Icons.Circle)
-                            .Variant(ButtonVariant.Ghost)))
-                    .Add(new AssetPieChartView(c.CategoryFilter ?? "All")),
+            5 => new TargetedRevenueMetricView(c.Target ?? 0),
+            6 => new AssetPieChartView(c.CategoryFilter ?? "All"),
             _ => (object)Layout.Center().Add(Text.Label("Unknown Card Type"))
           };
 
           if (content is Card cCard)
           {
-            if (selectedCardId.Value == c.Id)
+            if (focalCardId == c.Id)
             {
               cCard.BorderStyle(BorderStyle.Dashed).BorderColor(Colors.Primary).BorderThickness(2);
             }
+          }
+          else if (focalCardId == c.Id)
+          {
+            // If it's a raw view, wrap it in a card for highlighting
+            content = new Card(content)
+                .BorderStyle(BorderStyle.Dashed)
+                .BorderColor(Colors.Primary)
+                .BorderThickness(2);
           }
 
           return content;
