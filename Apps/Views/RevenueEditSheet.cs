@@ -12,6 +12,7 @@ public class RevenueEditSheet(int id, Action onClose) : ViewBase
   public override object? Build()
   {
     var factory = UseService<ArtistInsightToolContextFactory>();
+    var queryService = UseService<IQueryService>();
     // Data Viewing State
     var viewingSheetIndex = UseState<int?>(() => null);
 
@@ -195,6 +196,10 @@ public class RevenueEditSheet(int id, Action onClose) : ViewBase
                  {
                    db.RevenueEntries.Remove(entry);
                    await db.SaveChangesAsync();
+                   queryService.RevalidateByTag("revenue_entries");
+                   queryService.RevalidateByTag("uploads_list");
+                   queryService.RevalidateByTag("dashboard_total_revenue");
+                   queryService.RevalidateByTag("templates_list");
                  }
                  _onClose();
                }).Variant(ButtonVariant.Destructive))
@@ -214,6 +219,9 @@ public class RevenueEditSheet(int id, Action onClose) : ViewBase
                        entry.RevenueDate = newDate;
                      }
                      await db.SaveChangesAsync();
+                     queryService.RevalidateByTag("revenue_entries");
+                     queryService.RevalidateByTag("uploads_list");
+                     queryService.RevalidateByTag("dashboard_total_revenue");
                    }
                    _onClose();
                  }

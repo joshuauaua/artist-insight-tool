@@ -7,7 +7,7 @@ public record RevenueEntryDto(
     string? Description,
     string Source,
     string? Integration,
-
+    string? ArtistName,
     string? ImportTemplateName,
     string? JsonData, // For annex data
     DateTime? UploadDate,

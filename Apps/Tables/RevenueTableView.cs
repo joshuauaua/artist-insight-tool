@@ -59,7 +59,15 @@ public class RevenueTableView : ViewBase
     });
 
     var allEntries = revenueQuery.Value ?? [];
-    var refetch = revenueQuery.Mutator.Revalidate;
+    var queryService = UseService<IQueryService>();
+    var refetch = () =>
+    {
+      revenueQuery.Mutator.Revalidate();
+      queryService.RevalidateByTag("uploads_list");
+      queryService.RevalidateByTag("assets");
+      queryService.RevalidateByTag("dashboard_total_revenue");
+      queryService.RevalidateByTag("templates_list");
+    };
 
     var searchQuery = UseState("");
     var sortField = UseState("Id");

@@ -30,7 +30,7 @@ public class UploadsApp : ViewBase
       });
     }
 
-    var tablesQuery = UseQuery("datatables_list", async (ct) =>
+    var tablesQuery = UseQuery("uploads_list", async (ct) =>
     {
       // Small delay to ensure UI renders loading state (if needed, though UseQuery handles it)
       await Task.Delay(10);
@@ -90,7 +90,14 @@ public class UploadsApp : ViewBase
 
     var tablesData = tablesQuery.Value ?? [];
     var isLoading = tablesQuery.Loading;
-    var refetch = tablesQuery.Mutator.Revalidate;
+    var queryService = UseService<IQueryService>();
+    var refetch = () =>
+    {
+      tablesQuery.Mutator.Revalidate();
+      queryService.RevalidateByTag("revenue_entries");
+      queryService.RevalidateByTag("dashboard_total_revenue");
+      queryService.RevalidateByTag("templates_list");
+    };
 
 
     var selectedIds = UseState<HashSet<string>>([]);
@@ -121,7 +128,7 @@ public class UploadsApp : ViewBase
 
     if (selectedTableId.Value != null)
     {
-      return new DataTableViewSheet(selectedTableId.Value.Value, () => selectedTableId.Set((int?)null));
+      return new UploadViewSheet(selectedTableId.Value.Value, () => selectedTableId.Set((int?)null));
     }
 
 
@@ -212,7 +219,7 @@ public class UploadsApp : ViewBase
   }
 }
 
-public class DataTableViewSheet(int entryId, Action onClose) : ViewBase
+public class UploadViewSheet(int entryId, Action onClose) : ViewBase
 {
   public override object Build()
   {
@@ -244,7 +251,7 @@ public class DataTableViewSheet(int entryId, Action onClose) : ViewBase
         var root = doc.RootElement;
         List<Dictionary<string, object?>> dataRows = [];
 
-        // Parsing logic adapted from DataTablesApp/ExcelDataReader
+        // Parsing logic adapted from UploadsApp/ExcelDataReader
         if (root.ValueKind == JsonValueKind.Array && root.GetArrayLength() > 0)
         {
           var first = root[0];
@@ -254,14 +261,14 @@ public class DataTableViewSheet(int entryId, Action onClose) : ViewBase
           if (isObj && hasFile)
           {
             // It's a list of sheets, get the last one (most recent) or just the first one?
-            // Since "Data Tables" lists multiple "Entries" but a RevenueEntry might have multiple sheets annexed...
-            // DataTablesApp lists individual "TableItem"s but they map to RealId (RevenueEntry Id).
-            // If a RevenueEntry has multiple sheets, DataTablesApp logic (line 61) iterates them.
+            // Since "Uploads" lists multiple "Entries" but a RevenueEntry might have multiple sheets annexed...
+            // UploadsApp lists individual "TableItem"s but they map to RealId (RevenueEntry Id).
+            // If a RevenueEntry has multiple sheets, UploadsApp logic (line 61) iterates them.
             // But wait, RealId is SAME for all sheets in one ID?
-            // DataTablesApp.cs line 51: AddItem(entry.Id, ...)
+            // UploadsApp.cs line 51: AddItem(entry.Id, ...)
             // If multiple sheets, it generates multiple "TableItem"s but all point to "entry.Id".
             // We need to know WHICH sheet to show.
-            // Ah, DataTablesApp currently iterates sheets but only passes "entry.Id".
+            // Ah, UploadsApp currently iterates sheets but only passes "entry.Id".
             // So if I click one, I load the RevenueEntry.
             // I should probably show all sheets or tabs?
             // For now, let's just show the LAST sheet or all data merged?

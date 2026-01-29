@@ -21,13 +21,13 @@ namespace ArtistInsightTool.Apps.Dashboard;
 public class DashboardApp : ViewBase
 {
   public record PieChartData(string Dimension, double Measure);
-  public record DataTableItem(int RealId, string Id, string Name, string Template, string UploadDate, string Period);
+  public record UploadTableItem(int RealId, string Id, string Name, string Template, string UploadDate, string Period);
   public record TemplateTableItem(int RealId, string Id, string Name, string Source, string Category, int Files, DateTime CreatedAt);
 
   // Table projection records
   public record RevenueRow(object Id, string Date, string Name, string Type, string Source, string Amount);
   public record AssetRow(object Id, string Name, string? Category, string? Type, string Amount, object Actions);
-  public record DataTableRow(object Id, string Name, string Template, string Period, string UploadDate, object Actions);
+  public record UploadRow(object Id, string Name, string Template, string Period, string UploadDate, object Actions);
   public record TemplateRow(object Id, string Name, string Source, string Category, int Linked, object Actions);
 
   public override object Build()
@@ -61,10 +61,10 @@ public class DashboardApp : ViewBase
         new("p5", "", "   ", 2, 4),
     });
 
-    var assetsQuery = UseQuery("dashboard_assets", async (ct) => await service.GetAssetsAsync());
-    var revenueQuery = UseQuery("dashboard_revenue_entries", async (ct) => await service.GetRevenueEntriesAsync());
+    var assetsQuery = UseQuery("assets", async (ct) => await service.GetAssetsAsync());
+    var revenueQuery = UseQuery("revenue_entries", async (ct) => await service.GetRevenueEntriesAsync());
     var totalRevenueQuery = UseQuery("dashboard_total_revenue", async (ct) => await service.GetTotalRevenueAsync(DateTime.Now.AddYears(-10), DateTime.Now));
-    var tmplQuery = UseQuery("dashboard_templates", async (ct) =>
+    var tmplQuery = UseQuery("templates_list", async (ct) =>
     {
       var tmpls = await service.GetTemplatesAsync();
       return tmpls.Select(t => new TemplateTableItem(t.Id, $"T{t.Id:D3}", t.Name, t.SourceName ?? "-", t.Category ?? "Other", t.RevenueEntries?.Count ?? 0, t.CreatedAt)).ToList();
@@ -99,7 +99,13 @@ public class DashboardApp : ViewBase
 
 
     // --- 2. Early Return (Hooks ABOVE this) ---
-    if (showImportSheet.Value) return new ExcelDataReaderSheet(() => showImportSheet.Set(false), () => selectedTab.Set(3));
+    if (showImportSheet.Value) return new ExcelDataReaderSheet(() => showImportSheet.Set(false), () =>
+    {
+      revenueQuery.Mutator.Revalidate();
+      assetsQuery.Mutator.Revalidate();
+      totalRevenueQuery.Mutator.Revalidate();
+      selectedTab.Set(3);
+    });
 
     // --- 3. View Components ---
 
@@ -300,7 +306,7 @@ public class DashboardApp : ViewBase
                         .Height(Size.Units(100)))
                 )
             )
-    ).Width(Size.Full())
+    )
     .BorderStyle(BorderStyle.Dashed)
     .BorderColor(Colors.Primary);
   }
@@ -341,63 +347,70 @@ public class DashboardApp : ViewBase
   {
     var filtered = assets.Where(a => string.IsNullOrWhiteSpace(search.Value) || a.Name.Contains(search.Value, StringComparison.OrdinalIgnoreCase)).ToList();
 
-    // Prepare Line Chart Data
-    var lineChartData = revenueEntries
+    // Line Chart Logic
+    var chartData = revenueEntries
         .GroupBy(e => new { e.RevenueDate.Year, e.RevenueDate.Month })
         .Select(g => new
         {
-          Date = new DateTime(g.Key.Year, g.Key.Month, 1),
-          Total = (double)g.Sum(e => e.Amount)
+          Month = new DateTime(g.Key.Year, g.Key.Month, 1).ToString("MMM yyyy"),
+          Revenue = (double)g.Sum(e => e.Amount)
         })
-        .OrderBy(x => x.Date)
-        .ToList();
-
-    // Format for chart
-    var chartData = lineChartData.Select(x => new
-    {
-      Month = x.Date.ToString("MMM yyyy"),
-      Revenue = x.Total
-    }).ToArray();
+        .OrderBy(x => DateTime.ParseExact(x.Month, "MMM yyyy", CultureInfo.InvariantCulture))
+        .ToArray();
 
     return Layout.Vertical().Gap(20)
-        .Add(RenderAnalyticsCard(assets, selectedCategory, categories))
-        .Add(new Card(
-             Layout.Vertical().Gap(10)
-                .Add(Text.H4("Revenue History"))
-                .Add(Layout.Vertical().Height(Size.Units(300))
-                    .Add(chartData.ToLineChart(style: LineChartStyles.Dashboard)
-                        .Dimension("Month", e => e.Month)
-                        .Measure("Revenue", e => e.Sum(f => f.Revenue))
-                        .Toolbox()
-                    )
-                )
-        ).Width(Size.Full()).BorderStyle(BorderStyle.Dashed).BorderColor(Colors.Primary))
-        .Add(filtered.Select(a => new AssetRow(
-            new Button($"A{a.Id:D3}", () => dialog.Set(new AssetViewSheet(a.Id, () => { dialog.Set((object?)null); query.Mutator.Revalidate(); }))).Variant(ButtonVariant.Ghost),
-            a.Name, a.Category, a.Type, a.AmountGenerated.ToString("C", CultureInfo.GetCultureInfo("sv-SE")),
-            new Button("", () => dialog.Set(new Dialog(_ => { dialog.Set((object?)null); return ValueTask.CompletedTask; }, new DialogHeader("Delete Asset"), new DialogBody(Text.Label($"Delete {a.Name}?")), new DialogFooter(new Button("Cancel", () => dialog.Set((object?)null)), new Button("Delete", async () => { await service.DeleteAssetAsync(a.Id); dialog.Set((object?)null); query.Mutator.Revalidate(); }).Variant(ButtonVariant.Destructive))))).Icon(Icons.Trash).Variant(ButtonVariant.Ghost)
-        )).Take(100).ToArray().ToTable().Width(Size.Full()).Add(x => x.Id).Add(x => x.Name).Add(x => x.Category).Add(x => x.Type).Add(x => x.Amount).Add(x => x.Actions).Header(x => x.Id, "ID").Header(x => x.Actions, ""));
+        // 1. Search and Table at the top
+        .Add(Layout.Vertical().Gap(10)
+            .Add(Layout.Horizontal().Align(Align.Center)
+                .Add(search.ToTextInput().Placeholder("Search assets...").Width(300))
+                .Add(new Spacer())
+            )
+            .Add(filtered.Select(a => new AssetRow(
+                new Button($"A{a.Id:D3}", () => dialog.Set(new AssetViewSheet(a.Id, () => { dialog.Set((object?)null); query.Mutator.Revalidate(); }))).Variant(ButtonVariant.Ghost),
+                a.Name, a.Category, a.Type, a.AmountGenerated.ToString("C", CultureInfo.GetCultureInfo("sv-SE")),
+                new Button("", () => dialog.Set(new Dialog(_ => { dialog.Set((object?)null); return ValueTask.CompletedTask; }, new DialogHeader("Delete Asset"), new DialogBody(Text.Label($"Delete {a.Name}?")), new DialogFooter(new Button("Cancel", () => dialog.Set((object?)null)), new Button("Delete", async () => { await service.DeleteAssetAsync(a.Id); dialog.Set((object?)null); query.Mutator.Revalidate(); }).Variant(ButtonVariant.Destructive))))).Icon(Icons.Trash).Variant(ButtonVariant.Ghost)
+            )).Take(100).ToArray().ToTable().Width(Size.Full()).Add(x => x.Id).Add(x => x.Name).Add(x => x.Category).Add(x => x.Type).Add(x => x.Amount).Add(x => x.Actions).Header(x => x.Id, "ID").Header(x => x.Actions, ""))
+        )
+        // 2. Side-by-side widgets below
+        .Add(Layout.Horizontal().Gap(20).Width(Size.Full())
+            .Add(Layout.Vertical().Width(Size.Fraction(0.5f))
+                .Add(RenderAnalyticsCard(assets, selectedCategory, categories))
+            )
+            .Add(Layout.Vertical().Width(Size.Fraction(0.5f))
+                .Add(new Card(
+                     Layout.Vertical().Gap(10)
+                        .Add(Text.H4("Revenue History"))
+                        .Add(Layout.Vertical().Height(Size.Units(200)) // Adjusted height for side-by-side
+                            .Add(chartData.ToLineChart(style: LineChartStyles.Dashboard)
+                                .Dimension("Month", e => e.Month)
+                                .Measure("Revenue", e => e.Sum(f => f.Revenue))
+                                .Toolbox()
+                            )
+                        )
+                ).Width(Size.Full()).BorderStyle(BorderStyle.Dashed).BorderColor(Colors.Primary))
+            )
+        );
   }
 
   private object RenderUploads(List<RevenueEntryDto> entries, IState<string> search, IState<object?> dialog, dynamic query, ArtistInsightService service)
   {
-    var items = new List<DataTableItem>();
+    var items = new List<UploadTableItem>();
     foreach (var e in entries.Where(x => !string.IsNullOrEmpty(x.JsonData)))
     {
       try
       {
         using var doc = JsonDocument.Parse(e.JsonData!);
         var fn = doc.RootElement[0].TryGetProperty("FileName", out var p) ? p.GetString() : null;
-        var period = $"Q{(e.RevenueDate.Month + 2) / 3} {e.RevenueDate.Year}";
+        var period = (e.Year.HasValue && !string.IsNullOrEmpty(e.Quarter)) ? $"{e.Year} {e.Quarter}" : "-";
         var uploadDate = (e.UploadDate ?? e.RevenueDate).ToShortDateString();
-        items.Add(new DataTableItem(e.Id, $"DT{e.Id:D3}", fn ?? e.Description ?? "Table", e.ImportTemplateName ?? "-", uploadDate, period));
+        items.Add(new UploadTableItem(e.Id, $"DT{e.Id:D3}", fn ?? e.Description ?? "Table", e.ImportTemplateName ?? "-", uploadDate, period));
       }
       catch { }
     }
     var filtered = items.Where(t => string.IsNullOrWhiteSpace(search.Value) || t.Name.Contains(search.Value, StringComparison.OrdinalIgnoreCase)).ToList();
     return Layout.Vertical().Gap(20)
-        .Add(filtered.Select(t => new DataTableRow(
-            new Button(t.Id, () => dialog.Set(new DataTableViewSheet(t.RealId, () => dialog.Set((object?)null)))).Variant(ButtonVariant.Ghost),
+        .Add(filtered.Select(t => new UploadRow(
+            new Button(t.Id, () => dialog.Set(new UploadViewSheet(t.RealId, () => dialog.Set((object?)null)))).Variant(ButtonVariant.Ghost),
             t.Name,
             t.Template,
             t.Period,

@@ -21,15 +21,15 @@ public class ImportConfirmationSheet(List<CurrentFile> files, Action onSuccess, 
     // --- Upload/Save State ---
     var uploadName = UseState("");
 
-    // --- Smart Naming State (Royalties) ---
+    // --- Smart Naming State ---
     var uploadYear = UseState(DateTime.Now.Year);
     var uploadQuarter = UseState("Q1");
 
-    // Auto-name file based on Royalties selection
+    // Auto-name file based on selection
     UseEffect(() =>
     {
       var firstT = _files.FirstOrDefault()?.MatchedTemplate;
-      if (firstT?.Category == "Royalties")
+      if (firstT != null)
       {
         uploadName.Set($"{uploadYear.Value} {uploadQuarter.Value} {firstT.Name}");
       }
@@ -42,7 +42,7 @@ public class ImportConfirmationSheet(List<CurrentFile> files, Action onSuccess, 
              .Add(Text.Label($"{_files.Count} Files Selected").Muted().Small())
              .Add(Layout.Vertical().Gap(2).Add(_files.Select(f => Text.Muted($"• {f.OriginalName} ({f.MatchedTemplate?.Name})").Small()).ToArray())))
          .Add(Layout.Vertical().Gap(4)
-             .Add(Text.Label("Select Timeframe (Royalties)").Small())
+             .Add(Text.Label("Select Timeframe").Small())
              .Add(Layout.Horizontal().Gap(10)
                  .Add(uploadYear.ToSelectInput(Enumerable.Range(2020, 10).Select(y => new Option<int>(y.ToString(), y))).Width(100))
                  .Add(uploadQuarter.ToSelectInput(new[] { "Q1", "Q2", "Q3", "Q4" }.Select(q => new Option<string>(q, q))).Width(100))))
@@ -111,11 +111,8 @@ public class ImportConfirmationSheet(List<CurrentFile> files, Action onSuccess, 
              }
              entry.Amount = totalAmount;
 
-             if (tmpl.Category == "Royalties")
-             {
-               entry.Year = uploadYear.Value;
-               entry.Quarter = uploadQuarter.Value;
-             }
+             entry.Year = uploadYear.Value;
+             entry.Quarter = uploadQuarter.Value;
              entry.ImportTemplateId = tmpl.Id;
              entry.FileName = file.OriginalName;
 
@@ -219,7 +216,9 @@ public class ImportConfirmationSheet(List<CurrentFile> files, Action onSuccess, 
            client.Toast($"Imported {_files.Count} files", "Success");
            queryService.RevalidateByTag("revenue_entries");
            queryService.RevalidateByTag("assets");
-           queryService.RevalidateByTag("datatables_list");
+           queryService.RevalidateByTag("dashboard_total_revenue");
+           queryService.RevalidateByTag("uploads_list");
+           queryService.RevalidateByTag("templates_list");
            _onSuccess();
          }).Variant(ButtonVariant.Primary).Width(Size.Full()).WithConfetti(AnimationTrigger.Click));
   }
