@@ -22,10 +22,9 @@ public class TemplatesApp : ViewBase
     var confirmDeleteId = UseState<int?>(() => null);
 
     // Load Data with UseQuery
-    var templatesQuery = UseQuery("templates_list", async (ct) =>
-    {
-      var templates = await service.GetTemplatesAsync();
-      return templates.Select(t => new TemplateItem(
+    var templatesQuery = UseQuery("templates_list", async (ct) => await service.GetTemplatesAsync());
+
+    var items = templatesQuery.Value?.Select(t => new TemplateItem(
               t.Id,
               $"T{t.Id:D3}",
               t.Name,
@@ -33,10 +32,8 @@ public class TemplatesApp : ViewBase
               t.Category ?? "Other",
               t.RevenueEntries?.Count ?? 0,
               t.CreatedAt
-          )).OrderBy(t => t.RealId).ToList();
-    });
+          )).OrderBy(t => t.RealId).ToList() ?? [];
 
-    var items = templatesQuery.Value ?? [];
     if (templatesQuery.Loading && items.Count == 0) return Layout.Center().Add(Text.Label("Loading templates...").Muted());
     var refetch = templatesQuery.Mutator.Revalidate;
 

@@ -203,7 +203,6 @@ public class ImportConfirmationSheet(List<CurrentFile> files, Action onSuccess, 
            queryService.RevalidateByTag("dashboard_targeted_revenue");
            queryService.RevalidateByTag("uploads_list");
            queryService.RevalidateByTag("templates_list");
-            queryService.RevalidateByTag("dashboard_templates_list");
            _onSuccess();
          }).Variant(ButtonVariant.Primary).Width(Size.Full()).WithConfetti(AnimationTrigger.Click));
   }

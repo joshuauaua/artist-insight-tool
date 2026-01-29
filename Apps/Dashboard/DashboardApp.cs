@@ -45,6 +45,7 @@ public class DashboardApp : ViewBase
     var widgetTarget = UseState("");
     var addWidgetCardId = UseState<string?>(() => null);
     var configWidgetCardId = UseState<string?>(() => null);
+    var configPieChartCardId = UseState<string?>(() => null);
 
     // Kanban State
     var overviewCards = UseState(new List<CardState>
@@ -93,17 +94,13 @@ public class DashboardApp : ViewBase
     var assetsQuery = UseQuery("assets", async (ct) => await service.GetAssetsAsync());
     var revenueQuery = UseQuery("revenue_entries", async (ct) => await service.GetRevenueEntriesAsync());
     var totalRevenueQuery = UseQuery("dashboard_total_revenue", async (ct) => await service.GetTotalRevenueAsync(DateTime.Now.AddYears(-10), DateTime.Now));
-    var tmplQuery = UseQuery("dashboard_templates_list", async (ct) =>
-    {
-      var tmpls = await service.GetTemplatesAsync();
-      return tmpls.Select(t => new TemplateTableItem(t.Id, $"T{t.Id:D3}", t.Name, t.SourceName ?? "-", t.Category ?? "Other", t.RevenueEntries?.Count ?? 0, t.CreatedAt)).ToList();
-    });
+    var tmplQuery = UseQuery("templates_list", async (ct) => await service.GetTemplatesAsync());
+    var templatesData = tmplQuery.Value?.Select(t => new TemplateTableItem(t.Id, $"T{t.Id:D3}", t.Name, t.SourceName ?? "-", t.Category ?? "Other", t.RevenueEntries?.Count ?? 0, t.CreatedAt)).ToList() ?? [];
 
     // Derive collections
     var assets = assetsQuery.Value ?? [];
     var revenueEntries = revenueQuery.Value ?? [];
     var totalRevenue = totalRevenueQuery.Value;
-    var templatesData = tmplQuery.Value ?? [];
 
     var categories = assets.GroupBy(a => (a.Category ?? "Uncategorized").Trim())
         .Select(g => g.Key)
@@ -165,9 +162,11 @@ public class DashboardApp : ViewBase
     if (modal == null)
     {
       if (addWidgetCardId.Value != null)
-        modal = RenderAddWidgetDialog(selectedDialog, overviewCards, addWidgetCardId.Value, widgetType, widgetTarget, addWidgetCardId, configWidgetCardId);
+        modal = RenderAddWidgetDialog(selectedDialog, overviewCards, addWidgetCardId.Value, widgetType, widgetTarget, addWidgetCardId, configWidgetCardId, configPieChartCardId);
       else if (configWidgetCardId.Value != null)
         modal = RenderConfigureMetricDialog(selectedDialog, overviewCards, configWidgetCardId.Value, widgetType, widgetTarget, addWidgetCardId, configWidgetCardId);
+      else if (configPieChartCardId.Value != null)
+        modal = RenderConfigurePieChartDialog(selectedDialog, overviewCards, configPieChartCardId.Value, widgetType, widgetTarget, addWidgetCardId, configPieChartCardId);
     }
 
     return new Fragment(mainView, modal);
@@ -176,7 +175,7 @@ public class DashboardApp : ViewBase
   // --- Render Methods (Private class methods to ensure metadata stability) ---
 
   // Kanban State Record
-  public record CardState(string Id, string Title, string Column, int Order, int Type, decimal? Target = null); // Type: 0=QuickStart, 1=Assets, 2=Revenue, 3=Imports, 4=Placeholder, 5=TargetedRevenue
+  public record CardState(string Id, string Title, string Column, int Order, int Type, decimal? Target = null, string? CategoryFilter = null); // Type: 0=QuickStart, 1=Assets, 2=Revenue, 3=Imports, 4=Placeholder, 5=TargetedRevenue, 6=GrossNetPie
 
   private object RenderOverview(IState<bool> showImportSheet, IState<List<CardState>> cardStates, List<Asset> assets, MetricDto? totalRevenue, List<RevenueEntryDto> revenueEntries, IState<object?> selectedDialog, IState<int?> widgetType, IState<string> widgetTarget, IState<string?> addWidgetCardId)
   {
@@ -235,6 +234,7 @@ public class DashboardApp : ViewBase
                 .BorderRadius(BorderRadius.Rounded)
                 .Height(Size.Units(75)),
             5 => new TargetedRevenueMetricView(c.Target ?? 0),
+            6 => new AssetPieChartView(c.CategoryFilter ?? "All"),
             _ => (object)Layout.Center().Add(Text.Label("Unknown Card Type"))
           };
           return content;
@@ -464,11 +464,12 @@ public class DashboardApp : ViewBase
 
 
   //Dialog/Modal for adding a new insight card
-  private object RenderAddWidgetDialog(IState<object?> selectedDialog, IState<List<CardState>> cardStates, string cardId, IState<int?> widgetType, IState<string> widgetTarget, IState<string?> addWidgetCardId, IState<string?> configWidgetCardId)
+  private object RenderAddWidgetDialog(IState<object?> selectedDialog, IState<List<CardState>> cardStates, string cardId, IState<int?> widgetType, IState<string> widgetTarget, IState<string?> addWidgetCardId, IState<string?> configWidgetCardId, IState<string?> configPieChartCardId)
   {
     var options = new List<Option<int?>>
     {
-        new("Metric View: Targeted Revenue", 5)
+        new("Metric View: Targeted Revenue", 5),
+        new("Pie Chart: Asset Breakdown", 6)
     };
 
     return new Dialog(
@@ -489,7 +490,56 @@ public class DashboardApp : ViewBase
                 addWidgetCardId.Set((string?)null);
                 configWidgetCardId.Set(cardId);
               }
+              else if (widgetType.Value == 6)
+              {
+                addWidgetCardId.Set((string?)null);
+                configPieChartCardId.Set(cardId);
+              }
             }).Variant(ButtonVariant.Primary).Disabled(widgetType.Value == null)
+        )
+    );
+  }
+
+  private object RenderConfigurePieChartDialog(IState<object?> selectedDialog, IState<List<CardState>> cardStates, string cardId, IState<int?> widgetType, IState<string> widgetTarget, IState<string?> addWidgetCardId, IState<string?> configPieChartCardId)
+  {
+    var categories = new List<Option<string>>
+    {
+        new("All", "All"),
+        new("Merchandise", "Merchandise"),
+        new("Royalties", "Royalties"),
+        new("Concerts", "Concerts")
+    };
+
+    return new Dialog(
+        _ => { configPieChartCardId.Set((string?)null); widgetType.Set((int?)null); widgetTarget.Set(""); return ValueTask.CompletedTask; },
+        new DialogHeader("Configure Asset Breakdown Chart"),
+        new DialogBody(Layout.Vertical().Gap(15)
+            .Add(Text.P("Select a category to filter the chart."))
+            .Add(Layout.Vertical().Gap(5)
+                .Add(Text.Label("Category Filter"))
+                .Add(widgetTarget.ToSelectInput(categories).Placeholder("Select Category")))
+        ),
+        new DialogFooter(
+            new Button("Back", () => { configPieChartCardId.Set((string?)null); addWidgetCardId.Set(cardId); }).Variant(ButtonVariant.Ghost),
+            new Button("Submit", () =>
+            {
+              var currentList = cardStates.Value.ToList();
+              var index = currentList.FindIndex(x => x.Id == cardId);
+              if (index != -1)
+              {
+                currentList[index] = currentList[index] with
+                {
+                  Type = widgetType.Value ?? 6,
+                  Title = "Asset Breakdown",
+                  CategoryFilter = widgetTarget.Value
+                };
+                cardStates.Set(currentList);
+              }
+
+              configPieChartCardId.Set((string?)null);
+              widgetType.Set((int?)null);
+              widgetTarget.Set("");
+            }).Variant(ButtonVariant.Primary).Disabled(string.IsNullOrEmpty(widgetTarget.Value))
         )
     );
   }
