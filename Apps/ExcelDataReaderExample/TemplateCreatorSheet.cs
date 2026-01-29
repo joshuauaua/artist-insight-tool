@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.ComponentModel.DataAnnotations;
 using System.Reflection;
 using static ExcelDataReaderExample.ExcelDataReaderSheet;
+using ArtistInsightTool.Apps.Services;
 
 namespace ExcelDataReaderExample;
 
@@ -31,18 +32,26 @@ public class TemplateCreatorSheet(CurrentFile? file, Action onSuccess, Action on
     var factory = UseService<ArtistInsightToolContextFactory>();
     var client = UseService<IClientProvider>();
     var queryService = UseService<IQueryService>();
+    var service = UseService<ArtistInsightService>();
 
     // --- Template Creation State ---
     var newTemplateName = UseState("");
     var newTemplateSourceName = UseState("");
     var isNameCustom = UseState(false);
     var autoNameValue = UseState("");
+    var autoNameBase = UseState<string?>(() => null);
 
     UseEffect(() =>
     {
       if (!isNameCustom.Value && !string.IsNullOrWhiteSpace(newTemplateSourceName.Value))
       {
-        var baseName = string.IsNullOrWhiteSpace(newTemplateName.Value) || newTemplateName.Value == "New Template" ? "Template" : newTemplateName.Value.Split('(')[0].Trim();
+        var baseName = autoNameBase.Value ?? (string.IsNullOrWhiteSpace(newTemplateName.Value) || newTemplateName.Value == "New Template" ? "Template" : newTemplateName.Value.Split('(')[0].Trim());
+
+        if (autoNameBase.Value == null && baseName != "Template")
+        {
+          autoNameBase.Set(baseName);
+        }
+
         var nextName = $"{baseName} ({newTemplateSourceName.Value})";
         autoNameValue.Set(nextName);
         newTemplateName.Set(nextName);
@@ -51,7 +60,7 @@ public class TemplateCreatorSheet(CurrentFile? file, Action onSuccess, Action on
 
     UseEffect(() =>
     {
-      if (newTemplateName.Value != autoNameValue.Value)
+      if (newTemplateName.Value != autoNameValue.Value && !string.IsNullOrEmpty(autoNameValue.Value))
       {
         isNameCustom.Set(true);
       }
@@ -199,8 +208,7 @@ public class TemplateCreatorSheet(CurrentFile? file, Action onSuccess, Action on
           .Add(Layout.Horizontal().Align(Align.Center).Padding(30, 0, 0, 0)
               .Add(new Button("Save Template", async () =>
               {
-                await using var db = factory.CreateDbContext();
-                var newT = new ImportTemplate
+                var success = await service.CreateTemplateAsync(new ImportTemplate
                 {
                   Name = newTemplateName.Value,
                   SourceName = newTemplateSourceName.Value,
@@ -209,14 +217,18 @@ public class TemplateCreatorSheet(CurrentFile? file, Action onSuccess, Action on
                   MappingsJson = JsonSerializer.Serialize(mappedPairs.Value.ToDictionary(m => m.Header, m => m.FieldKey)),
                   CreatedAt = DateTime.UtcNow,
                   UpdatedAt = DateTime.UtcNow
-                };
-                db.ImportTemplates.Add(newT);
-                await db.SaveChangesAsync();
+                });
 
-                queryService.RevalidateByTag("templates_list");
-
-                client.Toast("Template Created", "Success");
-                _onSuccess();
+                if (success != null)
+                {
+                  queryService.RevalidateByTag("templates_list");
+                  client.Toast("Template Created", "Success");
+                  _onSuccess();
+                }
+                else
+                {
+                  client.Toast("Failed to create template", "Error");
+                }
               }).Variant(ButtonVariant.Primary).Disabled(mapped.Count == 0))
           );
 

@@ -37,6 +37,7 @@ public class TemplatesApp : ViewBase
     });
 
     var items = templatesQuery.Value ?? [];
+    if (templatesQuery.Loading && items.Count == 0) return Layout.Center().Add(Text.Label("Loading templates...").Muted());
     var refetch = templatesQuery.Mutator.Revalidate;
 
 

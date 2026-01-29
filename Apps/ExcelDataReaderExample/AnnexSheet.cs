@@ -3,6 +3,12 @@ using ArtistInsightTool.Connections.ArtistInsightTool;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
 using static ExcelDataReaderExample.ExcelDataReaderSheet;
+using ArtistInsightTool.Apps.Services;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+using Ivy.Hooks;
 
 namespace ExcelDataReaderExample;
 
@@ -15,28 +21,27 @@ public class AnnexSheet(CurrentFile? file, Action onClose) : ViewBase
   {
     var factory = UseService<ArtistInsightToolContextFactory>();
     var client = UseService<IClientProvider>();
+    var service = UseService<ArtistInsightService>();
 
-    // --- Annex State ---
-    var annexEntries = UseState<List<RevenueEntry>>([]);
+    // Load Annex Entries
+    var entriesQuery = UseQuery("revenue_entries", async (ct) => await service.GetRevenueEntriesAsync());
+    var rawList = entriesQuery.Value;
+    var annexEntries = (rawList ?? new List<RevenueEntryDto>()).Select(d => new RevenueEntry
+    {
+      Id = d.Id,
+      Description = d.Description,
+      RevenueDate = d.RevenueDate,
+      Amount = d.Amount,
+      Source = new RevenueSource { DescriptionText = d.Source },
+      JsonData = d.JsonData
+    }).ToList();
     var annexSelectedId = UseState<int?>(() => null);
     var annexTitle = UseState("");
 
-    // Load Annex Entries
-    UseEffect(() => Task.Run(async () =>
-    {
-      await using var db = factory.CreateDbContext();
-      var results = await db.RevenueEntries
-                 .Include(e => e.Source)
-                 .OrderByDescending(e => e.RevenueDate)
-                 .Take(100)
-                 .ToListAsync();
-      annexEntries.Set(results);
-    }), []);
-
     var tmpl = _file?.MatchedTemplate;
 
-    var options = annexEntries.Value.Select(e =>
-       new Option<int?>($"{e.Description ?? "No Name"} - {e.RevenueDate:MM/dd/yyyy} - {e.Source.DescriptionText} - {e.Amount:C}", e.Id)
+    var options = annexEntries.Select(e =>
+       new Option<int?>($"{(string.IsNullOrWhiteSpace(e.Description) ? "No Name" : e.Description)} - {e.RevenueDate:MM/dd/yyyy} - {(e.Source != null ? e.Source.DescriptionText : "No Source")} - {e.Amount:C}", e.Id)
     ).ToList();
 
     var contentHeader = Layout.Vertical().Align(Align.Center).Gap(5).Width(Size.Full())
@@ -198,8 +203,7 @@ public class AnnexSheet(CurrentFile? file, Action onClose) : ViewBase
     return new Sheet(
         _ => { _onClose(); return ValueTask.CompletedTask; },
         content,
-        "",
-        ""
+        "Annex Data"
     ).Width(Size.Full());
   }
 }

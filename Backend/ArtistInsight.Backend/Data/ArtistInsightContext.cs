@@ -18,6 +18,7 @@ public partial class ArtistInsightContext : DbContext
   public virtual DbSet<RevenueSource> RevenueSources { get; set; }
 
   public virtual DbSet<ImportTemplate> ImportTemplates { get; set; }
+  public virtual DbSet<DashboardSetting> DashboardSettings { get; set; }
 
   protected override void OnModelCreating(ModelBuilder modelBuilder)
   {

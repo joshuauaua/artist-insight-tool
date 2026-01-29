@@ -292,4 +292,30 @@ public class ArtistInsightService
     try { return await _httpClient.GetFromJsonAsync<MetricDto>($"{BaseUrl}/Dashboard/metrics/top-source-contribution{DateParams(from, to)}"); }
     catch { return null; }
   }
+
+  // Settings
+  public async Task<string?> GetSettingAsync(string key)
+  {
+    try
+    {
+      var response = await _httpClient.GetAsync($"{BaseUrl}/Settings/{key}");
+      if (response.IsSuccessStatusCode)
+      {
+        var setting = await response.Content.ReadFromJsonAsync<JsonElement>();
+        return setting.GetProperty("value").GetString();
+      }
+      return null;
+    }
+    catch { return null; }
+  }
+
+  public async Task<bool> SaveSettingAsync(string key, string value)
+  {
+    try
+    {
+      var response = await _httpClient.PostAsJsonAsync($"{BaseUrl}/Settings", new { Key = key, Value = value });
+      return response.IsSuccessStatusCode;
+    }
+    catch { return false; }
+  }
 }

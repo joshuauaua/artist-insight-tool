@@ -3,6 +3,7 @@ using ArtistInsightTool.Connections.ArtistInsightTool;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
 using static ExcelDataReaderExample.ExcelDataReaderSheet;
+using ArtistInsightTool.Apps.Services;
 
 namespace ExcelDataReaderExample;
 
@@ -17,6 +18,7 @@ public class ImportConfirmationSheet(List<CurrentFile> files, Action onSuccess, 
     var factory = UseService<ArtistInsightToolContextFactory>();
     var client = UseService<IClientProvider>();
     var queryService = UseService<IQueryService>();
+    var service = UseService<ArtistInsightService>();
 
     // --- Upload/Save State ---
     var uploadName = UseState("");
@@ -122,8 +124,8 @@ public class ImportConfirmationSheet(List<CurrentFile> files, Action onSuccess, 
              entry.ImportTemplateId = tmpl.Id;
              entry.FileName = file.OriginalName;
 
-             db.RevenueEntries.Add(entry);
-             await db.SaveChangesAsync(); // Save to get ID
+             var result = await service.CreateRevenueEntryAsync(entry);
+             if (result != null) entry.Id = result.Id;
 
              // Asset Logic
              if (!string.IsNullOrEmpty(assetCol))
@@ -198,6 +200,7 @@ public class ImportConfirmationSheet(List<CurrentFile> files, Action onSuccess, 
            queryService.RevalidateByTag("revenue_entries");
            queryService.RevalidateByTag("assets");
            queryService.RevalidateByTag("dashboard_total_revenue");
+           queryService.RevalidateByTag("dashboard_targeted_revenue");
            queryService.RevalidateByTag("uploads_list");
            queryService.RevalidateByTag("templates_list");
            _onSuccess();

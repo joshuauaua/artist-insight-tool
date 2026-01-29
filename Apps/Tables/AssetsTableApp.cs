@@ -26,13 +26,13 @@ public class AssetsTableApp : ViewBase
 
     // Hooks
     var assetsQuery = UseQuery("assets", async (ct) => (await service.GetAssetsAsync()).OrderBy(a => a.Id).ToArray());
-    var templatesQuery = UseQuery("templates", async (ct) => await service.GetTemplatesAsync());
+    var templatesQuery = UseQuery("templates_list", async (ct) => await service.GetTemplatesAsync());
 
     var assets = assetsQuery.Value ?? [];
 
     // Dynamic Header Logic
     var templates = templatesQuery.Value ?? [];
-    var assetTemplate = templates.FirstOrDefault(t => t.Name.Equals("Assets Template", StringComparison.OrdinalIgnoreCase));
+    var assetTemplate = templates.FirstOrDefault(t => t.Name?.IndexOf("Assets", StringComparison.OrdinalIgnoreCase) >= 0);
 
     // Default Headers
     var collectionHeader = "Collection";

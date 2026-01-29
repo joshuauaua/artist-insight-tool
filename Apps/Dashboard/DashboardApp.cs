@@ -41,6 +41,10 @@ public class DashboardApp : ViewBase
     var selectedTab = UseState(0);
     var showImportSheet = UseState(false);
     var selectedDialog = UseState<object?>(() => null);
+    var widgetType = UseState<int?>(() => null);
+    var widgetTarget = UseState("");
+    var addWidgetCardId = UseState<string?>(() => null);
+    var configWidgetCardId = UseState<string?>(() => null);
 
     // Kanban State
     var overviewCards = UseState(new List<CardState>
@@ -59,7 +63,32 @@ public class DashboardApp : ViewBase
         new("total-revenue", "Total Revenue", "   ", 0, 2),
         new("p4", "", "   ", 1, 4),
         new("p5", "", "   ", 2, 4),
+        new("p6", "", "   ", 3, 4),
     });
+
+    // Persistence Logic (Backend)
+    UseEffect(async () =>
+    {
+      var json = await service.GetSettingAsync("dashboard_layout_v3");
+      if (!string.IsNullOrEmpty(json))
+      {
+        try
+        {
+          var saved = JsonSerializer.Deserialize<List<CardState>>(json);
+          if (saved != null && saved.Count > 0)
+          {
+            overviewCards.Set(saved);
+          }
+        }
+        catch { }
+      }
+    }, []);
+
+    UseEffect(async () =>
+    {
+      var json = JsonSerializer.Serialize(overviewCards.Value);
+      await service.SaveSettingAsync("dashboard_layout_v3", json);
+    }, [overviewCards]);
 
     var assetsQuery = UseQuery("assets", async (ct) => await service.GetAssetsAsync());
     var revenueQuery = UseQuery("revenue_entries", async (ct) => await service.GetRevenueEntriesAsync());
@@ -120,27 +149,36 @@ public class DashboardApp : ViewBase
     {
       body.Add(selectedTab.Value switch
       {
-        0 => RenderOverview(showImportSheet, overviewCards, assets, totalRevenue, revenueEntries, selectedDialog),
+        0 => RenderOverview(showImportSheet, overviewCards, assets, totalRevenue, revenueEntries, selectedDialog, widgetType, widgetTarget, addWidgetCardId),
         1 => RenderAssets(assets, globalSearch, selectedDialog, assetsQuery, service, selectedCategory, categories, revenueEntries),
         2 => RenderRevenue(revenueEntries, globalSearch, selectedDialog, revenueQuery),
         3 => RenderUploads(revenueEntries, globalSearch, selectedDialog, revenueQuery, service),
         4 => RenderTemplates(templatesData, globalSearch, selectedDialog, tmplQuery, service, client),
-        _ => RenderOverview(showImportSheet, overviewCards, assets, totalRevenue, revenueEntries, selectedDialog)
+        _ => RenderOverview(showImportSheet, overviewCards, assets, totalRevenue, revenueEntries, selectedDialog, widgetType, widgetTarget, addWidgetCardId)
       });
     }
 
     var header = new DashboardHeader(selectedTab, () => showImportSheet.Set(true));
     var mainView = new HeaderLayout(header, body);
 
-    return new Fragment(mainView, selectedDialog.Value);
+    object? modal = selectedDialog.Value;
+    if (modal == null)
+    {
+      if (addWidgetCardId.Value != null)
+        modal = RenderAddWidgetDialog(selectedDialog, overviewCards, addWidgetCardId.Value, widgetType, widgetTarget, addWidgetCardId, configWidgetCardId);
+      else if (configWidgetCardId.Value != null)
+        modal = RenderConfigureMetricDialog(selectedDialog, overviewCards, configWidgetCardId.Value, widgetType, widgetTarget, addWidgetCardId, configWidgetCardId);
+    }
+
+    return new Fragment(mainView, modal);
   }
 
   // --- Render Methods (Private class methods to ensure metadata stability) ---
 
   // Kanban State Record
-  public record CardState(string Id, string Title, string Column, int Order, int Type); // Type: 0=QuickStart, 1=Assets, 2=Revenue, 3=Imports, 4=Placeholder
+  public record CardState(string Id, string Title, string Column, int Order, int Type, decimal? Target = null); // Type: 0=QuickStart, 1=Assets, 2=Revenue, 3=Imports, 4=Placeholder, 5=TargetedRevenue
 
-  private object RenderOverview(IState<bool> showImportSheet, IState<List<CardState>> cardStates, List<Asset> assets, MetricDto? totalRevenue, List<RevenueEntryDto> revenueEntries, IState<object?> selectedDialog)
+  private object RenderOverview(IState<bool> showImportSheet, IState<List<CardState>> cardStates, List<Asset> assets, MetricDto? totalRevenue, List<RevenueEntryDto> revenueEntries, IState<object?> selectedDialog, IState<int?> widgetType, IState<string> widgetTarget, IState<string?> addWidgetCardId)
   {
     return cardStates.Value
         .ToKanban(
@@ -166,36 +204,40 @@ public class DashboardApp : ViewBase
              .BorderStyle(BorderStyle.Dashed)
              .BorderColor(Colors.Primary)
              .BorderRadius(BorderRadius.Rounded)
-             .Width(Size.Fraction(1.0f)),
+             .Width(Size.Fraction(1.0f))
+             .Height(Size.Units(75)),
 
             1 => new Card(
                 Layout.Vertical().Gap(10).Padding(10).Align(Align.Center) // Symmetrical padding
                     .Add(Text.H4(c.Title))
                     .Add(new Icon(Icons.Package).Size(14).Color(Colors.Gray))
                     .Add(Text.H2(assets.Count.ToString()))
-            ),
+            ).Height(Size.Units(75)),
             2 => new Card(
                 Layout.Vertical().Gap(10).Padding(10).Align(Align.Center) // Symmetrical padding
                     .Add(Text.H4(c.Title))
                     .Add(new Icon(Icons.DollarSign).Size(14).Color(Colors.Gray))
                     .Add(Text.H2((totalRevenue?.Value.Replace("$", "").Replace("USD", "").Replace("SEK", "").Trim() ?? "0") + " SEK"))
-            ),
+            ).Height(Size.Units(75)),
             3 => new Card(
                 Layout.Vertical().Gap(10).Padding(10).Align(Align.Center) // Symmetrical padding
                     .Add(Text.H4(c.Title))
                     .Add(new Icon(Icons.FileClock).Size(14).Color(Colors.Gray))
                     .Add(Text.H2(revenueEntries.Count(x => !string.IsNullOrEmpty(x.JsonData)).ToString()))
-            ),
-            _ => new Card(
+            ).Height(Size.Units(75)),
+            4 => new Card(
                     Layout.Center().Size(Size.Full())
-                        .Add(new Button("", () => selectedDialog.Set(RenderAddWidgetDialog(selectedDialog))).Icon(Icons.Plus).Variant(ButtonVariant.Ghost))
+                        .Add(new Button("", () => addWidgetCardId.Set(c.Id)).Icon(Icons.Plus).Variant(ButtonVariant.Ghost))
                 )
                 .BorderColor(Colors.Gray)
                 .BorderStyle(BorderStyle.Dashed)
                 .BorderThickness(1)
                 .BorderRadius(BorderRadius.Rounded)
+                .Height(Size.Units(75)),
+            5 => new TargetedRevenueMetricView(c.Target ?? 0),
+            _ => (object)Layout.Center().Add(Text.Label("Unknown Card Type"))
           };
-          return content.Height(Size.Units(75));
+          return content;
         })
         .ColumnOrder(c => c.Column)
         .Width(Size.Full())
@@ -422,13 +464,70 @@ public class DashboardApp : ViewBase
 
 
   //Dialog/Modal for adding a new insight card
-  private object RenderAddWidgetDialog(IState<object?> selectedDialog)
+  private object RenderAddWidgetDialog(IState<object?> selectedDialog, IState<List<CardState>> cardStates, string cardId, IState<int?> widgetType, IState<string> widgetTarget, IState<string?> addWidgetCardId, IState<string?> configWidgetCardId)
+  {
+    var options = new List<Option<int?>>
+    {
+        new("Metric View: Targeted Revenue", 5)
+    };
+
+    return new Dialog(
+        _ => { addWidgetCardId.Set((string?)null); widgetType.Set((int?)null); return ValueTask.CompletedTask; },
+        new DialogHeader("Add an Insight Card"),
+        new DialogBody(Layout.Vertical().Gap(15)
+            .Add(Text.P("Select an insight to add to your dashboard."))
+            .Add(Layout.Vertical().Gap(5)
+                .Add(Text.Label("Select an Insight Card to display"))
+                .Add(widgetType.ToSelectInput(options).Placeholder("Choose...")))
+        ),
+        new DialogFooter(
+            new Button("Cancel", () => { addWidgetCardId.Set((string?)null); widgetType.Set((int?)null); }).Variant(ButtonVariant.Ghost),
+            new Button("Continue", () =>
+            {
+              if (widgetType.Value == 5)
+              {
+                addWidgetCardId.Set((string?)null);
+                configWidgetCardId.Set(cardId);
+              }
+            }).Variant(ButtonVariant.Primary).Disabled(widgetType.Value == null)
+        )
+    );
+  }
+
+  private object RenderConfigureMetricDialog(IState<object?> selectedDialog, IState<List<CardState>> cardStates, string cardId, IState<int?> widgetType, IState<string> widgetTarget, IState<string?> addWidgetCardId, IState<string?> configWidgetCardId)
   {
     return new Dialog(
-        _ => { selectedDialog.Set((object?)null); return ValueTask.CompletedTask; },
-        new DialogHeader("Add an Insight Card"),
-        new DialogBody(Layout.Vertical().Gap(10).Add(Text.P("Select an insight to add to your dashboard."))),
-        new DialogFooter(new Button("Close", () => selectedDialog.Set((object?)null)).Variant(ButtonVariant.Ghost))
+        _ => { configWidgetCardId.Set((string?)null); widgetType.Set((int?)null); widgetTarget.Set(""); return ValueTask.CompletedTask; },
+        new DialogHeader("Configure Targeted Revenue"),
+        new DialogBody(Layout.Vertical().Gap(15)
+            .Add(Text.P("Set your desired revenue target for this metric."))
+            .Add(Layout.Vertical().Gap(5)
+                .Add(Text.Label("Target Revenue"))
+                .Add(widgetTarget.ToTextInput().Placeholder("e.g. 50000")))
+        ),
+        new DialogFooter(
+            new Button("Back", () => { configWidgetCardId.Set((string?)null); addWidgetCardId.Set(cardId); }).Variant(ButtonVariant.Ghost),
+            new Button("Submit", () =>
+            {
+              var currentList = cardStates.Value.ToList();
+              var index = currentList.FindIndex(x => x.Id == cardId);
+              if (index != -1)
+              {
+                decimal.TryParse(widgetTarget.Value, out var target);
+                currentList[index] = currentList[index] with
+                {
+                  Type = widgetType.Value ?? 5,
+                  Title = "Targeted Revenue",
+                  Target = target > 0 ? target : null
+                };
+                cardStates.Set(currentList);
+              }
+
+              configWidgetCardId.Set((string?)null);
+              widgetType.Set((int?)null);
+              widgetTarget.Set("");
+            }).Variant(ButtonVariant.Primary).Disabled(string.IsNullOrEmpty(widgetTarget.Value))
+        )
     );
   }
 }
