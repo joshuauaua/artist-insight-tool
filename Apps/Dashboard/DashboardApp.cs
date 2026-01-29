@@ -93,7 +93,7 @@ public class DashboardApp : ViewBase
     var assetsQuery = UseQuery("assets", async (ct) => await service.GetAssetsAsync());
     var revenueQuery = UseQuery("revenue_entries", async (ct) => await service.GetRevenueEntriesAsync());
     var totalRevenueQuery = UseQuery("dashboard_total_revenue", async (ct) => await service.GetTotalRevenueAsync(DateTime.Now.AddYears(-10), DateTime.Now));
-    var tmplQuery = UseQuery("templates_list", async (ct) =>
+    var tmplQuery = UseQuery("dashboard_templates_list", async (ct) =>
     {
       var tmpls = await service.GetTemplatesAsync();
       return tmpls.Select(t => new TemplateTableItem(t.Id, $"T{t.Id:D3}", t.Name, t.SourceName ?? "-", t.Category ?? "Other", t.RevenueEntries?.Count ?? 0, t.CreatedAt)).ToList();

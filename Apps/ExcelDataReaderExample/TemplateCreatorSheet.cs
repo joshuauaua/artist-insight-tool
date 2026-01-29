@@ -222,6 +222,7 @@ public class TemplateCreatorSheet(CurrentFile? file, Action onSuccess, Action on
                 if (success != null)
                 {
                   queryService.RevalidateByTag("templates_list");
+                  queryService.RevalidateByTag("dashboard_templates_list");
                   client.Toast("Template Created", "Success");
                   _onSuccess();
                 }

@@ -18,11 +18,7 @@ public class TargetedRevenueMetricView(decimal targetRevenue) : ViewBase
       // Fetch total revenue for a wide range (simulating lifetime)
       var dto = await service.GetTotalRevenueAsync(DateTime.Now.AddYears(-10), DateTime.Now);
 
-      decimal currentRevenueValue = 0;
-      if (dto != null && decimal.TryParse(dto.Value.Replace("$", "").Replace("USD", "").Replace("SEK", "").Trim(), out var val))
-      {
-        currentRevenueValue = val;
-      }
+      decimal currentRevenueValue = (decimal)(dto?.NumericValue ?? 0);
 
       var progress = targetRevenue > 0 ? (double)(currentRevenueValue / targetRevenue) : 0;
 

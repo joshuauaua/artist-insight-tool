@@ -2,9 +2,10 @@ namespace ArtistInsight.Backend.Models;
 
 public record MetricDto(
     string Value,
-    double? Trend,
-    double? GoalProgress,
-    string? GoalValue
+    double? Trend = null,
+    double? GoalProgress = null,
+    string? GoalValue = null,
+    double? NumericValue = null
 );
 
 public record PieChartSegmentDto(string Label, double Value);
