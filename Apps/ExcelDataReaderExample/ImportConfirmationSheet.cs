@@ -105,9 +105,6 @@ public class ImportConfirmationSheet(List<CurrentFile> files, Action onSuccess, 
 
              var amountCol = GetHeader("Net") ?? GetHeader("Amount");
              var assetCol = GetHeader("Asset");
-             var collectionCol = GetHeader("Collection");
-             var assetTypeCol = GetHeader("AssetType") ?? GetHeader("Category");
-             var grossCol = GetHeader("Gross");
 
              decimal totalAmount = 0;
              if (!string.IsNullOrEmpty(amountCol))
@@ -134,7 +131,6 @@ public class ImportConfirmationSheet(List<CurrentFile> files, Action onSuccess, 
                try
                {
                  var batchAssets = new Dictionary<string, decimal>();
-                 var assetCollections = new Dictionary<string, string>();
 
                  foreach (var row in jsonData)
                  {
@@ -152,11 +148,6 @@ public class ImportConfirmationSheet(List<CurrentFile> files, Action onSuccess, 
                      if (!batchAssets.ContainsKey(name))
                      {
                        batchAssets[name] = 0;
-                       if (!string.IsNullOrEmpty(collectionCol) && row.TryGetValue(collectionCol, out var colObj))
-                       {
-                         var colStr = colObj?.ToString()?.Trim();
-                         if (!string.IsNullOrEmpty(colStr)) assetCollections[name] = colStr;
-                       }
                      }
                      batchAssets[name] += amount;
                    }
@@ -170,33 +161,12 @@ public class ImportConfirmationSheet(List<CurrentFile> files, Action onSuccess, 
                    var newAssets = names.Where(n => !existingNames.Contains(n))
                                             .Select(n =>
                                             {
-                                              var type = "";
-                                              if (!string.IsNullOrEmpty(assetTypeCol))
-                                              {
-                                                var rowWithAsset = jsonData.FirstOrDefault(r => r.GetValueOrDefault(assetCol)?.ToString()?.Trim() == n);
-                                                if (rowWithAsset != null && rowWithAsset.TryGetValue(assetTypeCol, out var typeObj))
-                                                {
-                                                  type = typeObj?.ToString()?.Trim() ?? "";
-                                                }
-                                              }
-
-                                              if (string.IsNullOrEmpty(type))
-                                              {
-                                                type = tmpl.Category switch
-                                                {
-                                                  "Royalties" => "Single",
-                                                  "Merchandise" => "Single Item",
-                                                  "Concerts" => "Ticket Sales",
-                                                  _ => "Default"
-                                                };
-                                              }
-
                                               return new Asset
                                               {
                                                 Name = n,
-                                                Type = type,
+                                                Type = "Default",
                                                 Category = tmpl.Category,
-                                                Collection = assetCollections.GetValueOrDefault(n) ?? "",
+                                                Collection = "",
                                                 AmountGenerated = 0
                                               };
                                             })

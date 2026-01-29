@@ -438,7 +438,7 @@ public class ExcelDataReaderSheet(Action onClose, Action? onImportSuccess = null
       var rightPane = Layout.Vertical().Gap(5).Grow().Height(Size.Full());
       if (hasFiles)
       {
-        rightPane.Add(Text.H4("Preview"));
+
         var fileTableData = files.Select(f => new
         {
           FileName = f.OriginalName,

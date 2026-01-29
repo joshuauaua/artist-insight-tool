@@ -121,12 +121,10 @@ public class AnnexSheet(CurrentFile? file, Action onClose) : ViewBase
                  var mappings = tmpl.GetMappings();
                  var assetCol = mappings.FirstOrDefault(x => x.Value == "Asset").Key;
                  var amountCol = mappings.FirstOrDefault(x => x.Value == "Net" || x.Value == "Amount").Key;
-                 var collectionCol = mappings.FirstOrDefault(x => x.Value == "Collection").Key;
 
                  if (!string.IsNullOrEmpty(assetCol))
                  {
                    var batchAssets = new Dictionary<string, decimal>();
-                   var assetCollections = new Dictionary<string, string>();
 
                    foreach (var row in data)
                    {
@@ -144,11 +142,6 @@ public class AnnexSheet(CurrentFile? file, Action onClose) : ViewBase
                        if (!batchAssets.ContainsKey(name))
                        {
                          batchAssets[name] = 0;
-                         if (!string.IsNullOrEmpty(collectionCol) && row.TryGetValue(collectionCol, out var colObj))
-                         {
-                           var colStr = colObj?.ToString()?.Trim();
-                           if (!string.IsNullOrEmpty(colStr)) assetCollections[name] = colStr;
-                         }
                        }
                        batchAssets[name] += amount;
                      }
@@ -164,9 +157,9 @@ public class AnnexSheet(CurrentFile? file, Action onClose) : ViewBase
                                               .Select(n => new Asset
                                               {
                                                 Name = n,
-                                                Type = "Unknown",
+                                                Type = "Default",
                                                 Category = tmpl.Category,
-                                                Collection = assetCollections.GetValueOrDefault(n) ?? "",
+                                                Collection = "",
                                                 AmountGenerated = 0
                                               })
                                               .ToList();

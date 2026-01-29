@@ -23,27 +23,7 @@ public class TemplateCreatorSheet(CurrentFile? file, Action onSuccess, Action on
     [Display(Name = "Currency")] Currency,
     [Display(Name = "Transaction Date")] TransactionDate,
     [Display(Name = "Artist")] Artist,
-    [Display(Name = "Category")] Category,
-
-    // Royalties Specific
-    [Display(Name = "ISRC")] Isrc,
-    [Display(Name = "UPC")] Upc,
-    [Display(Name = "DSP")] Dsp,
-    [Display(Name = "Asset Duration")] Duration,
-    [Display(Name = "Asset Version")] Version,
-    [Display(Name = "Territory/Region")] Territory,
-
-    // Merchandise / Products
-    [Display(Name = "SKU")] Sku,
-    [Display(Name = "Product Category")] ProductCategory,
-    [Display(Name = "Status")] Status,
-    [Display(Name = "Tags")] Tags,
-
-    // Concerts
-    [Display(Name = "Venue Name")] VenueName,
-    [Display(Name = "Event Name")] EventName,
-    [Display(Name = "Order ID")] OrderId,
-    [Display(Name = "Ticket Revenue")] TicketRevenue
+    [Display(Name = "Category")] Category
   }
 
   public override object Build()
@@ -72,18 +52,7 @@ public class TemplateCreatorSheet(CurrentFile? file, Action onSuccess, Action on
             { "Global", new() { SystemField.Asset, SystemField.Net, SystemField.Gross, SystemField.Currency, SystemField.TransactionDate, SystemField.Artist, SystemField.Category } }
         };
 
-    var categorySpecificGroups = new Dictionary<string, Dictionary<string, List<SystemField>>>
-        {
-            { "Royalties", new() {
-                { "Aloaded/Amuse Specific", new() { SystemField.Isrc, SystemField.Upc, SystemField.Dsp, SystemField.Duration, SystemField.Version, SystemField.Territory } }
-            }},
-            { "Merchandise", new() {
-                { "Shopify Specific", new() { SystemField.Sku, SystemField.ProductCategory, SystemField.Status, SystemField.Tags } }
-            }},
-            { "Concerts", new() {
-                { "Eventbrite Specific", new() { SystemField.VenueName, SystemField.EventName, SystemField.OrderId, SystemField.TicketRevenue } }
-            }}
-        };
+    var activeGroups = fieldGroups;
 
     Func<string, string?> getHeader = k => mappedPairs.Value.FirstOrDefault(m => m.FieldKey == k).Header;
 
@@ -117,15 +86,7 @@ public class TemplateCreatorSheet(CurrentFile? file, Action onSuccess, Action on
     else
     {
       // ... (rest of the mapping logic)
-      var activeGroups = new Dictionary<string, List<SystemField>>(fieldGroups);
 
-      if (categorySpecificGroups.TryGetValue(newTemplateCategory.Value, out var extraGroups))
-      {
-        foreach (var grp in extraGroups)
-        {
-          activeGroups[grp.Key] = grp.Value;
-        }
-      }
 
       var mapped = mappedPairs.Value;
       var unmappedHeaders = headers.Where(h => !mapped.Any(m => m.Header == h)).ToList();
