@@ -3,6 +3,7 @@ using ArtistInsightTool.Connections.ArtistInsightTool;
 using Microsoft.EntityFrameworkCore;
 using ArtistInsightTool.Apps.Services;
 using ExcelDataReaderExample;
+using System.Text.Json;
 
 using Ivy.Hooks;
 
@@ -224,14 +225,7 @@ public class TemplateEditSheet : ViewBase
     var sourceName = UseState("");
     var category = UseState("");
     var headers = UseState<List<string>>([]);
-
-    // Column Mappings
-    var assetColumn = UseState<string?>(() => null);
-    var amountColumn = UseState<string?>(() => null);
-    var sourceColumn = UseState<string?>(() => null); // LabelColumn often maps to Source
-    var collectionColumn = UseState<string?>(() => null);
-    var currencyColumn = UseState<string?>(() => null);
-    // Add other columns as needed
+    var mappings = UseState<Dictionary<string, string>>(() => new());
 
     async Task<IDisposable?> LoadTemplate()
     {
@@ -244,12 +238,7 @@ public class TemplateEditSheet : ViewBase
         sourceName.Set(t.SourceName ?? "");
         category.Set(t.Category ?? "Other");
         headers.Set(t.GetHeaders());
-
-        assetColumn.Set(t.AssetColumn);
-        amountColumn.Set(t.NetColumn); // Map "Net" to Amount
-        sourceColumn.Set(t.LabelColumn);
-        collectionColumn.Set(t.CollectionColumn);
-        currencyColumn.Set(t.CurrencyColumn);
+        mappings.Set(t.GetMappings());
       }
       return null;
     }
@@ -263,11 +252,7 @@ public class TemplateEditSheet : ViewBase
       t.Name = name.Value;
       t.SourceName = sourceName.Value;
       t.Category = category.Value;
-      t.AssetColumn = assetColumn.Value;
-      t.NetColumn = amountColumn.Value;
-      t.LabelColumn = sourceColumn.Value;
-      t.CollectionColumn = collectionColumn.Value;
-      t.CurrencyColumn = currencyColumn.Value;
+      t.MappingsJson = JsonSerializer.Serialize(mappings.Value);
       t.UpdatedAt = DateTime.UtcNow;
 
       t.RevenueEntries = []; // Prevent cycle/payload issues
@@ -283,44 +268,52 @@ public class TemplateEditSheet : ViewBase
       }
     }
 
-    void ClearColumn(string header)
+    void SetHeaderMapping(string header, string systemField)
     {
-      if (assetColumn.Value == header) assetColumn.Set((string?)null);
-      if (amountColumn.Value == header) amountColumn.Set((string?)null);
-      if (sourceColumn.Value == header) sourceColumn.Set((string?)null);
-      if (collectionColumn.Value == header) collectionColumn.Set((string?)null);
-      if (currencyColumn.Value == header) currencyColumn.Set((string?)null);
+      var newMap = mappings.Value.ToDictionary(x => x.Key, x => x.Value);
+      if (systemField == "Ignore")
+      {
+        newMap.Remove(header);
+      }
+      else
+      {
+        // Remove existing mapping for this field if it's a unique field (one header per field)
+        // For now, let's just allow it or keep it simple
+        newMap[header] = systemField;
+      }
+      mappings.Set(newMap);
     }
+
+    var fieldOptions = new[]
+    {
+        "Asset", "Net", "Gross", "Currency", "TransactionDate", "Artist", "Category",
+        "Isrc", "Upc", "Dsp", "Duration", "Version", "Territory",
+        "Sku", "ProductCategory", "Status", "Tags",
+        "VenueName", "EventName", "OrderId", "TicketRevenue",
+        "Ignore"
+    };
 
     var mappingSection = Layout.Vertical().Gap(12).Align(Align.Stretch);
     if (headers.Value.Count > 0)
     {
-      // mappingSection.Add(Text.H5("Column Mappings")); // Removed title from here
-
       foreach (var header in headers.Value)
       {
-        var currentRole = "Ignore";
-        if (assetColumn.Value == header) currentRole = "Asset";
-        else if (amountColumn.Value == header) currentRole = "Net (Amount)";
-        else if (sourceColumn.Value == header) currentRole = "Source/Label";
-        else if (collectionColumn.Value == header) currentRole = "Collection";
-        else if (currencyColumn.Value == header) currentRole = "Currency";
+        var currentRole = mappings.Value.TryGetValue(header, out var role) ? role : "Ignore";
+
+        var menu = new DropDownMenu(
+            DropDownMenu.DefaultSelectHandler(),
+            new Button(currentRole).Variant(ButtonVariant.Outline).Icon(Icons.ChevronDown).Width(Size.Full())
+        );
+        foreach (var opt in fieldOptions)
+        {
+          menu = menu | MenuItem.Default(opt).HandleSelect(() => SetHeaderMapping(header, opt));
+        }
 
         mappingSection.Add(Layout.Horizontal().Gap(10).Align(Align.Center)
             .Add(Layout.Vertical().Width(Size.Fraction(1)).Align(Align.Left)
                 .Add(Text.Label(header)))
             .Add(Layout.Vertical().Width(150)
-                .Add(new DropDownMenu(
-                    DropDownMenu.DefaultSelectHandler(),
-                    new Button(currentRole).Variant(ButtonVariant.Outline).Icon(Icons.ChevronDown).Width(Size.Full())
-                )
-                | MenuItem.Default("Ignore").HandleSelect(() => ClearColumn(header))
-                | MenuItem.Default("Asset").HandleSelect(() => { ClearColumn(header); assetColumn.Set(header); })
-                | MenuItem.Default("Net (Amount)").HandleSelect(() => { ClearColumn(header); amountColumn.Set(header); })
-                | MenuItem.Default("Source/Label").HandleSelect(() => { ClearColumn(header); sourceColumn.Set(header); })
-                | MenuItem.Default("Collection").HandleSelect(() => { ClearColumn(header); collectionColumn.Set(header); })
-                | MenuItem.Default("Currency").HandleSelect(() => { ClearColumn(header); currencyColumn.Set(header); })
-                )
+                .Add(menu)
             )
         );
       }

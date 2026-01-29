@@ -72,9 +72,12 @@ public class TemplateDataViewSheet(int templateId, Action onClose) : ViewBase
           return;
         }
 
+        var mappings = template.GetMappings();
+        string? GetHeader(string field) => mappings.FirstOrDefault(x => x.Value == field).Key;
+
         // Determine Aggregation Mode: Concat if date exists, Merge otherwise
         bool hasTimeframe = template.RevenueEntries.Any(e => e.Year != null || !string.IsNullOrEmpty(e.Quarter))
-                           || !string.IsNullOrEmpty(template.TransactionDateColumn);
+                           || !string.IsNullOrEmpty(GetHeader("TransactionDate"));
 
         // Sort entries by timeframe: Year then Quarter
         var sortedEntries = template.RevenueEntries
@@ -142,10 +145,10 @@ public class TemplateDataViewSheet(int templateId, Action onClose) : ViewBase
         {
           // MERGE logic: Group by non-numeric, Sum numeric
           var numericKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Net", "Gross", "Amount", "Quantity", "Total", "Price" };
-          if (!string.IsNullOrEmpty(template.NetColumn)) numericKeys.Add(template.NetColumn);
-          if (!string.IsNullOrEmpty(template.GrossColumn)) numericKeys.Add(template.GrossColumn);
-          if (!string.IsNullOrEmpty(template.AmountColumn)) numericKeys.Add(template.AmountColumn);
-          if (!string.IsNullOrEmpty(template.QuantityColumn)) numericKeys.Add(template.QuantityColumn);
+          var netH = GetHeader("Net"); if (!string.IsNullOrEmpty(netH)) numericKeys.Add(netH);
+          var grossH = GetHeader("Gross"); if (!string.IsNullOrEmpty(grossH)) numericKeys.Add(grossH);
+          var amountH = GetHeader("Amount"); if (!string.IsNullOrEmpty(amountH)) numericKeys.Add(amountH);
+          var qtyH = GetHeader("Quantity"); if (!string.IsNullOrEmpty(qtyH)) numericKeys.Add(qtyH);
 
           var grouped = new Dictionary<string, Dictionary<string, object?>>();
 

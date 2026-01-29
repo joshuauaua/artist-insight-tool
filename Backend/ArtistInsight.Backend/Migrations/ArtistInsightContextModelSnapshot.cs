@@ -111,55 +111,25 @@ namespace ArtistInsight.Backend.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
-                    b.Property<string>("AmountColumn")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("ArtistColumn")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("AssetColumn")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("AssetTypeColumn")
-                        .HasColumnType("TEXT");
-
                     b.Property<string>("Category")
                         .IsRequired()
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("CollectionColumn")
-                        .HasColumnType("TEXT");
-
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("CurrencyColumn")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("DspColumn")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("GrossColumn")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("HeadersJson")
                         .IsRequired()
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("LabelColumn")
+                    b.Property<string>("MappingsJson")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("NetColumn")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("StoreColumn")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("TerritoryColumn")
+                    b.Property<string>("SourceName")
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime>("UpdatedAt")

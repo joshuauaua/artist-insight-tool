@@ -36,7 +36,9 @@ namespace ArtistInsight.Backend.Migrations
                     Type = table.Column<string>(type: "TEXT", maxLength: 50, nullable: false),
                     Category = table.Column<string>(type: "TEXT", maxLength: 50, nullable: false),
                     Collection = table.Column<string>(type: "TEXT", maxLength: 100, nullable: false),
-                    AmountGenerated = table.Column<decimal>(type: "decimal(18,2)", nullable: false)
+                    AmountGenerated = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
+                    GrossAmount = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
+                    NetAmount = table.Column<decimal>(type: "decimal(18,2)", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -50,10 +52,10 @@ namespace ArtistInsight.Backend.Migrations
                     Id = table.Column<int>(type: "INTEGER", nullable: false)
                         .Annotation("Sqlite:Autoincrement", true),
                     Name = table.Column<string>(type: "TEXT", nullable: false),
+                    SourceName = table.Column<string>(type: "TEXT", nullable: true),
                     HeadersJson = table.Column<string>(type: "TEXT", nullable: false),
                     Category = table.Column<string>(type: "TEXT", nullable: false),
-                    AssetColumn = table.Column<string>(type: "TEXT", nullable: true),
-                    AmountColumn = table.Column<string>(type: "TEXT", nullable: true),
+                    MappingsJson = table.Column<string>(type: "TEXT", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "TEXT", nullable: false)
                 },
@@ -75,60 +77,6 @@ namespace ArtistInsight.Backend.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "albums",
-                columns: table => new
-                {
-                    Id = table.Column<int>(type: "INTEGER", nullable: false)
-                        .Annotation("Sqlite:Autoincrement", true),
-                    ArtistId = table.Column<int>(type: "INTEGER", nullable: false),
-                    Title = table.Column<string>(type: "TEXT", nullable: false),
-                    ReleaseType = table.Column<string>(type: "TEXT", nullable: false),
-                    ReleaseDate = table.Column<DateTime>(type: "TEXT", nullable: true),
-                    CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    UpdatedAt = table.Column<DateTime>(type: "TEXT", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_albums", x => x.Id);
-                    table.ForeignKey(
-                        name: "FK_albums_artists_ArtistId",
-                        column: x => x.ArtistId,
-                        principalTable: "artists",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "tracks",
-                columns: table => new
-                {
-                    Id = table.Column<int>(type: "INTEGER", nullable: false)
-                        .Annotation("Sqlite:Autoincrement", true),
-                    ArtistId = table.Column<int>(type: "INTEGER", nullable: false),
-                    AlbumId = table.Column<int>(type: "INTEGER", nullable: true),
-                    Title = table.Column<string>(type: "TEXT", nullable: false),
-                    Duration = table.Column<int>(type: "INTEGER", nullable: true),
-                    CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    UpdatedAt = table.Column<DateTime>(type: "TEXT", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_tracks", x => x.Id);
-                    table.ForeignKey(
-                        name: "FK_tracks_albums_AlbumId",
-                        column: x => x.AlbumId,
-                        principalTable: "albums",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
-                    table.ForeignKey(
-                        name: "FK_tracks_artists_ArtistId",
-                        column: x => x.ArtistId,
-                        principalTable: "artists",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
-                });
-
-            migrationBuilder.CreateTable(
                 name: "revenue_entries",
                 columns: table => new
                 {
@@ -141,8 +89,10 @@ namespace ArtistInsight.Backend.Migrations
                     RevenueDate = table.Column<DateTime>(type: "TEXT", nullable: false),
                     Description = table.Column<string>(type: "TEXT", nullable: true),
                     JsonData = table.Column<string>(type: "TEXT", nullable: true),
-                    TrackId = table.Column<int>(type: "INTEGER", nullable: true),
-                    AlbumId = table.Column<int>(type: "INTEGER", nullable: true),
+                    UploadDate = table.Column<DateTime>(type: "TEXT", nullable: true),
+                    Year = table.Column<int>(type: "INTEGER", nullable: true),
+                    Quarter = table.Column<string>(type: "TEXT", nullable: true),
+                    FileName = table.Column<string>(type: "TEXT", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
                     ColumnMapping = table.Column<string>(type: "TEXT", nullable: true),
@@ -151,12 +101,6 @@ namespace ArtistInsight.Backend.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_revenue_entries", x => x.Id);
-                    table.ForeignKey(
-                        name: "FK_revenue_entries_albums_AlbumId",
-                        column: x => x.AlbumId,
-                        principalTable: "albums",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
                         name: "FK_revenue_entries_artists_ArtistId",
                         column: x => x.ArtistId,
@@ -172,12 +116,6 @@ namespace ArtistInsight.Backend.Migrations
                         name: "FK_revenue_entries_revenue_sources_SourceId",
                         column: x => x.SourceId,
                         principalTable: "revenue_sources",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
-                    table.ForeignKey(
-                        name: "FK_revenue_entries_tracks_TrackId",
-                        column: x => x.TrackId,
-                        principalTable: "tracks",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                 });
@@ -211,11 +149,6 @@ namespace ArtistInsight.Backend.Migrations
                 });
 
             migrationBuilder.CreateIndex(
-                name: "IX_albums_ArtistId",
-                table: "albums",
-                column: "ArtistId");
-
-            migrationBuilder.CreateIndex(
                 name: "IX_asset_revenues_AssetId",
                 table: "asset_revenues",
                 column: "AssetId");
@@ -224,11 +157,6 @@ namespace ArtistInsight.Backend.Migrations
                 name: "IX_asset_revenues_RevenueEntryId",
                 table: "asset_revenues",
                 column: "RevenueEntryId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_revenue_entries_AlbumId",
-                table: "revenue_entries",
-                column: "AlbumId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_revenue_entries_ArtistId",
@@ -244,21 +172,6 @@ namespace ArtistInsight.Backend.Migrations
                 name: "IX_revenue_entries_SourceId",
                 table: "revenue_entries",
                 column: "SourceId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_revenue_entries_TrackId",
-                table: "revenue_entries",
-                column: "TrackId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_tracks_AlbumId",
-                table: "tracks",
-                column: "AlbumId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_tracks_ArtistId",
-                table: "tracks",
-                column: "ArtistId");
         }
 
         /// <inheritdoc />
@@ -274,19 +187,13 @@ namespace ArtistInsight.Backend.Migrations
                 name: "revenue_entries");
 
             migrationBuilder.DropTable(
+                name: "artists");
+
+            migrationBuilder.DropTable(
                 name: "import_templates");
 
             migrationBuilder.DropTable(
                 name: "revenue_sources");
-
-            migrationBuilder.DropTable(
-                name: "tracks");
-
-            migrationBuilder.DropTable(
-                name: "albums");
-
-            migrationBuilder.DropTable(
-                name: "artists");
         }
     }
 }

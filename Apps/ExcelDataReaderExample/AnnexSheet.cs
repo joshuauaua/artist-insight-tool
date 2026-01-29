@@ -114,24 +114,33 @@ public class AnnexSheet(CurrentFile? file, Action onClose) : ViewBase
              entry.JsonData = JsonSerializer.Serialize(existingSheets);
 
              // --- Asset Extraction Logic ---
-             if (tmpl != null && !string.IsNullOrEmpty(tmpl.AssetColumn) && !string.IsNullOrEmpty(tmpl.AmountColumn))
+             if (tmpl != null)
              {
                try
                {
-                 var assetCol = tmpl.AssetColumn;
-                 var amountCol = tmpl.AmountColumn;
-                 var collectionCol = tmpl.CollectionColumn;
+                 var mappings = tmpl.GetMappings();
+                 var assetCol = mappings.FirstOrDefault(x => x.Value == "Asset").Key;
+                 var amountCol = mappings.FirstOrDefault(x => x.Value == "Net" || x.Value == "Amount").Key;
+                 var collectionCol = mappings.FirstOrDefault(x => x.Value == "Collection").Key;
 
-                 var batchAssets = new Dictionary<string, decimal>();
-                 var assetCollections = new Dictionary<string, string>();
-
-                 foreach (var row in data)
+                 if (!string.IsNullOrEmpty(assetCol))
                  {
-                   if (row.TryGetValue(assetCol, out var nameObj) && row.TryGetValue(amountCol, out var amountObj))
+                   var batchAssets = new Dictionary<string, decimal>();
+                   var assetCollections = new Dictionary<string, string>();
+
+                   foreach (var row in data)
                    {
-                     var name = nameObj?.ToString()?.Trim();
-                     if (!string.IsNullOrEmpty(name) && decimal.TryParse(amountObj?.ToString(), out var amount))
+                     if (row.TryGetValue(assetCol, out var nameObj))
                      {
+                       var name = nameObj?.ToString()?.Trim();
+                       if (string.IsNullOrEmpty(name)) continue;
+
+                       decimal amount = 0;
+                       if (!string.IsNullOrEmpty(amountCol) && row.TryGetValue(amountCol, out var amountObj))
+                       {
+                         decimal.TryParse(amountObj?.ToString(), out amount);
+                       }
+
                        if (!batchAssets.ContainsKey(name))
                        {
                          batchAssets[name] = 0;
@@ -144,41 +153,41 @@ public class AnnexSheet(CurrentFile? file, Action onClose) : ViewBase
                        batchAssets[name] += amount;
                      }
                    }
-                 }
 
-                 if (batchAssets.Count > 0)
-                 {
-                   var names = batchAssets.Keys.ToList();
-                   var existingAssets = await db.Assets.Where(a => names.Contains(a.Name)).ToListAsync();
-                   var existingNames = existingAssets.Select(a => a.Name).ToHashSet();
-
-                   var newAssets = names.Where(n => !existingNames.Contains(n))
-                                            .Select(n => new Asset
-                                            {
-                                              Name = n,
-                                              Type = "Unknown",
-                                              Category = tmpl.Category,
-                                              Collection = assetCollections.GetValueOrDefault(n) ?? "",
-                                              AmountGenerated = 0
-                                            })
-                                            .ToList();
-
-                   if (newAssets.Count > 0)
+                   if (batchAssets.Count > 0)
                    {
-                     db.Assets.AddRange(newAssets);
-                     await db.SaveChangesAsync();
-                     existingAssets.AddRange(newAssets);
+                     var names = batchAssets.Keys.ToList();
+                     var existingAssets = await db.Assets.Where(a => names.Contains(a.Name)).ToListAsync();
+                     var existingNames = existingAssets.Select(a => a.Name).ToHashSet();
+
+                     var newAssets = names.Where(n => !existingNames.Contains(n))
+                                              .Select(n => new Asset
+                                              {
+                                                Name = n,
+                                                Type = "Unknown",
+                                                Category = tmpl.Category,
+                                                Collection = assetCollections.GetValueOrDefault(n) ?? "",
+                                                AmountGenerated = 0
+                                              })
+                                              .ToList();
+
+                     if (newAssets.Count > 0)
+                     {
+                       db.Assets.AddRange(newAssets);
+                       await db.SaveChangesAsync();
+                       existingAssets.AddRange(newAssets);
+                     }
+
+                     var assetMap = existingAssets.ToDictionary(a => a.Name, a => a.Id);
+                     var revenueRecords = batchAssets.Select(kvp => new AssetRevenue
+                     {
+                       AssetId = assetMap[kvp.Key],
+                       RevenueEntry = entry,
+                       Amount = kvp.Value
+                     });
+
+                     db.AssetRevenues.AddRange(revenueRecords);
                    }
-
-                   var assetMap = existingAssets.ToDictionary(a => a.Name, a => a.Id);
-                   var revenueRecords = batchAssets.Select(kvp => new AssetRevenue
-                   {
-                     AssetId = assetMap[kvp.Key],
-                     RevenueEntry = entry,
-                     Amount = kvp.Value
-                   });
-
-                   db.AssetRevenues.AddRange(revenueRecords);
                  }
                }
                catch (Exception ex)

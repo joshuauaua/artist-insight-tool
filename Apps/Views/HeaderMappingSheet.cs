@@ -99,7 +99,11 @@ public class HeaderMappingSheet(int entryId, Action onClose) : ViewBase
 
     var fieldOptions = new[]
     {
-        "Asset", "Collection", "Territory", "Label", "Artist", "Store", "DSP", "Gross", "Net", "Currency", "Ignore"
+        "Asset", "Net", "Gross", "Currency", "TransactionDate", "Artist", "Category",
+        "Isrc", "Upc", "Dsp", "Duration", "Version", "Territory",
+        "Sku", "ProductCategory", "Status", "Tags",
+        "VenueName", "EventName", "OrderId", "TicketRevenue",
+        "Ignore"
     }.Select(f => new Option<string>(f, f));
 
     return new Dialog(

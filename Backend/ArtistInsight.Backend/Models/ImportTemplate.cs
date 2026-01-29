@@ -19,24 +19,16 @@ public partial class ImportTemplate
 
   public string Category { get; set; } = "Other";
 
-  public string? AssetColumn { get; set; }
-
-  public string? AmountColumn { get; set; }
-
-  public string? TerritoryColumn { get; set; }
-  public string? LabelColumn { get; set; }
-  public string? CollectionColumn { get; set; }
-  public string? ArtistColumn { get; set; }
-  public string? StoreColumn { get; set; }
-  public string? DspColumn { get; set; }
-  public string? GrossColumn { get; set; }
-  public string? NetColumn { get; set; }
-  public string? CurrencyColumn { get; set; }
-  public string? AssetTypeColumn { get; set; }
+  public string? MappingsJson { get; set; } = "{}";
 
   public List<string> GetHeaders()
   {
     return System.Text.Json.JsonSerializer.Deserialize<List<string>>(HeadersJson) ?? [];
+  }
+
+  public Dictionary<string, string> GetMappings()
+  {
+    return System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(MappingsJson ?? "{}") ?? [];
   }
 
   public DateTime CreatedAt { get; set; }

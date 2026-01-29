@@ -65,17 +65,7 @@ public class TemplatesController : ControllerBase
     existingTemplate.SourceName = template.SourceName;
     existingTemplate.Category = template.Category;
     existingTemplate.HeadersJson = template.HeadersJson;
-    existingTemplate.AssetColumn = template.AssetColumn;
-    existingTemplate.NetColumn = template.NetColumn;
-    existingTemplate.AmountColumn = template.AmountColumn;
-    existingTemplate.LabelColumn = template.LabelColumn;
-    existingTemplate.CollectionColumn = template.CollectionColumn;
-    existingTemplate.CurrencyColumn = template.CurrencyColumn;
-    existingTemplate.GrossColumn = template.GrossColumn;
-    existingTemplate.TerritoryColumn = template.TerritoryColumn;
-    existingTemplate.ArtistColumn = template.ArtistColumn;
-    existingTemplate.StoreColumn = template.StoreColumn;
-    existingTemplate.DspColumn = template.DspColumn;
+    existingTemplate.MappingsJson = template.MappingsJson;
     existingTemplate.UpdatedAt = DateTime.UtcNow;
 
     try

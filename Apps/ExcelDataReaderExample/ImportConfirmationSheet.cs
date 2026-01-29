@@ -100,12 +100,21 @@ public class ImportConfirmationSheet(List<CurrentFile> files, Action onSuccess, 
              };
 
              var tmpl = file.MatchedTemplate!;
+             var mappings = tmpl.GetMappings();
+             string? GetHeader(string systemField) => mappings.FirstOrDefault(x => x.Value == systemField).Key;
+
+             var amountCol = GetHeader("Net") ?? GetHeader("Amount");
+             var assetCol = GetHeader("Asset");
+             var collectionCol = GetHeader("Collection");
+             var assetTypeCol = GetHeader("AssetType") ?? GetHeader("Category");
+             var grossCol = GetHeader("Gross");
+
              decimal totalAmount = 0;
-             if (!string.IsNullOrEmpty(tmpl.AmountColumn))
+             if (!string.IsNullOrEmpty(amountCol))
              {
                foreach (var row in jsonData)
                {
-                 if (row.TryGetValue(tmpl.AmountColumn, out var val) && decimal.TryParse(val?.ToString(), out var d))
+                 if (row.TryGetValue(amountCol, out var val) && decimal.TryParse(val?.ToString(), out var d))
                    totalAmount += d;
                }
              }
@@ -120,34 +129,36 @@ public class ImportConfirmationSheet(List<CurrentFile> files, Action onSuccess, 
              await db.SaveChangesAsync(); // Save to get ID
 
              // Asset Logic
-             if (!string.IsNullOrEmpty(tmpl.AssetColumn))
+             if (!string.IsNullOrEmpty(assetCol))
              {
                try
                {
-                 var assetCol = tmpl.AssetColumn;
-                 var amountCol = tmpl.AmountColumn; // Net
-                 var collectionCol = tmpl.CollectionColumn;
                  var batchAssets = new Dictionary<string, decimal>();
                  var assetCollections = new Dictionary<string, string>();
 
                  foreach (var row in jsonData)
                  {
-                   if (row.TryGetValue(assetCol, out var nameObj) && row.TryGetValue(amountCol, out var amountObj))
+                   if (row.TryGetValue(assetCol, out var nameObj))
                    {
                      var name = nameObj?.ToString()?.Trim();
-                     if (!string.IsNullOrEmpty(name) && decimal.TryParse(amountObj?.ToString(), out var amount))
+                     if (string.IsNullOrEmpty(name)) continue;
+
+                     decimal amount = 0;
+                     if (!string.IsNullOrEmpty(amountCol) && row.TryGetValue(amountCol, out var amountObj))
                      {
-                       if (!batchAssets.ContainsKey(name))
-                       {
-                         batchAssets[name] = 0;
-                         if (!string.IsNullOrEmpty(collectionCol) && row.TryGetValue(collectionCol, out var colObj))
-                         {
-                           var colStr = colObj?.ToString()?.Trim();
-                           if (!string.IsNullOrEmpty(colStr)) assetCollections[name] = colStr;
-                         }
-                       }
-                       batchAssets[name] += amount;
+                       decimal.TryParse(amountObj?.ToString(), out amount);
                      }
+
+                     if (!batchAssets.ContainsKey(name))
+                     {
+                       batchAssets[name] = 0;
+                       if (!string.IsNullOrEmpty(collectionCol) && row.TryGetValue(collectionCol, out var colObj))
+                       {
+                         var colStr = colObj?.ToString()?.Trim();
+                         if (!string.IsNullOrEmpty(colStr)) assetCollections[name] = colStr;
+                       }
+                     }
+                     batchAssets[name] += amount;
                    }
                  }
 
@@ -160,10 +171,10 @@ public class ImportConfirmationSheet(List<CurrentFile> files, Action onSuccess, 
                                             .Select(n =>
                                             {
                                               var type = "";
-                                              if (!string.IsNullOrEmpty(tmpl.AssetTypeColumn))
+                                              if (!string.IsNullOrEmpty(assetTypeCol))
                                               {
                                                 var rowWithAsset = jsonData.FirstOrDefault(r => r.GetValueOrDefault(assetCol)?.ToString()?.Trim() == n);
-                                                if (rowWithAsset != null && rowWithAsset.TryGetValue(tmpl.AssetTypeColumn, out var typeObj))
+                                                if (rowWithAsset != null && rowWithAsset.TryGetValue(assetTypeCol, out var typeObj))
                                                 {
                                                   type = typeObj?.ToString()?.Trim() ?? "";
                                                 }

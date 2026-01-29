@@ -39,7 +39,11 @@ public class AssetsTableApp : ViewBase
 
     if (assetTemplate != null)
     {
-      if (!string.IsNullOrEmpty(assetTemplate.CollectionColumn)) collectionHeader = assetTemplate.CollectionColumn;
+      var mappings = assetTemplate.GetMappings();
+      if (mappings.ContainsValue("Collection"))
+      {
+        collectionHeader = mappings.FirstOrDefault(x => x.Value == "Collection").Key;
+      }
     }
 
     var showCreate = UseState(false);

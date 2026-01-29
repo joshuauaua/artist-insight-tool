@@ -21,37 +21,16 @@ public partial class ImportTemplate
 
   public string Category { get; set; } = "Other";
 
-  public string? AssetColumn { get; set; }
-  public string? AmountColumn { get; set; }
-  public string? TransactionDateColumn { get; set; }
-  public string? TransactionIdColumn { get; set; }
-  public string? SourcePlatformColumn { get; set; }
-  public string? CategoryColumn { get; set; }
-  public string? QuantityColumn { get; set; }
-
-  public string? TerritoryColumn { get; set; }
-  public string? LabelColumn { get; set; }
-  public string? CollectionColumn { get; set; }
-  public string? ArtistColumn { get; set; }
-  public string? StoreColumn { get; set; }
-  public string? DspColumn { get; set; }
-  public string? GrossColumn { get; set; }
-  public string? NetColumn { get; set; }
-  public string? CurrencyColumn { get; set; }
-  public string? AssetTypeColumn { get; set; }
-
-  // Category Specific
-  public string? SkuColumn { get; set; }
-  public string? CustomerEmailColumn { get; set; }
-  public string? IsrcColumn { get; set; }
-  public string? UpcColumn { get; set; }
-  public string? VenueNameColumn { get; set; }
-  public string? EventStatusColumn { get; set; }
-  public string? TicketClassColumn { get; set; }
+  public string? MappingsJson { get; set; } = "{}";
 
   public List<string> GetHeaders()
   {
     return System.Text.Json.JsonSerializer.Deserialize<List<string>>(HeadersJson) ?? [];
+  }
+
+  public Dictionary<string, string> GetMappings()
+  {
+    return System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(MappingsJson ?? "{}") ?? [];
   }
 
   public DateTime CreatedAt { get; set; }

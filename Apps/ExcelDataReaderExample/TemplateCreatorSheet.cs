@@ -16,30 +16,34 @@ public class TemplateCreatorSheet(CurrentFile? file, Action onSuccess, Action on
 
   public enum SystemField
   {
-    [Display(Name = "Transaction Date")] TransactionDate,
-    [Display(Name = "Transaction ID")] TransactionId,
-    [Display(Name = "Source Platform")] SourcePlatform,
-    [Display(Name = "Category")] Category,
-    [Display(Name = "Asset Type (Collection Type)")] AssetType,
-    [Display(Name = "Territory/Region")] Territory,
-    [Display(Name = "Gross Revenue")] Gross,
+    // Common / Global
+    [Display(Name = "Asset Name (Title)")] Asset,
     [Display(Name = "Net Revenue")] Net,
-    [Display(Name = "Amount (Net)")] Amount,
+    [Display(Name = "Gross Revenue")] Gross,
     [Display(Name = "Currency")] Currency,
-    [Display(Name = "Asset Name (Item)")] Asset,
-    [Display(Name = "Asset Group (Parent)")] Collection,
+    [Display(Name = "Transaction Date")] TransactionDate,
     [Display(Name = "Artist")] Artist,
-    [Display(Name = "Label")] Label,
-    [Display(Name = "Quantity")] Quantity,
-    [Display(Name = "SKU")] Sku,
-    [Display(Name = "Store")] Store,
-    [Display(Name = "Customer Email")] CustomerEmail,
+    [Display(Name = "Category")] Category,
+
+    // Royalties Specific
     [Display(Name = "ISRC")] Isrc,
     [Display(Name = "UPC")] Upc,
     [Display(Name = "DSP")] Dsp,
+    [Display(Name = "Asset Duration")] Duration,
+    [Display(Name = "Asset Version")] Version,
+    [Display(Name = "Territory/Region")] Territory,
+
+    // Merchandise / Products
+    [Display(Name = "SKU")] Sku,
+    [Display(Name = "Product Category")] ProductCategory,
+    [Display(Name = "Status")] Status,
+    [Display(Name = "Tags")] Tags,
+
+    // Concerts
     [Display(Name = "Venue Name")] VenueName,
-    [Display(Name = "Event Status")] EventStatus,
-    [Display(Name = "Ticket Class")] TicketClass
+    [Display(Name = "Event Name")] EventName,
+    [Display(Name = "Order ID")] OrderId,
+    [Display(Name = "Ticket Revenue")] TicketRevenue
   }
 
   public override object Build()
@@ -65,23 +69,19 @@ public class TemplateCreatorSheet(CurrentFile? file, Action onSuccess, Action on
 
     var fieldGroups = new Dictionary<string, List<SystemField>>
         {
-            { "Global", new() { SystemField.TransactionDate, SystemField.TransactionId, SystemField.SourcePlatform, SystemField.Category, SystemField.AssetType, SystemField.Territory } },
-            { "Financials", new() { SystemField.Gross, SystemField.Net, SystemField.Amount, SystemField.Currency } },
-            { "Asset Details", new() { SystemField.Asset, SystemField.Collection, SystemField.Artist, SystemField.Label, SystemField.Quantity } }
+            { "Global", new() { SystemField.Asset, SystemField.Net, SystemField.Gross, SystemField.Currency, SystemField.TransactionDate, SystemField.Artist, SystemField.Category } }
         };
 
     var categorySpecificGroups = new Dictionary<string, Dictionary<string, List<SystemField>>>
         {
-            { "Merchandise", new() {
-                { "Codes", new() { SystemField.Sku } },
-                { "Specifics", new() { SystemField.Store, SystemField.CustomerEmail } }
-            }},
             { "Royalties", new() {
-                { "Codes", new() { SystemField.Isrc, SystemField.Upc } },
-                { "Specifics", new() { SystemField.Dsp } }
+                { "Aloaded/Amuse Specific", new() { SystemField.Isrc, SystemField.Upc, SystemField.Dsp, SystemField.Duration, SystemField.Version, SystemField.Territory } }
+            }},
+            { "Merchandise", new() {
+                { "Shopify Specific", new() { SystemField.Sku, SystemField.ProductCategory, SystemField.Status, SystemField.Tags } }
             }},
             { "Concerts", new() {
-                { "Specifics", new() { SystemField.VenueName, SystemField.EventStatus, SystemField.TicketClass } }
+                { "Eventbrite Specific", new() { SystemField.VenueName, SystemField.EventName, SystemField.OrderId, SystemField.TicketRevenue } }
             }}
         };
 
@@ -220,30 +220,7 @@ public class TemplateCreatorSheet(CurrentFile? file, Action onSuccess, Action on
                   SourceName = newTemplateSourceName.Value,
                   Category = newTemplateCategory.Value,
                   HeadersJson = JsonSerializer.Serialize(headers),
-                  AssetColumn = getHeader("Asset"),
-                  AmountColumn = getHeader("Amount"),
-                  CollectionColumn = getHeader("Collection"),
-                  GrossColumn = getHeader("Gross"),
-                  CurrencyColumn = getHeader("Currency"),
-                  AssetTypeColumn = getHeader("AssetType"),
-                  TerritoryColumn = getHeader("Territory"),
-                  LabelColumn = getHeader("Label"),
-                  ArtistColumn = getHeader("Artist"),
-                  StoreColumn = getHeader("Store"),
-                  DspColumn = getHeader("Dsp"),
-                  NetColumn = getHeader("Net") ?? getHeader("Amount"),
-                  TransactionDateColumn = getHeader("TransactionDate"),
-                  TransactionIdColumn = getHeader("TransactionId"),
-                  SourcePlatformColumn = getHeader("SourcePlatform"),
-                  CategoryColumn = getHeader("Category"),
-                  QuantityColumn = getHeader("Quantity"),
-                  SkuColumn = getHeader("Sku"),
-                  CustomerEmailColumn = getHeader("CustomerEmail"),
-                  IsrcColumn = getHeader("Isrc"),
-                  UpcColumn = getHeader("Upc"),
-                  VenueNameColumn = getHeader("VenueName"),
-                  EventStatusColumn = getHeader("EventStatus"),
-                  TicketClassColumn = getHeader("TicketClass"),
+                  MappingsJson = JsonSerializer.Serialize(mappedPairs.Value.ToDictionary(m => m.Header, m => m.FieldKey)),
                   CreatedAt = DateTime.UtcNow,
                   UpdatedAt = DateTime.UtcNow
                 };
