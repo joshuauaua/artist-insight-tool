@@ -155,7 +155,10 @@ public class DashboardApp : ViewBase
           var content = c.Type switch
           {
             0 => new Card(
-                "Use the 'Uploads' tab to begin importing your data. Manage your products in 'Assets', and customize your experience in Overview.",
+                Layout.Vertical().Gap(5)
+                    .Add(Text.P("1. Use the 'Uploads' tab to begin importing your data."))
+                    .Add(Text.P("2. Manage your products in 'Assets'."))
+                    .Add(Text.P("3. Customize your experience in Overview.")),
                 new Button("Get Started", _ => showImportSheet.Set(true))
             ).Title("Get Started")
              .Description("Build your catalog and start tracking your revenue.")
