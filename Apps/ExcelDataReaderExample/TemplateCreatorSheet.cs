@@ -169,10 +169,7 @@ public class TemplateCreatorSheet(CurrentFile? file, Action onSuccess, Action on
                   Layout.Horizontal().Align(Align.Center).Add(Text.Muted("No columns mapped yet."))
                   : Layout.Vertical().Gap(5).Add(mapped.Select(m =>
                       Layout.Horizontal().Gap(10).Align(Align.Center).Padding(5)
-                          .Add(new Icon(Icons.Check).Size(16))
-                          .Add(Text.Label($"{m.Header}"))
-                          .Add(new Icon(Icons.ArrowRight).Size(14))
-                          .Add(Text.Label($"{m.FieldKey}"))
+                          .Add(new { Label = m.Header, Value = m.FieldKey }.ToDetails())
                           .Add(Layout.Horizontal().Grow())
                           .Add(new Button("", () =>
                           {
@@ -183,7 +180,7 @@ public class TemplateCreatorSheet(CurrentFile? file, Action onSuccess, Action on
                   ).ToArray())
               )
           ),
-          new DialogFooter(new Button("Close", () => showMappingDialog.Set(false)))
+          new DialogFooter(Layout.Horizontal().Width(Size.Full()).Align(Align.Center).Add(new Button("Close", () => showMappingDialog.Set(false))))
       ) : null;
 
       content
@@ -251,5 +248,19 @@ public class TemplateCreatorSheet(CurrentFile? file, Action onSuccess, Action on
         "",
         ""
     ).Width(Size.Full());
+  }
+}
+
+public static class LocalExtensions
+{
+  public static object ToDetails(this object obj)
+  {
+    var props = obj.GetType().GetProperties();
+    return Layout.Horizontal().Gap(10).Align(Align.Center)
+        .Add(props.Select(p =>
+            Layout.Horizontal().Gap(5).Align(Align.Center)
+                .Add(Text.Label(p.Name).Muted())
+                .Add(Text.Label(p.GetValue(obj)?.ToString() ?? "-"))
+        ).ToArray());
   }
 }

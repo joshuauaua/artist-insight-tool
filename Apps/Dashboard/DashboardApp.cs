@@ -564,6 +564,9 @@ public class DashboardApp : ViewBase
   {
     var options = new List<Option<int?>>
     {
+        new("Total Assets", 1),
+        new("Total Revenue", 2),
+        new("Total Data Imports", 3),
         new("Metric View: Targeted Revenue", 5),
         new("Pie Chart: Asset Breakdown", 6)
     };
@@ -581,7 +584,26 @@ public class DashboardApp : ViewBase
             new Button("Cancel", () => { addWidgetCardId.Set((string?)null); widgetType.Set((int?)null); }).Variant(ButtonVariant.Ghost),
             new Button("Continue", () =>
             {
-              if (widgetType.Value == 5)
+              if (widgetType.Value == 1 || widgetType.Value == 2 || widgetType.Value == 3)
+              {
+                var title = widgetType.Value switch
+                {
+                  1 => "Total Assets",
+                  2 => "Total Revenue",
+                  3 => "Total Data Imports",
+                  _ => "New Card"
+                };
+                var list = cardStates.Value.ToList();
+                var idx = list.FindIndex(x => x.Id == cardId);
+                if (idx != -1)
+                {
+                  list[idx] = list[idx] with { Type = widgetType.Value.Value, Title = title };
+                  cardStates.Set(list);
+                }
+                addWidgetCardId.Set((string?)null);
+                widgetType.Set((int?)null);
+              }
+              else if (widgetType.Value == 5)
               {
                 addWidgetCardId.Set((string?)null);
                 configWidgetCardId.Set(cardId);
