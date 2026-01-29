@@ -160,7 +160,13 @@ public class TemplateCreatorSheet(CurrentFile? file, Action onSuccess, Action on
                 }
               }).Variant(ButtonVariant.Primary)
                 .Disabled(selectedHeaderToMap.Value == null || selectedFieldToMap.Value == null)
-                .Icon(Icons.Link);
+                .Icon(Icons.Link)
+                .Width(Size.Fraction(0.5f));
+
+      var viewMappedButton = new Button("View Mapped Columns", () => showMappingDialog.Set(true))
+                  .Variant(ButtonVariant.Outline)
+                  .Icon(Icons.List)
+                  .Width(Size.Fraction(0.5f));
 
       var mappingDialog = showMappingDialog.Value ? new Dialog(
           _ => showMappingDialog.Set(false),
@@ -197,20 +203,17 @@ public class TemplateCreatorSheet(CurrentFile? file, Action onSuccess, Action on
                           .Variant(SelectInputs.List))
               ).Width(Size.Fraction(0.5f)))
               .Add(new Card(
-                  Layout.Vertical().Gap(5)
+                  Layout.Vertical().Gap(10)
                       .Add(Text.H5("2. Select System Field"))
                       .Add(selectedFieldToMap.ToSelectInput(allUnmappedOptions)
                           .Variant(SelectInputs.Select)
                           .Placeholder("Choose system field..."))
+                      .Add(Layout.Horizontal().Gap(10).Align(Align.Center)
+                          .Add(mapButton)
+                          .Add(viewMappedButton))
               ).Width(Size.Fraction(0.5f)))
           )
-          .Add(Layout.Horizontal().Align(Align.Center).Padding(10)
-              .Add(mapButton)
-          )
-          .Add(Layout.Horizontal().Gap(10).Align(Align.Right).Padding(10, 0, 0, 0)
-              .Add(new Button("View Mapped Columns", () => showMappingDialog.Set(true))
-                  .Variant(ButtonVariant.Outline).Icon(Icons.List))
-              .Add(new Button("Back", () => templateCreationStep.Set(1)).Variant(ButtonVariant.Ghost).Icon(Icons.ArrowLeft))
+          .Add(Layout.Horizontal().Align(Align.Center).Padding(30, 0, 0, 0)
               .Add(new Button("Save Template", async () =>
               {
                 await using var db = factory.CreateDbContext();
