@@ -344,7 +344,7 @@ public class DashboardController : ControllerBase
         Type = "Default",
         Category = "Royalties",
         Collection = "",
-        AmountGenerated = 250.00m
+        AmountGenerated = 0.00m
       };
       _context.Assets.Add(asset);
 
@@ -352,7 +352,7 @@ public class DashboardController : ControllerBase
       {
         RevenueDate = DateTime.Now,
         Description = "Initial Example Entry",
-        Amount = 250.00m,
+        Amount = 0.00m,
         SourceId = source.Id,
         ArtistId = artist.Id,
         CreatedAt = DateTime.UtcNow,
@@ -369,7 +369,7 @@ public class DashboardController : ControllerBase
       {
         AssetId = asset.Id,
         RevenueEntryId = entry.Id,
-        Amount = 250.00m
+        Amount = 0.00m
       };
       _context.AssetRevenues.Add(assetRev);
 

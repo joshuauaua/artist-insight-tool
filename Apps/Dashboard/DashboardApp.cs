@@ -35,6 +35,7 @@ public class DashboardApp : ViewBase
     var service = UseService<ArtistInsightService>();
     var factory = UseService<ArtistInsightToolContextFactory>();
     var client = UseService<IClientProvider>();
+    var queryService = UseService<IQueryService>();
 
     // --- 1. Hook Sequence (Order-critical) ---
     var globalSearch = UseState("");
@@ -247,12 +248,11 @@ public class DashboardApp : ViewBase
                         new("p5", "", "   ", 2, 4),
                     });
 
-                var qs = UseService<IQueryService>();
-                qs.RevalidateByTag("assets");
-                qs.RevalidateByTag("revenue_entries");
-                qs.RevalidateByTag("dashboard_total_revenue");
-                qs.RevalidateByTag("templates_list");
-                qs.RevalidateByTag("uploads_list");
+                queryService.RevalidateByTag("assets");
+                queryService.RevalidateByTag("revenue_entries");
+                queryService.RevalidateByTag("dashboard_total_revenue");
+                queryService.RevalidateByTag("templates_list");
+                queryService.RevalidateByTag("uploads_list");
 
                 client.Toast("System reset successfully. Initial data seeded.", "Success");
                 showActionPanel.Set(false);
