@@ -329,6 +329,52 @@ public class DashboardController : ControllerBase
       await _context.Artists.ExecuteDeleteAsync();
       await _context.RevenueSources.ExecuteDeleteAsync();
 
+      // Seed Initial Data
+      var artist = new Artist { Name = "Artist One", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
+      _context.Artists.Add(artist);
+
+      var source = new RevenueSource { DescriptionText = "Manual Import" };
+      _context.RevenueSources.Add(source);
+
+      await _context.SaveChangesAsync();
+
+      var asset = new Asset
+      {
+        Name = "Example Asset",
+        Type = "Default",
+        Category = "Royalties",
+        Collection = "",
+        AmountGenerated = 250.00m
+      };
+      _context.Assets.Add(asset);
+
+      var entry = new RevenueEntry
+      {
+        RevenueDate = DateTime.Now,
+        Description = "Initial Example Entry",
+        Amount = 250.00m,
+        SourceId = source.Id,
+        ArtistId = artist.Id,
+        CreatedAt = DateTime.UtcNow,
+        UpdatedAt = DateTime.UtcNow,
+        Year = DateTime.Now.Year,
+        Quarter = "Q1",
+        FileName = "example_import.csv"
+      };
+      _context.RevenueEntries.Add(entry);
+
+      await _context.SaveChangesAsync();
+
+      var assetRev = new AssetRevenue
+      {
+        AssetId = asset.Id,
+        RevenueEntryId = entry.Id,
+        Amount = 250.00m
+      };
+      _context.AssetRevenues.Add(assetRev);
+
+      await _context.SaveChangesAsync();
+
       return Ok("Project data reset successfully. Templates preserved.");
     }
     catch (Exception ex)

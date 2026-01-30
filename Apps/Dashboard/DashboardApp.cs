@@ -228,6 +228,39 @@ public class DashboardApp : ViewBase
                 .Icon(Icons.Trash)
                 .Destructive()
                 .BorderRadius(BorderRadius.Full))
+            .Add(new Button("RESET", async () =>
+            {
+              var success = await service.ResetDataAsync();
+              if (success)
+              {
+                // Reset Dashboard States
+                overviewCards.Set(new List<CardState>
+                    {
+                        new("quick-start", "Quick Start", " ", 0, 0),
+                        new("data-imports", "Data Imports", " ", 1, 3),
+                        new("p1", "", " ", 2, 4),
+                        new("total-assets", "Total Assets", "  ", 0, 1),
+                        new("p2", "", "  ", 1, 4),
+                        new("p3", "", "  ", 2, 4),
+                        new("total-revenue", "Total Revenue", "   ", 0, 2),
+                        new("p4", "", "   ", 1, 4),
+                        new("p5", "", "   ", 2, 4),
+                    });
+
+                var qs = UseService<IQueryService>();
+                qs.RevalidateByTag("assets");
+                qs.RevalidateByTag("revenue_entries");
+                qs.RevalidateByTag("dashboard_total_revenue");
+                qs.RevalidateByTag("templates_list");
+                qs.RevalidateByTag("uploads_list");
+
+                client.Toast("System reset successfully. Initial data seeded.", "Success");
+                showActionPanel.Set(false);
+              }
+            })
+                .Icon(Icons.RefreshCw)
+                .Variant(ButtonVariant.Outline)
+                .BorderRadius(BorderRadius.Full))
             .Add(new Button("", () => showActionPanel.Set(false))
                 .Icon(Icons.X)
                 .Variant(ButtonVariant.Ghost)

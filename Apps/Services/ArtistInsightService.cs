@@ -358,6 +358,20 @@ public class ArtistInsightService
     catch { return null; }
   }
 
+  public async Task<bool> ResetDataAsync()
+  {
+    try
+    {
+      var response = await _httpClient.DeleteAsync($"{BaseUrl}/Dashboard/reset");
+      return response.IsSuccessStatusCode;
+    }
+    catch (Exception ex)
+    {
+      Console.WriteLine($"Error resetting data: {ex.Message}");
+      return false;
+    }
+  }
+
   // Settings
   public async Task<string?> GetSettingAsync(string key)
   {
