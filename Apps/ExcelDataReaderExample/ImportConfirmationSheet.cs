@@ -26,7 +26,7 @@ public class ImportConfirmationSheet(List<CurrentFile> files, Action onSuccess, 
     // --- Smart Naming State ---
     var uploadYear = UseState(DateTime.Now.Year);
     var uploadQuarter = UseState("Q1");
-    var duplicateError = UseState((string?)null);
+    var errorState = UseState<string?>(() => null);
 
     // Auto-name file based on selection
     UseEffect(() =>
@@ -86,9 +86,22 @@ public class ImportConfirmationSheet(List<CurrentFile> files, Action onSuccess, 
                  await db.SaveChangesAsync();
                }
 
+               // Check if this specific file was already imported for this timeframe/source
+               var existingFile = await db.RevenueEntries.FirstOrDefaultAsync(e =>
+                    e.FileName == file.OriginalName &&
+                    e.Year == uploadYear.Value &&
+                    e.Quarter == uploadQuarter.Value &&
+                    e.SourceId == source.Id);
+
+               if (existingFile != null)
+               {
+                 client.Toast($"File '{file.OriginalName}' was already imported for this period.", "Warning");
+                 continue;
+               }
+
                var sheetData = new Dictionary<string, object?>
                {
-                 ["Title"] = "Main Data",
+                 ["Title"] = file.OriginalName,
                  ["FileName"] = file.OriginalName,
                  ["TemplateName"] = file.MatchedTemplate?.Name ?? "Unknown",
                  ["Rows"] = jsonData
@@ -111,176 +124,91 @@ public class ImportConfirmationSheet(List<CurrentFile> files, Action onSuccess, 
                  }
                }
 
-               // Check for existing entry
-               var existingEntry = await service.FindRevenueEntryAsync(uploadYear.Value, uploadQuarter.Value, source.Id);
-               RevenueEntry entry;
-
-               if (existingEntry != null)
+               var entry = new RevenueEntry
                {
-                 entry = existingEntry;
-                 // Merge Data
-                 var currentData = new List<Dictionary<string, object?>>();
-                 if (!string.IsNullOrEmpty(entry.JsonData))
-                 {
-                   try { currentData = JsonSerializer.Deserialize<List<Dictionary<string, object?>>>(entry.JsonData) ?? []; } catch { }
-                 }
+                 RevenueDate = DateTime.Now,
+                 Description = file.OriginalName,
+                 Amount = totalAmount,
+                 SourceId = source.Id,
+                 ArtistId = artist.Id,
+                 CreatedAt = DateTime.UtcNow,
+                 UpdatedAt = DateTime.UtcNow,
+                 JsonData = JsonSerializer.Serialize(new[] { sheetData }),
+                 Year = uploadYear.Value,
+                 Quarter = uploadQuarter.Value,
+                 ImportTemplateId = tmpl.Id,
+                 FileName = file.OriginalName
+               };
 
-                 // Check if this specific file was already imported into this entry
-                 bool isDuplicate = currentData.Any(d =>
-                 {
-                   if (d.TryGetValue("FileName", out var fName) && fName != null)
-                   {
-                     string? sName = fName is JsonElement je ? je.ToString() : fName.ToString();
-                     return sName == file.OriginalName;
-                   }
-                   return false;
-                 });
-
-                 if (isDuplicate)
-                 {
-                   duplicateError.Set($"File '{file.OriginalName}' already exists in this entry. Skipping.");
-                   continue;
-                 }
-
-                 currentData.Add(sheetData);
-
-                 entry.JsonData = JsonSerializer.Serialize(currentData);
-                 entry.Amount += totalAmount; // Add to existing total
-                 entry.Description += $", {file.OriginalName}"; // Append description
-                 entry.ImportTemplateId = tmpl.Id; // Ensure link is set/maintained
-
-                 await service.UpdateRevenueEntryAsync(entry);
+               var result = await service.CreateRevenueEntryAsync(entry);
+               if (result != null)
+               {
+                 entry.Id = result.Id;
                  filesImported++;
-               }
-               else
-               {
-                 // Create New
-                 entry = new RevenueEntry
-                 {
-                   RevenueDate = DateTime.Now,
-                   Description = $"{uploadName.Value} - {file.OriginalName}",
-                   Amount = totalAmount,
-                   SourceId = source.Id,
-                   ArtistId = artist.Id,
-                   CreatedAt = DateTime.UtcNow,
-                   UpdatedAt = DateTime.UtcNow,
-                   JsonData = JsonSerializer.Serialize(new[] { sheetData }),
-                   Year = uploadYear.Value,
-                   Quarter = uploadQuarter.Value,
-                   ImportTemplateId = tmpl.Id,
-                   FileName = file.OriginalName
-                 };
 
-                 var result = await service.CreateRevenueEntryAsync(entry);
-                 if (result != null)
+                 if (!string.IsNullOrEmpty(assetCol))
                  {
-                   entry.Id = result.Id;
-                   filesImported++;
-                 }
-                 else
-                 {
-                   client.Toast($"Failed to create entry for {file.OriginalName}", "Error");
-                   continue;
-                 }
-               }
-
-               // Asset Logic
-               if (!string.IsNullOrEmpty(assetCol))
-               {
-                 try
-                 {
-                   var batchAssets = new Dictionary<string, decimal>();
-
-                   foreach (var row in jsonData)
+                   try
                    {
-                     if (row.TryGetValue(assetCol, out var nameObj))
+                     var batchAssets = new Dictionary<string, decimal>();
+                     foreach (var row in jsonData)
                      {
-                       var name = nameObj?.ToString()?.Trim();
-                       if (string.IsNullOrEmpty(name)) continue;
-
-                       decimal amount = 0;
-                       if (!string.IsNullOrEmpty(amountCol) && row.TryGetValue(amountCol, out var amountObj))
+                       if (row.TryGetValue(assetCol, out var nameObj))
                        {
-                         decimal.TryParse(amountObj?.ToString(), out amount);
+                         var name = nameObj?.ToString()?.Trim();
+                         if (string.IsNullOrEmpty(name)) continue;
+                         decimal amount = 0;
+                         if (!string.IsNullOrEmpty(amountCol) && row.TryGetValue(amountCol, out var amountObj))
+                           decimal.TryParse(amountObj?.ToString(), out amount);
+                         if (!batchAssets.ContainsKey(name)) batchAssets[name] = 0;
+                         batchAssets[name] += amount;
                        }
-
-                       if (!batchAssets.ContainsKey(name))
-                       {
-                         batchAssets[name] = 0;
-                       }
-                       batchAssets[name] += amount;
                      }
-                   }
-
-                   if (batchAssets.Count > 0)
-                   {
-                     var names = batchAssets.Keys.ToList();
-                     var existingAssets = await db.Assets.Where(a => names.Contains(a.Name)).ToListAsync();
-                     var existingNames = existingAssets.Select(a => a.Name).ToHashSet();
-                     var newAssets = names.Where(n => !existingNames.Contains(n))
-                                              .Select(n =>
-                                              {
-                                                return new Asset
-                                                {
-                                                  Name = n,
-                                                  Type = "Default",
-                                                  Category = tmpl.Category,
-                                                  Collection = "",
-                                                  AmountGenerated = 0
-                                                };
-                                              })
-                                              .ToList();
-
-                     if (newAssets.Count > 0)
+                     if (batchAssets.Count > 0)
                      {
-                       db.Assets.AddRange(newAssets);
+                       var names = batchAssets.Keys.ToList();
+                       var existingAssets = await db.Assets.Where(a => names.Contains(a.Name)).ToListAsync();
+                       var existingNames = existingAssets.Select(a => a.Name).ToHashSet();
+                       var newAssets = names.Where(n => !existingNames.Contains(n))
+                                               .Select(n => new Asset { Name = n, Type = "Default", Category = tmpl.Category, Collection = "", AmountGenerated = 0 })
+                                               .ToList();
+                       if (newAssets.Count > 0)
+                       {
+                         db.Assets.AddRange(newAssets);
+                         await db.SaveChangesAsync();
+                         existingAssets.AddRange(newAssets);
+                       }
+                       var assetMap = existingAssets.ToDictionary(a => a.Name, a => a.Id);
+                       var revenueRecords = batchAssets.Select(kvp => new AssetRevenue { AssetId = assetMap[kvp.Key], RevenueEntryId = entry.Id, Amount = kvp.Value });
+                       db.AssetRevenues.AddRange(revenueRecords);
                        await db.SaveChangesAsync();
-                       existingAssets.AddRange(newAssets);
                      }
-
-                     var assetMap = existingAssets.ToDictionary(a => a.Name, a => a.Id);
-                     var revenueRecords = batchAssets.Select(kvp => new AssetRevenue
-                     {
-                       AssetId = assetMap[kvp.Key],
-                       RevenueEntryId = entry.Id,
-                       Amount = kvp.Value
-                     });
-                     db.AssetRevenues.AddRange(revenueRecords);
                    }
+                   catch { }
                  }
-                 catch { }
                }
-
-               // Save changes at end of EACH file to ensure subsequent files see new Assets/Sources
-               await db.SaveChangesAsync();
+               else client.Toast($"Failed to create entry for {file.OriginalName}", "Error");
              }
-             catch (Exception ex)
-             {
-               client.Toast($"Error processing {file.OriginalName}: {ex.Message}", "Error");
-             }
+             catch (Exception ex) { client.Toast($"Error processing {file.OriginalName}: {ex.Message}", "Error"); }
            }
 
            if (filesImported > 0)
            {
              client.Toast($"Imported {filesImported} files", "Success");
+             queryService.RevalidateByTag("revenue_entries");
+             queryService.RevalidateByTag("assets");
+             queryService.RevalidateByTag("dashboard_total_revenue");
+             queryService.RevalidateByTag("dashboard_targeted_revenue");
+             queryService.RevalidateByTag("uploads_list");
+             queryService.RevalidateByTag("templates_list");
+             _onSuccess();
            }
-           else if (duplicateError.Value == null)
-           {
-             client.Toast("No files imported", "Warning");
-           }
-           queryService.RevalidateByTag("revenue_entries");
-           queryService.RevalidateByTag("assets");
-           queryService.RevalidateByTag("dashboard_total_revenue");
-           queryService.RevalidateByTag("dashboard_targeted_revenue");
-           queryService.RevalidateByTag("uploads_list");
-           queryService.RevalidateByTag("templates_list");
-           _onSuccess();
          }).Variant(ButtonVariant.Primary).Width(Size.Full()).WithConfetti(AnimationTrigger.Click))
-         .Add(duplicateError.Value != null ? new Dialog(
-             _ => duplicateError.Set((string?)null),
-             new DialogHeader("Duplicate Detected"),
-             new DialogBody(Text.Label(duplicateError.Value).Color(Colors.Red)),
-             new DialogFooter(new Button("OK", () => duplicateError.Set((string?)null)).Variant(ButtonVariant.Primary))
+         .Add(errorState.Value != null ? new Dialog(
+             _ => errorState.Set(_ => null),
+             new DialogHeader("Import Warning"),
+             new DialogBody(Text.Label(errorState.Value).Color(Colors.Red)),
+             new DialogFooter(new Button("OK", () => errorState.Set(_ => null)).Variant(ButtonVariant.Primary))
          ) : null);
   }
 }

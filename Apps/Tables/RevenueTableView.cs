@@ -21,41 +21,53 @@ public class RevenueTableView : ViewBase
     var revenueQuery = UseQuery("revenue_entries", async (ct) =>
     {
       var rawData = await service.GetRevenueEntriesAsync();
-      return rawData.Select(e => new
-      {
-        e.Id,
-        e.RevenueDate,
-        Name = e.Description ?? "-",
-        Type = e.Source ?? "Unknown",
 
-        e.Amount,
-        Source = e.Integration ?? "Manual",
-        Period = (e.Year.HasValue && !string.IsNullOrEmpty(e.Quarter)) ? $"{e.Year} {e.Quarter}" : "-"
-      })
-     .OrderBy(e => e.Id)
-     .Take(1000)
-     .Select(r => new RevenueTableItem(
-        r.Id,
-        Layout.Horizontal().Width(Size.Fraction(1)).Add(r.RevenueDate.ToShortDateString()),
-        Layout.Horizontal().Width(Size.Fraction(1)).Add(r.Period),
-        Layout.Horizontal()
-            .Width(Size.Fraction(3))
-            .Align(Align.Left)
-            .Gap(0)
-            .Add(new Button(r.Name, () => selectedDetailsId.Set(r.Id))
-                .Variant(ButtonVariant.Link)
-            ),
-        Layout.Horizontal().Width(Size.Fraction(1)).Add(r.Type),
-        Layout.Horizontal().Width(Size.Fraction(1)).Add(r.Source),
+      // Group by Period and Source to show "Batched" view
+      var grouped = rawData
+        .GroupBy(e => new { e.Year, e.Quarter, e.Source })
+        .Select(g =>
+        {
+          var first = g.First();
+          var totalAmount = g.Sum(x => x.Amount);
+          var fileList = string.Join(", ", g.Select(x => x.Description).Where(d => !string.IsNullOrEmpty(d)).Distinct());
 
-        Layout.Horizontal().Width(Size.Fraction(1)).Align(Align.Right).Add(r.Amount.ToString("C", CultureInfo.GetCultureInfo("sv-SE"))),
-        r.RevenueDate,
-        r.Period,
-        r.Name,
-        r.Type,
-        r.Source,
-        r.Amount
-     )).ToArray();
+          return new
+          {
+            Id = first.Id,
+            RevenueDate = first.RevenueDate,
+            Name = string.IsNullOrEmpty(fileList) ? (first.Description ?? "-") : fileList,
+            Type = first.Source ?? "Unknown",
+            Amount = totalAmount,
+            Source = first.Integration ?? "Manual",
+            Period = (first.Year.HasValue && !string.IsNullOrEmpty(first.Quarter)) ? $"{first.Year} {first.Quarter}" : "-"
+          };
+        })
+        .OrderByDescending(e => e.RevenueDate)
+        .Take(1000)
+        .ToList();
+
+      return grouped.Select(r => new RevenueTableItem(
+         r.Id,
+         Layout.Horizontal().Width(Size.Fraction(1)).Add(r.RevenueDate.ToShortDateString()),
+         Layout.Horizontal().Width(Size.Fraction(1)).Add(r.Period),
+         Layout.Horizontal()
+             .Width(Size.Fraction(3))
+             .Align(Align.Left)
+             .Gap(0)
+             .Add(new Button(r.Name, () => selectedDetailsId.Set(r.Id))
+                 .Variant(ButtonVariant.Link)
+             ),
+         Layout.Horizontal().Width(Size.Fraction(1)).Add(r.Type),
+         Layout.Horizontal().Width(Size.Fraction(1)).Add(r.Source),
+
+         Layout.Horizontal().Width(Size.Fraction(1)).Align(Align.Right).Add(r.Amount.ToString("C", CultureInfo.GetCultureInfo("sv-SE"))),
+         r.RevenueDate,
+         r.Period,
+         r.Name,
+         r.Type,
+         r.Source,
+         r.Amount
+      )).ToArray();
     });
 
     var allEntries = revenueQuery.Value ?? [];

@@ -166,7 +166,7 @@ public class TemplateCreatorSheet(CurrentFile? file, Action onSuccess, Action on
                 if (selectedHeaderToMap.Value != null && selectedFieldToMap.Value != null)
                 {
                   var list = mappedPairs.Value.ToList();
-                  list.Add((selectedHeaderToMap.Value, selectedFieldToMap.Value.ToString()));
+                  list.Add((Header: selectedHeaderToMap.Value, FieldKey: selectedFieldToMap.Value.ToString()!));
 
                   mappedPairs.Set(_ => list);
                   selectedHeaderToMap.Set((string?)null);
