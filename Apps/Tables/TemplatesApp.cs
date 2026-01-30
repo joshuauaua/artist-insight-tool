@@ -341,8 +341,7 @@ public class TemplateEditSheet : ViewBase
             ).Title("Column Mappings")
         );
 
-    var footer = Layout.Horizontal().Gap(10).Align(Align.Right).Padding(6)
-        .Add(new Button("Cancel", _onClose).Variant(ButtonVariant.Ghost))
+    var footer = Layout.Horizontal().Gap(10).Align(Align.Center).Padding(6)
         .Add(new Button("Save Changes", async () => await Save()).Variant(ButtonVariant.Primary));
 
 
