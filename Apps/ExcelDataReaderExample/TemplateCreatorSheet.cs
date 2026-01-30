@@ -17,14 +17,20 @@ public class TemplateCreatorSheet(CurrentFile? file, Action onSuccess, Action on
 
   public enum SystemField
   {
+    [Display(Name = "Artist")] Artist,
     [Display(Name = "Asset Title")] AssetTitle,
     [Display(Name = "Asset Type")] AssetType,
+    [Display(Name = "Currency")] Currency,
+    [Display(Name = "Date")] Date,
+    [Display(Name = "DSP")] DSP,
+    [Display(Name = "Fees")] Fees,
     [Display(Name = "Gross")] Gross,
-    [Display(Name = "Net")] Net,
     [Display(Name = "ID")] Id,
-    [Display(Name = "Territory")] Territory,
+    [Display(Name = "Net")] Net,
+    [Display(Name = "Product Artist")] ProductArtist,
+    [Display(Name = "Product Name")] ProductName,
     [Display(Name = "Store")] Store,
-    [Display(Name = "Date")] Date
+    [Display(Name = "Territory")] Territory
   }
 
   public override object Build()
@@ -71,7 +77,7 @@ public class TemplateCreatorSheet(CurrentFile? file, Action onSuccess, Action on
 
     // --- Mapping State ---
     var selectedHeaderToMap = UseState<string?>(() => null);
-    var selectedFieldToMap = UseState<SystemField?>(() => null);
+    var selectedFieldToMap = UseState<SystemField[]>(() => []);
     var mappedPairs = UseState<List<(string Header, string FieldKey)>>(() => new());
 
     var analysis = _file?.Analysis;
@@ -80,7 +86,22 @@ public class TemplateCreatorSheet(CurrentFile? file, Action onSuccess, Action on
 
     var fieldGroups = new Dictionary<string, List<SystemField>>
         {
-            { "Fields", new() { SystemField.AssetTitle, SystemField.AssetType, SystemField.Gross, SystemField.Net, SystemField.Id, SystemField.Territory, SystemField.Store, SystemField.Date } }
+            { "Fields", new() {
+                SystemField.Artist,
+                SystemField.AssetTitle,
+                SystemField.AssetType,
+                SystemField.Currency,
+                SystemField.Date,
+                SystemField.DSP,
+                SystemField.Fees,
+                SystemField.Gross,
+                SystemField.Id,
+                SystemField.Net,
+                SystemField.ProductArtist,
+                SystemField.ProductName,
+                SystemField.Store,
+                SystemField.Territory
+            } }
         };
 
     var activeGroups = fieldGroups;
@@ -122,7 +143,7 @@ public class TemplateCreatorSheet(CurrentFile? file, Action onSuccess, Action on
       var mapped = mappedPairs.Value;
       var unmappedHeaders = headers.Where(h => !mapped.Any(m => m.Header == h)).ToList();
 
-      var allUnmappedOptions = new List<Option<SystemField?>>();
+      var allUnmappedOptions = new List<Option<SystemField>>();
       foreach (var group in activeGroups)
       {
         var unmappedInGroup = group.Value.Where(f => !mapped.Any(m => m.FieldKey == f.ToString())).ToList();
@@ -133,7 +154,7 @@ public class TemplateCreatorSheet(CurrentFile? file, Action onSuccess, Action on
           var fieldInfo = field.GetType().GetField(field.ToString());
           var displayAttr = fieldInfo?.GetCustomAttribute<DisplayAttribute>();
           var label = displayAttr?.Name ?? field.ToString();
-          allUnmappedOptions.Add(new Option<SystemField?>(label, field, group.Key));
+          allUnmappedOptions.Add(new Option<SystemField>(label, field, group.Key));
         }
       }
 
@@ -142,16 +163,19 @@ public class TemplateCreatorSheet(CurrentFile? file, Action onSuccess, Action on
 
       var mapButton = new Button("Confirm Mapping", () =>
               {
-                if (selectedHeaderToMap.Value != null && selectedFieldToMap.Value != null)
+                if (selectedHeaderToMap.Value != null && selectedFieldToMap.Value.Length > 0)
                 {
                   var list = mappedPairs.Value.ToList();
-                  list.Add((selectedHeaderToMap.Value, selectedFieldToMap.Value.Value.ToString()));
+                  foreach (var field in selectedFieldToMap.Value)
+                  {
+                    list.Add((selectedHeaderToMap.Value, field.ToString()));
+                  }
                   mappedPairs.Set(_ => list);
                   selectedHeaderToMap.Set((string?)null);
-                  selectedFieldToMap.Set((SystemField?)null);
+                  selectedFieldToMap.Set([]);
                 }
               }).Variant(ButtonVariant.Primary)
-                .Disabled(selectedHeaderToMap.Value == null || selectedFieldToMap.Value == null)
+                .Disabled(selectedHeaderToMap.Value == null || selectedFieldToMap.Value.Length == 0)
                 .Icon(Icons.Link)
                 .Width(Size.Fraction(0.5f));
 
@@ -184,7 +208,7 @@ public class TemplateCreatorSheet(CurrentFile? file, Action onSuccess, Action on
       ) : null;
 
       content
-          .Add(Layout.Horizontal().Gap(20).Width(Size.Full())
+          .Add(Layout.Horizontal().Gap(20).Width(Size.Full()).Align(Align.Stretch)
               .Add(new Card(
                   Layout.Vertical().Gap(5)
                       .Add(Text.H5("1. Select File Header"))

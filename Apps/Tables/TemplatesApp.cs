@@ -284,7 +284,7 @@ public class TemplateEditSheet : ViewBase
 
     var fieldOptions = new[]
     {
-        "AssetTitle", "AssetType", "Gross", "Net", "Id", "Territory", "Store", "Date", "Ignore"
+        "Artist", "AssetTitle", "AssetType", "Currency", "Date", "DSP", "Fees", "Gross", "Id", "Ignore", "Net", "ProductArtist", "ProductName", "Store", "Territory"
     };
 
     var mappingSection = Layout.Vertical().Gap(12).Align(Align.Stretch);
