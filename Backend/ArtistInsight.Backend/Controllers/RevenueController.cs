@@ -128,7 +128,36 @@ public class RevenueController : ControllerBase
       return NotFound();
     }
 
+    // 1. Identify Assets currently linked to this upload
+    var affectedAssetIds = await _context.AssetRevenues
+        .Where(ar => ar.RevenueEntryId == id)
+        .Select(ar => ar.AssetId)
+        .Distinct()
+        .ToListAsync();
+
+    // 2. Remove the Revenue Entry (and assume Cascade or Manual delete of links)
+    // To be safe and ensure state consistency for the check below, we remove links explicitly.
+    var links = _context.AssetRevenues.Where(ar => ar.RevenueEntryId == id);
+    _context.AssetRevenues.RemoveRange(links);
     _context.RevenueEntries.Remove(revenueEntry);
+
+    // Commit the deletion of the entry and its links so the next check is accurate against DB
+    await _context.SaveChangesAsync();
+
+    // 3. Check for Orphaned Assets
+    foreach (var assetId in affectedAssetIds)
+    {
+      bool hasRemainingLinks = await _context.AssetRevenues.AnyAsync(ar => ar.AssetId == assetId);
+      if (!hasRemainingLinks)
+      {
+        var orphanAsset = await _context.Assets.FindAsync(assetId);
+        if (orphanAsset != null)
+        {
+          _context.Assets.Remove(orphanAsset);
+        }
+      }
+    }
+
     await _context.SaveChangesAsync();
 
     return NoContent();
