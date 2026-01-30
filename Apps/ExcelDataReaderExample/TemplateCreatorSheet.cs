@@ -77,7 +77,7 @@ public class TemplateCreatorSheet(CurrentFile? file, Action onSuccess, Action on
 
     // --- Mapping State ---
     var selectedHeaderToMap = UseState<string?>(() => null);
-    var selectedFieldToMap = UseState<SystemField[]>(() => []);
+    var selectedFieldToMap = UseState<SystemField?>(() => null);
     var mappedPairs = UseState<List<(string Header, string FieldKey)>>(() => new());
 
     var analysis = _file?.Analysis;
@@ -163,19 +163,17 @@ public class TemplateCreatorSheet(CurrentFile? file, Action onSuccess, Action on
 
       var mapButton = new Button("Confirm Mapping", () =>
               {
-                if (selectedHeaderToMap.Value != null && selectedFieldToMap.Value.Length > 0)
+                if (selectedHeaderToMap.Value != null && selectedFieldToMap.Value != null)
                 {
                   var list = mappedPairs.Value.ToList();
-                  foreach (var field in selectedFieldToMap.Value)
-                  {
-                    list.Add((selectedHeaderToMap.Value, field.ToString()));
-                  }
+                  list.Add((selectedHeaderToMap.Value, selectedFieldToMap.Value.ToString()));
+
                   mappedPairs.Set(_ => list);
                   selectedHeaderToMap.Set((string?)null);
-                  selectedFieldToMap.Set([]);
+                  selectedFieldToMap.Set((SystemField?)null);
                 }
               }).Variant(ButtonVariant.Primary)
-                .Disabled(selectedHeaderToMap.Value == null || selectedFieldToMap.Value.Length == 0)
+                .Disabled(selectedHeaderToMap.Value == null || selectedFieldToMap.Value == null)
                 .Icon(Icons.Link)
                 .Width(Size.Fraction(0.5f));
 

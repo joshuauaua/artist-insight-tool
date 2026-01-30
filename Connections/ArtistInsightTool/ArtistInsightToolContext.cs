@@ -54,7 +54,7 @@ public partial class ArtistInsightToolContext : DbContext
 
     modelBuilder.Entity<RevenueSource>(entity =>
     {
-      entity.Property(e => e.Id).ValueGeneratedNever();
+      // Remove ValueGeneratedNever to allow AutoIncrement
     });
 
 

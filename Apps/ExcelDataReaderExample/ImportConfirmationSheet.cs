@@ -67,11 +67,12 @@ public class ImportConfirmationSheet(List<CurrentFile> files, Action onSuccess, 
                if (file.Path == null || file.MatchedTemplate == null) continue;
                var jsonData = ExcelDataReaderSheet.ParseData(file.Path, file.MatchedTemplate);
 
-               // Try to resolve source
-               RevenueSource? source = await db.RevenueSources.FirstOrDefaultAsync(s => s.DescriptionText == "Excel Import");
+               // Try to resolve source from Template
+               string sourceName = !string.IsNullOrWhiteSpace(file.MatchedTemplate?.SourceName) ? file.MatchedTemplate.SourceName : "Excel Import";
+               RevenueSource? source = await db.RevenueSources.FirstOrDefaultAsync(s => s.DescriptionText == sourceName);
                if (source == null)
                {
-                 source = new RevenueSource { DescriptionText = "Excel Import" };
+                 source = new RevenueSource { DescriptionText = sourceName };
                  db.RevenueSources.Add(source);
                  await db.SaveChangesAsync();
                }
@@ -148,10 +149,6 @@ public class ImportConfirmationSheet(List<CurrentFile> files, Action onSuccess, 
                  entry.Description += $", {file.OriginalName}"; // Append description
 
                  await service.UpdateRevenueEntryAsync(entry);
-
-                 // Attach to local context
-                 db.Attach(entry);
-                 db.Entry(entry).State = EntityState.Unchanged;
                  filesImported++;
                }
                else
@@ -177,8 +174,6 @@ public class ImportConfirmationSheet(List<CurrentFile> files, Action onSuccess, 
                  if (result != null)
                  {
                    entry.Id = result.Id;
-                   db.Attach(entry);
-                   db.Entry(entry).State = EntityState.Unchanged;
                    filesImported++;
                  }
                  else
@@ -219,6 +214,7 @@ public class ImportConfirmationSheet(List<CurrentFile> files, Action onSuccess, 
                    if (batchAssets.Count > 0)
                    {
                      var names = batchAssets.Keys.ToList();
+                     // Use AsNoTracking for local lookups to avoid conflict if API modified them? No, DbContext is local.
                      var existingAssets = await db.Assets.Where(a => names.Contains(a.Name)).ToListAsync();
                      var existingNames = existingAssets.Select(a => a.Name).ToHashSet();
                      var newAssets = names.Where(n => !existingNames.Contains(n))
@@ -246,7 +242,7 @@ public class ImportConfirmationSheet(List<CurrentFile> files, Action onSuccess, 
                      var revenueRecords = batchAssets.Select(kvp => new AssetRevenue
                      {
                        AssetId = assetMap[kvp.Key],
-                       RevenueEntry = entry,
+                       RevenueEntryId = entry.Id,
                        Amount = kvp.Value
                      });
                      db.AssetRevenues.AddRange(revenueRecords);

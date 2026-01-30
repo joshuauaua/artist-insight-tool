@@ -114,7 +114,22 @@ public class ArtistInsightService
 
   public async Task<RevenueEntry?> FindRevenueEntryAsync(int year, string quarter, int sourceId)
   {
-    return await _httpClient.GetFromJsonAsync<RevenueEntry>($"{BaseUrl}/Revenue/find?year={year}&quarter={quarter}&sourceId={sourceId}");
+    try
+    {
+      return await _httpClient.GetFromJsonAsync<RevenueEntry>($"{BaseUrl}/Revenue/find?year={year}&quarter={quarter}&sourceId={sourceId}");
+    }
+    catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+    {
+      return null;
+    }
+    catch (Exception ex)
+    {
+      // Log or handle other errors? For now safest is return null or rethrow?
+      // Returning null allows creation to proceed, which might duplicate if it was a transient error.
+      // But for 404 specifically we want null.
+      Console.WriteLine($"Error finding revenue entry: {ex.Message}");
+      return null;
+    }
   }
 
   public async Task<bool> UpdateRevenueEntryAsync(RevenueEntry entry)
@@ -255,6 +270,20 @@ public class ArtistInsightService
   {
     try { return await _httpClient.GetFromJsonAsync<List<PieChartSegmentDto>>($"{BaseUrl}/Dashboard/charts/revenue-by-album{DateParams(from, to)}") ?? []; }
     catch { return []; }
+  }
+
+  public async Task<List<PieChartSegmentDto>> GetRevenueByAssetAsync(DateTime from, DateTime to)
+  {
+    try
+    {
+      var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+      return await _httpClient.GetFromJsonAsync<List<PieChartSegmentDto>>($"{BaseUrl}/Dashboard/metrics/revenue-by-asset{DateParams(from, to)}", options) ?? [];
+    }
+    catch (Exception ex)
+    {
+      Console.WriteLine($"[Error] GetRevenueByAssetAsync failed: {ex.Message}");
+      return [];
+    }
   }
 
   public async Task<List<LineChartPointDto>> GetRevenueTrendAsync(DateTime from, DateTime to)

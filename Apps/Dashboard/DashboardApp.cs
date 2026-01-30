@@ -309,6 +309,7 @@ public class DashboardApp : ViewBase
                 .Height(Size.Units(75)),
             5 => new TargetedRevenueMetricView(c.Target ?? 0),
             6 => new AssetPieChartView(c.CategoryFilter ?? "All"),
+            7 => new TopSellingAssetsView(),
             _ => (object)Layout.Center().Add(Text.Label("Unknown Card Type"))
           };
 
@@ -534,10 +535,19 @@ public class DashboardApp : ViewBase
 
     foreach (var e in sourceEntries.Where(x => !string.IsNullOrEmpty(x.JsonData)))
     {
+      if (e.Id == 0)
+      {
+        items.Add(new UploadTableItem(e.Id, $"DT{e.Id:D3}", e.Description ?? "Example", e.ImportTemplateName ?? "-", DateTime.Now.ToShortDateString(), "2024 Q1"));
+        continue;
+      }
+
       try
       {
         using var doc = JsonDocument.Parse(e.JsonData!);
-        var fn = doc.RootElement[0].TryGetProperty("FileName", out var p) ? p.GetString() : null;
+        var fn = doc.RootElement.ValueKind == JsonValueKind.Array && doc.RootElement.GetArrayLength() > 0
+            ? (doc.RootElement[0].TryGetProperty("FileName", out var p) ? p.GetString() : null)
+            : null;
+
         var period = (e.Year.HasValue && !string.IsNullOrEmpty(e.Quarter)) ? $"{e.Year} {e.Quarter}" : "-";
         var uploadDate = (e.UploadDate ?? e.RevenueDate).ToShortDateString();
         items.Add(new UploadTableItem(e.Id, $"DT{e.Id:D3}", fn ?? e.Description ?? "Table", e.ImportTemplateName ?? "-", uploadDate, period));
@@ -577,12 +587,12 @@ public class DashboardApp : ViewBase
   {
     var options = new List<Option<int?>>
     {
+        new("Blank Card", 4),
         new("Total Assets", 1),
         new("Total Revenue", 2),
         new("Total Data Imports", 3),
-        new("Blank Card", 4),
         new("Metric View: Targeted Revenue", 5),
-        new("Pie Chart: Asset Breakdown", 6)
+        new("Pie Chart: Top Selling Assets", 7)
     };
 
     return new Dialog(
@@ -596,14 +606,15 @@ public class DashboardApp : ViewBase
             new Button("Cancel", () => { addWidgetCardId.Set((string?)null); widgetType.Set((int?)null); }).Variant(ButtonVariant.Ghost),
             new Button("Continue", () =>
             {
-              if (widgetType.Value == 1 || widgetType.Value == 2 || widgetType.Value == 3 || widgetType.Value == 4)
+              if (widgetType.Value == 1 || widgetType.Value == 2 || widgetType.Value == 3 || widgetType.Value == 4 || widgetType.Value == 7)
               {
                 var title = widgetType.Value switch
                 {
+                  4 => " ",
                   1 => "Total Assets",
                   2 => "Total Revenue",
                   3 => "Total Data Imports",
-                  4 => " ",
+                  7 => "Top Selling Assets",
                   _ => "New Card"
                 };
                 var list = cardStates.Value.ToList();
