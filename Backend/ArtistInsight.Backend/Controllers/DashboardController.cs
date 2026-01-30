@@ -149,4 +149,76 @@ public class DashboardController : ControllerBase
       return StatusCode(500, ex.Message);
     }
   }
+  [HttpGet("charts/stream-history")]
+  public async Task<ActionResult<IEnumerable<PieChartSegmentDto>>> GetStreamHistory([FromQuery] DateTime from, [FromQuery] DateTime to)
+  {
+    try
+    {
+      var rawEntries = await _context.RevenueEntries
+          .Where(r => r.RevenueDate >= from && r.RevenueDate <= to && r.JsonData != null && r.JsonData != "")
+          .Select(r => new { r.RevenueDate, r.JsonData })
+          .ToListAsync();
+
+      var monthlyStreams = new Dictionary<DateTime, double>();
+
+      foreach (var entry in rawEntries)
+      {
+        if (string.IsNullOrEmpty(entry.JsonData)) continue;
+
+        double entryStreams = 0;
+        try
+        {
+          using var doc = JsonDocument.Parse(entry.JsonData);
+          if (doc.RootElement.ValueKind != JsonValueKind.Array) continue;
+
+          foreach (var sheet in doc.RootElement.EnumerateArray())
+          {
+            if (sheet.TryGetProperty("Rows", out var rows) && rows.ValueKind == JsonValueKind.Array)
+            {
+              foreach (var row in rows.EnumerateArray())
+              {
+                double qty = 0;
+                if (row.TryGetProperty("Quantity", out var pQty))
+                {
+                  var s = pQty.GetString();
+                  if (double.TryParse(s, NumberStyles.Any, CultureInfo.InvariantCulture, out var d)) qty = d;
+                }
+                else if (row.TryGetProperty("Units", out pQty))
+                {
+                  var s = pQty.GetString();
+                  if (double.TryParse(s, NumberStyles.Any, CultureInfo.InvariantCulture, out var d)) qty = d;
+                }
+                else if (row.TryGetProperty("Count", out pQty))
+                {
+                  var s = pQty.GetString();
+                  if (double.TryParse(s, NumberStyles.Any, CultureInfo.InvariantCulture, out var d)) qty = d;
+                }
+
+                entryStreams += qty;
+              }
+            }
+          }
+        }
+        catch { }
+
+        if (entryStreams > 0)
+        {
+          var monthDate = new DateTime(entry.RevenueDate.Year, entry.RevenueDate.Month, 1);
+          if (!monthlyStreams.ContainsKey(monthDate)) monthlyStreams[monthDate] = 0;
+          monthlyStreams[monthDate] += entryStreams;
+        }
+      }
+
+      var result = monthlyStreams
+          .Select(kv => new PieChartSegmentDto(kv.Key.ToString("MMM yyyy", CultureInfo.InvariantCulture), kv.Value))
+          .OrderBy(x => DateTime.ParseExact(x.Label, "MMM yyyy", CultureInfo.InvariantCulture))
+          .ToList();
+
+      return result;
+    }
+    catch (Exception ex)
+    {
+      return StatusCode(500, ex.Message);
+    }
+  }
 }

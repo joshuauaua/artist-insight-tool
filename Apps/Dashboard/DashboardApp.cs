@@ -436,17 +436,6 @@ public class DashboardApp : ViewBase
 
   private object RenderRevenue(List<RevenueEntryDto> entries, IState<string> search, IState<object?> dialog, dynamic query, IState<int> revenueViewMode, List<Asset> assets, IState<string> selectedCategory, List<string> categories)
   {
-    // Line Chart Logic (Moved from RenderAssets)
-    var chartData = entries
-        .GroupBy(e => new { e.RevenueDate.Year, e.RevenueDate.Month })
-        .Select(g => new
-        {
-          Month = new DateTime(g.Key.Year, g.Key.Month, 1).ToString("MMM yyyy"),
-          Revenue = (double)g.Sum(e => e.Amount)
-        })
-        .OrderBy(x => DateTime.ParseExact(x.Month, "MMM yyyy", CultureInfo.InvariantCulture))
-        .ToArray();
-
     var content = revenueViewMode.Value == 1
       ? Layout.Vertical().Gap(20)
         .Add(new Card(
@@ -465,19 +454,6 @@ public class DashboardApp : ViewBase
         .Add(Layout.Horizontal().Gap(20).Width(Size.Full())
             .Add(Layout.Vertical().Width(Size.Fraction(0.5f))
                 .Add(RenderAnalyticsCard(assets, selectedCategory, categories))
-            )
-            .Add(Layout.Vertical().Width(Size.Fraction(0.5f))
-                .Add(new Card(
-                     Layout.Vertical().Gap(10)
-                        .Add(Text.H4("Revenue History"))
-                        .Add(Layout.Vertical().Height(Size.Units(200))
-                            .Add(chartData.ToLineChart(style: LineChartStyles.Dashboard)
-                                .Dimension("Month", e => e.Month)
-                                .Measure("Revenue", e => e.Sum(f => f.Revenue))
-                                .Toolbox()
-                            )
-                        )
-                ).Width(Size.Full()).BorderStyle(BorderStyle.Dashed).BorderColor(Colors.Primary))
             )
         )
       : Layout.Vertical().Gap(20)

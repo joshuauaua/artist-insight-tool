@@ -270,6 +270,16 @@ public class ArtistInsightService
     catch { return []; }
   }
 
+  public async Task<List<PieChartSegmentDto>> GetStreamHistoryAsync(DateTime from, DateTime to)
+  {
+    try
+    {
+      var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+      return await _httpClient.GetFromJsonAsync<List<PieChartSegmentDto>>($"{BaseUrl}/Dashboard/charts/stream-history{DateParams(from, to)}", options) ?? [];
+    }
+    catch { return []; }
+  }
+
   public async Task<List<PieChartSegmentDto>> GetRevenueByAlbumAsync(DateTime from, DateTime to)
   {
     try { return await _httpClient.GetFromJsonAsync<List<PieChartSegmentDto>>($"{BaseUrl}/Dashboard/charts/revenue-by-album{DateParams(from, to)}") ?? []; }
