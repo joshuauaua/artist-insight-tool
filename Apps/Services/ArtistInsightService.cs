@@ -102,12 +102,13 @@ public class ArtistInsightService
       {
         return await response.Content.ReadFromJsonAsync<RevenueEntry>();
       }
-      return null;
+      var error = await response.Content.ReadAsStringAsync();
+      throw new Exception($"API Error {response.StatusCode}: {error}");
     }
     catch (Exception ex)
     {
       Console.WriteLine($"Error creating revenue entry: {ex.Message}");
-      return null;
+      throw; // Propagate exception to caller
     }
   }
 

@@ -70,7 +70,6 @@ public class DashboardApp : ViewBase
         new("total-revenue", "Total Revenue", "   ", 0, 2),
         new("p4", "", "   ", 1, 4),
         new("p5", "", "   ", 2, 4),
-        new("p6", "", "   ", 3, 4),
     });
 
     // --- Focal Card Logic (Target top-middle card) ---
@@ -103,7 +102,7 @@ public class DashboardApp : ViewBase
     // Persistence Logic (Backend)
     UseEffect(async () =>
     {
-      var json = await service.GetSettingAsync("dashboard_layout_v3");
+      var json = await service.GetSettingAsync("dashboard_layout_v4");
       if (!string.IsNullOrEmpty(json))
       {
         try
@@ -121,7 +120,7 @@ public class DashboardApp : ViewBase
     UseEffect(async () =>
     {
       var json = JsonSerializer.Serialize(overviewCards.Value);
-      await service.SaveSettingAsync("dashboard_layout_v3", json);
+      await service.SaveSettingAsync("dashboard_layout_v4", json);
     }, [overviewCards]);
 
     var assetsQuery = UseQuery("assets", async (ct) => await service.GetAssetsAsync());

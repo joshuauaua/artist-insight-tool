@@ -41,11 +41,11 @@ public partial class RevenueEntry
 
   [ForeignKey("ArtistId")]
   [InverseProperty("RevenueEntries")]
-  public virtual Artist Artist { get; set; } = null!;
+  public virtual Artist? Artist { get; set; }
 
   [ForeignKey("SourceId")]
   [InverseProperty("RevenueEntries")]
-  public virtual RevenueSource Source { get; set; } = null!;
+  public virtual RevenueSource? Source { get; set; }
 
   public virtual ICollection<AssetRevenue> AssetRevenues { get; set; } = new List<AssetRevenue>();
 

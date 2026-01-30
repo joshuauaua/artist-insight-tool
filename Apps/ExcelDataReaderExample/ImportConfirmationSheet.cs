@@ -60,140 +60,155 @@ public class ImportConfirmationSheet(List<CurrentFile> files, Action onSuccess, 
 
            foreach (var file in _files)
            {
-             if (file.Path == null || file.MatchedTemplate == null) continue;
-             var jsonData = ExcelDataReaderSheet.ParseData(file.Path, file.MatchedTemplate);
-
-             // Try to resolve source
-             RevenueSource? source = await db.RevenueSources.FirstOrDefaultAsync(s => s.DescriptionText == "Excel Import");
-             if (source == null)
+             try
              {
-               source = new RevenueSource { DescriptionText = "Excel Import" };
-               db.RevenueSources.Add(source);
-               await db.SaveChangesAsync();
-             }
+               if (file.Path == null || file.MatchedTemplate == null) continue;
+               var jsonData = ExcelDataReaderSheet.ParseData(file.Path, file.MatchedTemplate);
 
-             // Ensure at least one artist exists
-             var artist = await db.Artists.FirstOrDefaultAsync();
-             if (artist == null)
-             {
-               artist = new Artist { Name = "Unknown Artist", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
-               db.Artists.Add(artist);
-               await db.SaveChangesAsync();
-             }
-
-             var sheetData = new Dictionary<string, object?>
-             {
-               ["Title"] = "Main Data",
-               ["FileName"] = file.OriginalName,
-               ["TemplateName"] = file.MatchedTemplate?.Name ?? "Unknown",
-               ["Rows"] = jsonData
-             };
-
-             var entry = new RevenueEntry
-             {
-               RevenueDate = DateTime.Now,
-               Description = $"{uploadName.Value} - {file.OriginalName}",
-               Amount = 0,
-               SourceId = source.Id,
-               ArtistId = artist.Id,
-               CreatedAt = DateTime.UtcNow,
-               UpdatedAt = DateTime.UtcNow,
-               JsonData = JsonSerializer.Serialize(new[] { sheetData })
-             };
-
-             var tmpl = file.MatchedTemplate!;
-             var mappings = tmpl.GetMappings();
-             string? GetHeader(string systemField) => mappings.FirstOrDefault(x => x.Value == systemField).Key;
-
-             var amountCol = GetHeader("Net");
-             var assetCol = GetHeader("AssetTitle");
-
-             decimal totalAmount = 0;
-             if (!string.IsNullOrEmpty(amountCol))
-             {
-               foreach (var row in jsonData)
+               // Try to resolve source
+               RevenueSource? source = await db.RevenueSources.FirstOrDefaultAsync(s => s.DescriptionText == "Excel Import");
+               if (source == null)
                {
-                 if (row.TryGetValue(amountCol, out var val) && decimal.TryParse(val?.ToString(), out var d))
-                   totalAmount += d;
+                 source = new RevenueSource { DescriptionText = "Excel Import" };
+                 db.RevenueSources.Add(source);
+                 await db.SaveChangesAsync();
                }
-             }
-             entry.Amount = totalAmount;
 
-             entry.Year = uploadYear.Value;
-             entry.Quarter = uploadQuarter.Value;
-             entry.ImportTemplateId = tmpl.Id;
-             entry.FileName = file.OriginalName;
-
-             var result = await service.CreateRevenueEntryAsync(entry);
-             if (result != null) entry.Id = result.Id;
-
-             // Asset Logic
-             if (!string.IsNullOrEmpty(assetCol))
-             {
-               try
+               // Ensure at least one artist exists
+               var artist = await db.Artists.FirstOrDefaultAsync();
+               if (artist == null)
                {
-                 var batchAssets = new Dictionary<string, decimal>();
+                 artist = new Artist { Name = "Unknown Artist", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
+                 db.Artists.Add(artist);
+                 await db.SaveChangesAsync();
+               }
 
+               var sheetData = new Dictionary<string, object?>
+               {
+                 ["Title"] = "Main Data",
+                 ["FileName"] = file.OriginalName,
+                 ["TemplateName"] = file.MatchedTemplate?.Name ?? "Unknown",
+                 ["Rows"] = jsonData
+               };
+
+               var entry = new RevenueEntry
+               {
+                 RevenueDate = DateTime.Now,
+                 Description = $"{uploadName.Value} - {file.OriginalName}",
+                 Amount = 0,
+                 SourceId = source.Id,
+                 ArtistId = artist.Id,
+                 CreatedAt = DateTime.UtcNow,
+                 UpdatedAt = DateTime.UtcNow,
+                 JsonData = JsonSerializer.Serialize(new[] { sheetData })
+               };
+
+               var tmpl = file.MatchedTemplate!;
+               var mappings = tmpl.GetMappings();
+               string? GetHeader(string systemField) => mappings.FirstOrDefault(x => x.Value == systemField).Key;
+
+               var amountCol = GetHeader("Net");
+               var assetCol = GetHeader("AssetTitle");
+
+               decimal totalAmount = 0;
+               if (!string.IsNullOrEmpty(amountCol))
+               {
                  foreach (var row in jsonData)
                  {
-                   if (row.TryGetValue(assetCol, out var nameObj))
-                   {
-                     var name = nameObj?.ToString()?.Trim();
-                     if (string.IsNullOrEmpty(name)) continue;
-
-                     decimal amount = 0;
-                     if (!string.IsNullOrEmpty(amountCol) && row.TryGetValue(amountCol, out var amountObj))
-                     {
-                       decimal.TryParse(amountObj?.ToString(), out amount);
-                     }
-
-                     if (!batchAssets.ContainsKey(name))
-                     {
-                       batchAssets[name] = 0;
-                     }
-                     batchAssets[name] += amount;
-                   }
-                 }
-
-                 if (batchAssets.Count > 0)
-                 {
-                   var names = batchAssets.Keys.ToList();
-                   var existingAssets = await db.Assets.Where(a => names.Contains(a.Name)).ToListAsync();
-                   var existingNames = existingAssets.Select(a => a.Name).ToHashSet();
-                   var newAssets = names.Where(n => !existingNames.Contains(n))
-                                            .Select(n =>
-                                            {
-                                              return new Asset
-                                              {
-                                                Name = n,
-                                                Type = "Default",
-                                                Category = tmpl.Category,
-                                                Collection = "",
-                                                AmountGenerated = 0
-                                              };
-                                            })
-                                            .ToList();
-
-                   if (newAssets.Count > 0)
-                   {
-                     db.Assets.AddRange(newAssets);
-                     await db.SaveChangesAsync();
-                     existingAssets.AddRange(newAssets);
-                   }
-
-                   var assetMap = existingAssets.ToDictionary(a => a.Name, a => a.Id);
-                   var revenueRecords = batchAssets.Select(kvp => new AssetRevenue
-                   {
-                     AssetId = assetMap[kvp.Key],
-                     RevenueEntry = entry,
-                     Amount = kvp.Value
-                   });
-                   db.AssetRevenues.AddRange(revenueRecords);
+                   if (row.TryGetValue(amountCol, out var val) && decimal.TryParse(val?.ToString(), out var d))
+                     totalAmount += d;
                  }
                }
-               catch { }
+               entry.Amount = totalAmount;
+
+               entry.Year = uploadYear.Value;
+               entry.Quarter = uploadQuarter.Value;
+               entry.ImportTemplateId = tmpl.Id;
+               entry.FileName = file.OriginalName;
+
+               var result = await service.CreateRevenueEntryAsync(entry);
+               if (result != null)
+               {
+                 entry.Id = result.Id;
+                 // Attach to prevent duplicate insertion attempt by EF Core when adding AssetRevenue
+                 db.Attach(entry);
+                 db.Entry(entry).State = EntityState.Unchanged;
+               }
+
+               // Asset Logic
+               if (!string.IsNullOrEmpty(assetCol))
+               {
+                 try
+                 {
+                   var batchAssets = new Dictionary<string, decimal>();
+
+                   foreach (var row in jsonData)
+                   {
+                     if (row.TryGetValue(assetCol, out var nameObj))
+                     {
+                       var name = nameObj?.ToString()?.Trim();
+                       if (string.IsNullOrEmpty(name)) continue;
+
+                       decimal amount = 0;
+                       if (!string.IsNullOrEmpty(amountCol) && row.TryGetValue(amountCol, out var amountObj))
+                       {
+                         decimal.TryParse(amountObj?.ToString(), out amount);
+                       }
+
+                       if (!batchAssets.ContainsKey(name))
+                       {
+                         batchAssets[name] = 0;
+                       }
+                       batchAssets[name] += amount;
+                     }
+                   }
+
+                   if (batchAssets.Count > 0)
+                   {
+                     var names = batchAssets.Keys.ToList();
+                     var existingAssets = await db.Assets.Where(a => names.Contains(a.Name)).ToListAsync();
+                     var existingNames = existingAssets.Select(a => a.Name).ToHashSet();
+                     var newAssets = names.Where(n => !existingNames.Contains(n))
+                                              .Select(n =>
+                                              {
+                                                return new Asset
+                                                {
+                                                  Name = n,
+                                                  Type = "Default",
+                                                  Category = tmpl.Category,
+                                                  Collection = "",
+                                                  AmountGenerated = 0
+                                                };
+                                              })
+                                              .ToList();
+
+                     if (newAssets.Count > 0)
+                     {
+                       db.Assets.AddRange(newAssets);
+                       await db.SaveChangesAsync();
+                       existingAssets.AddRange(newAssets);
+                     }
+
+                     var assetMap = existingAssets.ToDictionary(a => a.Name, a => a.Id);
+                     var revenueRecords = batchAssets.Select(kvp => new AssetRevenue
+                     {
+                       AssetId = assetMap[kvp.Key],
+                       RevenueEntry = entry,
+                       Amount = kvp.Value
+                     });
+                     db.AssetRevenues.AddRange(revenueRecords);
+                   }
+                 }
+                 catch { }
+               }
+             }
+             catch (Exception ex)
+             {
+               client.Toast($"Error: {ex.Message}", "Error");
+               continue;
              }
            }
+
 
            await db.SaveChangesAsync();
            client.Toast($"Imported {_files.Count} files", "Success");
