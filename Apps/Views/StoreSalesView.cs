@@ -32,7 +32,7 @@ public class StoreSalesView : ViewBase
 
     return new Card(
         Layout.Vertical().Gap(5).Padding(10)
-            .Add(Layout.Center().Add(Text.H4("Total Sales by Store")))
+            .Add(Layout.Center().Add(Text.H4("Total Sales by Store (SEK)")))
             .Add(Layout.Vertical().Height(Size.Units(50))
                 .Add(data.ToBarChart()
                     .Dimension("Label", e => e.Label)

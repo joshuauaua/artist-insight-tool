@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using ArtistInsight.Backend.Data;
 using ArtistInsight.Backend.Models;
 using System.Globalization;
+using System.Text.Json;
 
 namespace ArtistInsight.Backend.Controllers;
 
@@ -70,19 +71,78 @@ public class DashboardController : ControllerBase
   {
     try
     {
-      var data = await _context.RevenueEntries
-          .Include(r => r.Source)
-          .Where(r => r.RevenueDate >= from && r.RevenueDate <= to)
-          .GroupBy(r => r.Source.DescriptionText)
-          .Select(g => new
-          {
-            Label = g.Key,
-            Value = g.Sum(x => x.Amount)
-          })
-          .OrderByDescending(x => x.Value)
+      var rawEntries = await _context.RevenueEntries
+          .Where(r => r.RevenueDate >= from && r.RevenueDate <= to && r.JsonData != null && r.JsonData != "")
+          .Select(r => new { r.JsonData })
           .ToListAsync();
 
-      return data.Select(x => new PieChartSegmentDto(x.Label ?? "Unknown", (double)x.Value)).ToList();
+      var storeTotals = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+
+      foreach (var entry in rawEntries)
+      {
+        if (string.IsNullOrEmpty(entry.JsonData)) continue;
+
+        try
+        {
+          using var doc = JsonDocument.Parse(entry.JsonData);
+          if (doc.RootElement.ValueKind != JsonValueKind.Array) continue;
+
+          foreach (var sheet in doc.RootElement.EnumerateArray())
+          {
+            if (sheet.TryGetProperty("Rows", out var rows) && rows.ValueKind == JsonValueKind.Array)
+            {
+              foreach (var row in rows.EnumerateArray())
+              {
+                // Find Store Name
+                string? store = null;
+                if (row.TryGetProperty("Sale Store Name", out var pStore)) store = pStore.GetString();
+                else if (row.TryGetProperty("Store", out pStore)) store = pStore.GetString();
+                else if (row.TryGetProperty("DSP", out pStore)) store = pStore.GetString();
+                else if (row.TryGetProperty("Source", out pStore)) store = pStore.GetString();
+
+                if (string.IsNullOrWhiteSpace(store)) continue;
+
+                // Find separate Amount
+                double amount = 0;
+                if (row.TryGetProperty("Sale Net Receipts", out var pNet))
+                {
+                  var s = pNet.GetString();
+                  if (double.TryParse(s, NumberStyles.Any, CultureInfo.InvariantCulture, out var d)) amount = d;
+                }
+                else if (row.TryGetProperty("Net", out pNet))
+                {
+                  var s = pNet.GetString();
+                  if (double.TryParse(s, NumberStyles.Any, CultureInfo.InvariantCulture, out var d)) amount = d;
+                }
+                else if (row.TryGetProperty("Amount", out pNet))
+                {
+                  var s = pNet.GetString();
+                  if (double.TryParse(s, NumberStyles.Any, CultureInfo.InvariantCulture, out var d)) amount = d;
+                }
+                else if (row.TryGetProperty("Royalty", out pNet))
+                {
+                  var s = pNet.GetString();
+                  if (double.TryParse(s, NumberStyles.Any, CultureInfo.InvariantCulture, out var d)) amount = d;
+                }
+
+                if (amount > 0)
+                {
+                  if (!storeTotals.ContainsKey(store)) storeTotals[store] = 0;
+                  storeTotals[store] += amount;
+                }
+              }
+            }
+          }
+        }
+        catch { }
+      }
+
+      var result = storeTotals
+          .Select(kv => new PieChartSegmentDto(kv.Key, kv.Value))
+          .OrderByDescending(x => x.Value)
+          .ToList();
+
+      return result;
     }
     catch (Exception ex)
     {
