@@ -46,10 +46,10 @@ public class ImportConfirmationSheet(List<CurrentFile> files, Action onSuccess, 
          .Add(Layout.Vertical().Gap(4)
              .Add(Text.Label("Select Timeframe").Small())
              .Add(Layout.Horizontal().Gap(10)
-                 .Add(uploadYear.ToSelectInput(Enumerable.Range(2020, 10).Select(y => new Option<int>(y.ToString(), y))).Width(100))
+                 .Add(uploadYear.ToSelectInput(Enumerable.Range(2020, DateTime.Now.Year - 2020 + 1).Select(y => new Option<int>(y.ToString(), y))).Width(100))
                  .Add(uploadQuarter.ToSelectInput(new[] { "Q1", "Q2", "Q3", "Q4" }.Select(q => new Option<string>(q, q))).Width(100))))
          .Add(Layout.Vertical().Gap(4)
-             .Add(Text.Label("Batch Name (Revenue Entry Description)").Small())
+             .Add(Text.Label("Entry Name").Small())
              .Add(uploadName.ToTextInput().Placeholder("e.g. 2024 Q1 Royalties")))
          .Add(new Spacer().Height(5))
          .Add(new Button("Import Data", async () =>

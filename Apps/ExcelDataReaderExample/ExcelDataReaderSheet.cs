@@ -410,19 +410,21 @@ public class ExcelDataReaderSheet(Action onClose, Action? onImportSuccess = null
 
       var contentHeader = Layout.Vertical().Align(Align.Center).Gap(5).Width(Size.Full())
           .Add(Text.H3("Import Data"))
-          .Add(Text.Label("Upload and process multiple financial data files.").Muted())
+          .Add(Text.Label("Upload and process one or multiple data files.").Muted())
           .Add(new Spacer().Height(10));
 
+
       var container = Layout.Vertical().Height(Size.Full()).Width(Size.Full()).Padding(10, 6, 10, 6).Add(contentHeader);
-      var mainSplit = Layout.Horizontal().Gap(40).Width(Size.Full()).Grow();
+      var mainSplit = Layout.Horizontal().Gap(20).Width(Size.Full()).Grow();
+
 
       // Left Pane: Controls
       var leftPane = Layout.Vertical().Width(300).Height(Size.Full());
       leftPane.Add(new Card(
-          Layout.Vertical().Gap(15).Align(Align.Center).Padding(5, 14, 15, 14)
+          Layout.Vertical().Gap(8).Align(Align.Center).Padding(14, 14, 14, 14)
               .Add(Layout.Vertical().Gap(5).Align(Align.Center)
                   .Add(new Icon(Icons.Sheet).Size(48)))
-              .Add(uploadState.ToFileInput(uploadContext).Placeholder("Select Files").Width(Size.Full()))
+              .Add(uploadState.ToFileInput(uploadContext).Placeholder("Select Files"))
               .Add(isProcessing ? Layout.Horizontal().Align(Align.Center).Add(Text.Label("Processing...")) : null)
       ).Width(Size.Full()));
 
