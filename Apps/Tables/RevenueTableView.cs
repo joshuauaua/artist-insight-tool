@@ -178,13 +178,38 @@ public class RevenueTableView : ViewBase
     // Note: Column width might not be supported via .Width(x=>...) in this API, 
     // but checking if ToTable returns Table widget which usually auto-sizes.
 
+
+    var viewMode = UseState("Table");
+
     var content = Layout.Vertical().Height(Size.Full()).Padding(20, 0, 20, 50)
         .Add(filteredEntries.Length > 0
             ? table
             : Layout.Center().Add(Text.Label("There is no information to display")));
 
+
+
+    var visualContent = Layout.Center().Height(Size.Full())
+        .Add(Text.H3("Visual View").Muted())
+        .Add(Text.Label("Revenue charts coming soon").Muted());
+
+    var mainView = viewMode.Value == "Table"
+        ? (object)new HeaderLayout(headerCard, content)
+        : new HeaderLayout(headerCard, visualContent);
+
+    var floatingPanel = new FloatingPanel(
+        new Card(
+            Layout.Horizontal().Gap(0).Padding(5)
+                .Add(new Button(viewMode.Value == "Table" ? "Visual View" : "Table View", () =>
+                {
+                  viewMode.Set(viewMode.Value == "Table" ? "Visual" : "Table");
+                }).Variant(ButtonVariant.Ghost).Icon(viewMode.Value == "Table" ? Icons.ChartPie : Icons.Table))
+        ),
+        Align.BottomCenter
+    ).Offset(new Thickness(0, 0, 0, 30));
+
     return new Fragment(
-        new HeaderLayout(headerCard, content),
+        mainView,
+        floatingPanel,
 
         selectedDetailsId.Value != null ? new Dialog(
             _ => selectedDetailsId.Set((int?)null),
