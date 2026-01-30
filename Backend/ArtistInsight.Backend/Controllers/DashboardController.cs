@@ -221,4 +221,101 @@ public class DashboardController : ControllerBase
       return StatusCode(500, ex.Message);
     }
   }
+
+  [HttpGet("charts/revenue-by-asset-history")]
+  public async Task<ActionResult<List<Dictionary<string, object>>>> GetRevenueByAssetHistory([FromQuery] DateTime from, [FromQuery] DateTime to)
+  {
+    try
+    {
+      var rawEntries = await _context.RevenueEntries
+          .Where(r => r.RevenueDate >= from && r.RevenueDate <= to && r.JsonData != null && r.JsonData != "")
+          .Select(r => new { r.RevenueDate, r.JsonData })
+          .ToListAsync();
+
+      // Dictionary<MonthDate, Dictionary<AssetName, Amount>>
+      var timeline = new Dictionary<DateTime, Dictionary<string, double>>();
+      var allAssetNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+      foreach (var entry in rawEntries)
+      {
+        if (string.IsNullOrEmpty(entry.JsonData)) continue;
+
+        try
+        {
+          using var doc = JsonDocument.Parse(entry.JsonData);
+          if (doc.RootElement.ValueKind != JsonValueKind.Array) continue;
+
+          foreach (var sheet in doc.RootElement.EnumerateArray())
+          {
+            if (sheet.TryGetProperty("Rows", out var rows) && rows.ValueKind == JsonValueKind.Array)
+            {
+              foreach (var row in rows.EnumerateArray())
+              {
+                // 1. Get Asset Name
+                string? assetName = null;
+                if (row.TryGetProperty("Asset Title", out var pName)) assetName = pName.GetString();
+                if (string.IsNullOrWhiteSpace(assetName) && row.TryGetProperty("Product Title", out pName)) assetName = pName.GetString();
+
+                if (string.IsNullOrWhiteSpace(assetName)) continue; // Skip if no name found
+
+                // 2. Get Amount
+                double amount = 0;
+                if (row.TryGetProperty("Net", out var pNet))
+                {
+                  var s = pNet.GetString();
+                  if (double.TryParse(s, NumberStyles.Any, CultureInfo.InvariantCulture, out var d)) amount = d;
+                }
+                else if (row.TryGetProperty("Amount", out pNet))
+                {
+                  var s = pNet.GetString();
+                  if (double.TryParse(s, NumberStyles.Any, CultureInfo.InvariantCulture, out var d)) amount = d;
+                }
+                else if (row.TryGetProperty("Sale Net Receipts", out pNet))
+                {
+                  var s = pNet.GetString();
+                  if (double.TryParse(s, NumberStyles.Any, CultureInfo.InvariantCulture, out var d)) amount = d;
+                }
+
+                if (amount > 0)
+                {
+                  var monthDate = new DateTime(entry.RevenueDate.Year, entry.RevenueDate.Month, 1);
+                  if (!timeline.ContainsKey(monthDate)) timeline[monthDate] = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+
+                  if (!timeline[monthDate].ContainsKey(assetName)) timeline[monthDate][assetName] = 0;
+                  timeline[monthDate][assetName] += amount;
+
+                  allAssetNames.Add(assetName);
+                }
+              }
+            }
+          }
+        }
+        catch { }
+      }
+
+      var result = timeline
+          .OrderBy(kv => kv.Key)
+          .Select(kv =>
+          {
+            var dict = new Dictionary<string, object>
+              {
+                  { "Month", kv.Key.ToString("MMM yyyy", CultureInfo.InvariantCulture) },
+                  { "_SortDate", kv.Key } // Helper for sorting if needed on frontend, though we order here
+              };
+            foreach (var asset in allAssetNames)
+            {
+              dict[asset] = kv.Value.ContainsKey(asset) ? kv.Value[asset] : 0.0;
+            }
+            return dict;
+          })
+          .ToList();
+
+      return result;
+    }
+    catch (Exception ex)
+    {
+      return StatusCode(500, ex.Message);
+    }
+  }
 }
+

@@ -311,6 +311,7 @@ public class DashboardApp : ViewBase
             6 => new AssetPieChartView(c.CategoryFilter ?? "All"),
             7 => new TopSellingAssetsView(),
             8 => new StoreSalesView(),
+            9 => new RevenueByAssetView(),
             _ => (object)Layout.Center().Add(Text.Label("Unknown Card Type"))
           };
 
@@ -406,22 +407,22 @@ public class DashboardApp : ViewBase
         .ToList();
 
     return new Card(
-        Layout.Vertical().Gap(5)
+        Layout.Vertical().Gap(2)
             .Add(Layout.Center().Add(Text.H4("Revenue Analytics")))
-            .Add(Layout.Horizontal().Gap(10).Width(Size.Full())
-                .Add(Layout.Vertical().Width(Size.Fraction(0.5f)).Gap(2)
-                    .Add(Layout.Center().Add(Text.Label("Total Revenue by Category").Small()))
+            .Add(Layout.Horizontal().Gap(5).Width(Size.Full())
+                .Add(Layout.Vertical().Width(Size.Fraction(0.5f)).Gap(0)
                     .Add(new PieChart(categoryData)
                         .Pie("Measure", "Dimension")
                         .Tooltip()
                         .Height(Size.Units(80)))
+                    .Add(Layout.Center().Add(Text.Label("Total Revenue by Category").Small()))
                 )
-                .Add(Layout.Vertical().Width(Size.Fraction(0.5f)).Gap(2)
-                    .Add(Layout.Center().Add(Text.Label($"{currentCat} - Asset Breakdown").Small()))
+                .Add(Layout.Vertical().Width(Size.Fraction(0.5f)).Gap(0)
                     .Add(new PieChart(selectedCategoryAssets)
                         .Pie("Measure", "Dimension")
                         .Tooltip()
                         .Height(Size.Units(80)))
+                    .Add(Layout.Center().Add(Text.Label($"{currentCat} - Asset Breakdown").Small()))
                 )
             )
             .Add(Layout.Center().Gap(10)
@@ -437,22 +438,24 @@ public class DashboardApp : ViewBase
   {
     var content = revenueViewMode.Value == 1
       ? Layout.Vertical().Gap(20)
-        .Add(new Card(
-             Layout.Horizontal().Align(Align.Center).Gap(15)
-                .Add(new Icon(Icons.DollarSign).Size(24))
-                .Add(Layout.Vertical().Gap(5)
-                    .Add(Text.Label("Total Revenue").Small())
-                    .Add(Text.H3(entries.Sum(e => e.Amount).ToString("C", CultureInfo.GetCultureInfo("sv-SE"))))
-                    .Add(Layout.Horizontal().Gap(5).Align(Align.Center)
-                        .Add(Text.Label($"{((1000m > 0 ? (double)(entries.Sum(e => e.Amount) / 1000m) : 0) * 100):F0}% of Goal").Color(Colors.Green))
-                        .Add(Text.Label($"Target: {1000m.ToString("C0", CultureInfo.GetCultureInfo("sv-SE"))}").Small())
-                    )
-                )
-        ).Width(Size.Full()))
         // Moved Widgets
         .Add(Layout.Horizontal().Gap(20).Width(Size.Full())
             .Add(Layout.Vertical().Width(Size.Fraction(0.5f))
                 .Add(RenderAnalyticsCard(assets, selectedCategory, categories))
+            )
+            .Add(Layout.Vertical().Width(Size.Fraction(0.5f))
+                .Add(new Card(
+                     Layout.Horizontal().Align(Align.Center).Gap(15)
+                        .Add(new Icon(Icons.DollarSign).Size(24))
+                        .Add(Layout.Vertical().Gap(5)
+                            .Add(Text.Label("Total Revenue").Small())
+                            .Add(Text.H3(entries.Sum(e => e.Amount).ToString("C", CultureInfo.GetCultureInfo("sv-SE"))))
+                            .Add(Layout.Horizontal().Gap(5).Align(Align.Center)
+                                .Add(Text.Label($"{((1000m > 0 ? (double)(entries.Sum(e => e.Amount) / 1000m) : 0) * 100):F0}% of Goal").Color(Colors.Green))
+                                .Add(Text.Label($"Target: {1000m.ToString("C0", CultureInfo.GetCultureInfo("sv-SE"))}").Small())
+                            )
+                        )
+                ).Width(Size.Full()))
             )
         )
       : Layout.Vertical().Gap(20)
@@ -558,7 +561,8 @@ public class DashboardApp : ViewBase
         new("Total Data Imports", 3),
         new("Metric View: Targeted Revenue", 5),
         new("Pie Chart: Top Selling Assets", 7),
-        new("Bar Chart: Sales by Store", 8)
+        new("Bar Chart: Sales by Store", 8),
+        new("Line Chart: Asset Revenue History", 9)
     };
 
     return new Dialog(
@@ -572,7 +576,7 @@ public class DashboardApp : ViewBase
             new Button("Cancel", () => { addWidgetCardId.Set((string?)null); widgetType.Set((int?)null); }).Variant(ButtonVariant.Ghost),
             new Button("Continue", () =>
             {
-              if (widgetType.Value == 1 || widgetType.Value == 2 || widgetType.Value == 3 || widgetType.Value == 4 || widgetType.Value == 7 || widgetType.Value == 8)
+              if (widgetType.Value == 1 || widgetType.Value == 2 || widgetType.Value == 3 || widgetType.Value == 4 || widgetType.Value == 7 || widgetType.Value == 8 || widgetType.Value == 9)
               {
                 var title = widgetType.Value switch
                 {
@@ -582,6 +586,7 @@ public class DashboardApp : ViewBase
                   3 => "Total Data Imports",
                   7 => "Top Selling Assets",
                   8 => "Sales by Store",
+                  9 => "Asset Revenue History",
                   _ => "New Card"
                 };
                 var list = cardStates.Value.ToList();
