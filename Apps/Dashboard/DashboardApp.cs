@@ -619,11 +619,9 @@ public class DashboardApp : ViewBase
     return new Dialog(
         _ => { addWidgetCardId.Set((string?)null); widgetType.Set((int?)null); return ValueTask.CompletedTask; },
         new DialogHeader("Add an Insight Card"),
-        new DialogBody(Layout.Vertical().Gap(15)
+        new DialogBody(Layout.Vertical().Gap(5)
             .Add(Text.P("Select an insight to add to your dashboard."))
-            .Add(Layout.Vertical().Gap(5)
-                .Add(Text.Label("Select an Insight Card to display"))
-                .Add(widgetType.ToSelectInput(options).Placeholder("Choose...")))
+            .Add(widgetType.ToSelectInput(options).Placeholder("Choose..."))
         ),
         new DialogFooter(
             new Button("Cancel", () => { addWidgetCardId.Set((string?)null); widgetType.Set((int?)null); }).Variant(ButtonVariant.Ghost),

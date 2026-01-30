@@ -75,11 +75,11 @@ public class TemplateDataViewSheet(int templateId, Action onClose) : ViewBase
         var mappings = template.GetMappings();
         string? GetHeader(string field) => mappings.FirstOrDefault(x => x.Value == field).Key;
 
-        // Determine Aggregation Mode: Concat if date exists, Merge otherwise
-        bool hasTimeframe = template.RevenueEntries.Any(e => e.Year != null || !string.IsNullOrEmpty(e.Quarter))
-                           || !string.IsNullOrEmpty(GetHeader("TransactionDate"));
+        // Determine Aggregation Mode: Concat if Date column exists (mapped), Merge otherwise
+        var dateH = GetHeader("Date");
+        bool hasDateColumn = !string.IsNullOrEmpty(dateH);
 
-        // Sort entries by timeframe: Year then Quarter
+        // Sort entries by timeframe: Year then Quarter (still useful for ordered concat)
         var sortedEntries = template.RevenueEntries
             .OrderBy(e => GetTimeframeWeight(e.Year, e.Quarter))
             .ToList();
@@ -122,6 +122,7 @@ public class TemplateDataViewSheet(int templateId, Action onClose) : ViewBase
 
             if (entryRows.Count > 0)
             {
+              // Normalize headers (use first valid set found)
               if (headers == null) headers = entryRows[0].Keys.ToList();
               allDataRows.AddRange(entryRows);
             }
@@ -137,26 +138,40 @@ public class TemplateDataViewSheet(int templateId, Action onClose) : ViewBase
         }
 
         List<Dictionary<string, object?>> finalRows;
-        if (hasTimeframe)
+        if (hasDateColumn)
         {
+          // CONCAT Mode
           finalRows = allDataRows;
         }
         else
         {
-          // MERGE logic: Group by non-numeric, Sum numeric
-          var numericKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Net", "Gross", "Amount", "Quantity", "Total", "Price" };
+          // MERGE logic
+          var numericKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Net", "Gross", "Amount", "Quantity", "Total", "Price", "Fees" };
           var netH = GetHeader("Net"); if (!string.IsNullOrEmpty(netH)) numericKeys.Add(netH);
           var grossH = GetHeader("Gross"); if (!string.IsNullOrEmpty(grossH)) numericKeys.Add(grossH);
-          var amountH = GetHeader("Amount"); if (!string.IsNullOrEmpty(amountH)) numericKeys.Add(amountH);
-          var qtyH = GetHeader("Quantity"); if (!string.IsNullOrEmpty(qtyH)) numericKeys.Add(qtyH);
+          var feesH = GetHeader("Fees"); if (!string.IsNullOrEmpty(feesH)) numericKeys.Add(feesH);
+
+          var assetH = GetHeader("AssetTitle");
 
           var grouped = new Dictionary<string, Dictionary<string, object?>>();
 
           foreach (var row in allDataRows)
           {
-            var keyParts = headers.Where(h => !numericKeys.Contains(h))
-                                 .Select(h => row.GetValueOrDefault(h)?.ToString() ?? "");
-            var groupKey = string.Join("|", keyParts);
+            string groupKey;
+
+            if (!string.IsNullOrEmpty(assetH) && row.ContainsKey(assetH))
+            {
+              // Group strictly by Asset Name if mapped
+              var val = row[assetH]?.ToString()?.Trim() ?? "";
+              groupKey = val.ToLowerInvariant(); // case-insensitive grouping
+            }
+            else
+            {
+              // Fallback: Group by all non-numeric keys (exact row match)
+              var keyParts = headers.Where(h => !numericKeys.Contains(h))
+                                   .Select(h => row.GetValueOrDefault(h)?.ToString() ?? "");
+              groupKey = string.Join("|", keyParts);
+            }
 
             if (!grouped.TryGetValue(groupKey, out var aggRow))
             {
