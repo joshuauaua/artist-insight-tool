@@ -16,6 +16,26 @@ public class RevenueController : ControllerBase
     _context = context;
   }
 
+  [HttpGet("find")]
+  public async Task<ActionResult<RevenueEntry>> FindRevenueEntry(
+      [FromQuery] int year,
+      [FromQuery] string quarter,
+      [FromQuery] int sourceId)
+  {
+    var entry = await _context.RevenueEntries
+        .Include(r => r.Artist)
+        .Include(r => r.Source)
+        .Include(r => r.ImportTemplate)
+        .FirstOrDefaultAsync(r => r.SourceId == sourceId && r.Year == year && r.Quarter == quarter);
+
+    if (entry == null)
+    {
+      return NotFound();
+    }
+
+    return entry;
+  }
+
   [HttpGet("entries")]
   public async Task<ActionResult<IEnumerable<RevenueEntryDto>>> GetRevenueEntries()
   {

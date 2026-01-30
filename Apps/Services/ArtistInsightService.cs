@@ -112,6 +112,17 @@ public class ArtistInsightService
     }
   }
 
+  public async Task<RevenueEntry?> FindRevenueEntryAsync(int year, string quarter, int sourceId)
+  {
+    return await _httpClient.GetFromJsonAsync<RevenueEntry>($"{BaseUrl}/Revenue/find?year={year}&quarter={quarter}&sourceId={sourceId}");
+  }
+
+  public async Task<bool> UpdateRevenueEntryAsync(RevenueEntry entry)
+  {
+    var response = await _httpClient.PutAsJsonAsync($"{BaseUrl}/Revenue/{entry.Id}", entry);
+    return response.IsSuccessStatusCode;
+  }
+
   public async Task<bool> UpdateRevenueEntryAsync(int id, RevenueEntry entry)
   {
     try

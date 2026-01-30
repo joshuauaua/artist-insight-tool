@@ -26,6 +26,7 @@ public class ImportConfirmationSheet(List<CurrentFile> files, Action onSuccess, 
     // --- Smart Naming State ---
     var uploadYear = UseState(DateTime.Now.Year);
     var uploadQuarter = UseState("Q1");
+    var duplicateError = UseState((string?)null);
 
     // Auto-name file based on selection
     UseEffect(() =>
@@ -58,6 +59,7 @@ public class ImportConfirmationSheet(List<CurrentFile> files, Action onSuccess, 
 
            await using var db = factory.CreateDbContext();
 
+           int filesImported = 0;
            foreach (var file in _files)
            {
              try
@@ -91,18 +93,6 @@ public class ImportConfirmationSheet(List<CurrentFile> files, Action onSuccess, 
                  ["Rows"] = jsonData
                };
 
-               var entry = new RevenueEntry
-               {
-                 RevenueDate = DateTime.Now,
-                 Description = $"{uploadName.Value} - {file.OriginalName}",
-                 Amount = 0,
-                 SourceId = source.Id,
-                 ArtistId = artist.Id,
-                 CreatedAt = DateTime.UtcNow,
-                 UpdatedAt = DateTime.UtcNow,
-                 JsonData = JsonSerializer.Serialize(new[] { sheetData })
-               };
-
                var tmpl = file.MatchedTemplate!;
                var mappings = tmpl.GetMappings();
                string? GetHeader(string systemField) => mappings.FirstOrDefault(x => x.Value == systemField).Key;
@@ -119,20 +109,83 @@ public class ImportConfirmationSheet(List<CurrentFile> files, Action onSuccess, 
                      totalAmount += d;
                  }
                }
-               entry.Amount = totalAmount;
 
-               entry.Year = uploadYear.Value;
-               entry.Quarter = uploadQuarter.Value;
-               entry.ImportTemplateId = tmpl.Id;
-               entry.FileName = file.OriginalName;
+               // Check for existing entry
+               var existingEntry = await service.FindRevenueEntryAsync(uploadYear.Value, uploadQuarter.Value, source.Id);
+               RevenueEntry entry;
 
-               var result = await service.CreateRevenueEntryAsync(entry);
-               if (result != null)
+               if (existingEntry != null)
                {
-                 entry.Id = result.Id;
-                 // Attach to prevent duplicate insertion attempt by EF Core when adding AssetRevenue
+                 entry = existingEntry;
+                 // Merge Data
+                 var currentData = new List<Dictionary<string, object?>>();
+                 if (!string.IsNullOrEmpty(entry.JsonData))
+                 {
+                   try { currentData = JsonSerializer.Deserialize<List<Dictionary<string, object?>>>(entry.JsonData) ?? []; } catch { }
+                 }
+
+                 // Check if any existing data block has the same TemplateName
+                 bool isDuplicate = currentData.Any(d =>
+                 {
+                   if (d.TryGetValue("TemplateName", out var tName) && tName != null)
+                   {
+                     string? sName = tName is JsonElement je ? je.ToString() : tName.ToString();
+                     return sName == tmpl.Name;
+                   }
+                   return false;
+                 });
+
+                 if (isDuplicate)
+                 {
+                   duplicateError.Set($"Duplicate detected: Data for '{tmpl.Name}' already exists for {uploadYear.Value} {uploadQuarter.Value} - {source.DescriptionText}. Skipping import.");
+                   continue;
+                 }
+
+                 currentData.Add(sheetData);
+
+                 entry.JsonData = JsonSerializer.Serialize(currentData);
+                 entry.Amount += totalAmount; // Add to existing total
+                 entry.Description += $", {file.OriginalName}"; // Append description
+
+                 await service.UpdateRevenueEntryAsync(entry);
+
+                 // Attach to local context
                  db.Attach(entry);
                  db.Entry(entry).State = EntityState.Unchanged;
+                 filesImported++;
+               }
+               else
+               {
+                 // Create New
+                 entry = new RevenueEntry
+                 {
+                   RevenueDate = DateTime.Now,
+                   Description = $"{uploadName.Value} - {file.OriginalName}",
+                   Amount = totalAmount,
+                   SourceId = source.Id,
+                   ArtistId = artist.Id,
+                   CreatedAt = DateTime.UtcNow,
+                   UpdatedAt = DateTime.UtcNow,
+                   JsonData = JsonSerializer.Serialize(new[] { sheetData }),
+                   Year = uploadYear.Value,
+                   Quarter = uploadQuarter.Value,
+                   ImportTemplateId = tmpl.Id,
+                   FileName = file.OriginalName
+                 };
+
+                 var result = await service.CreateRevenueEntryAsync(entry);
+                 if (result != null)
+                 {
+                   entry.Id = result.Id;
+                   db.Attach(entry);
+                   db.Entry(entry).State = EntityState.Unchanged;
+                   filesImported++;
+                 }
+                 else
+                 {
+                   client.Toast($"Failed to create entry for {file.OriginalName}", "Error");
+                   continue;
+                 }
                }
 
                // Asset Logic
@@ -211,7 +264,14 @@ public class ImportConfirmationSheet(List<CurrentFile> files, Action onSuccess, 
 
 
            await db.SaveChangesAsync();
-           client.Toast($"Imported {_files.Count} files", "Success");
+           if (filesImported > 0)
+           {
+             client.Toast($"Imported {filesImported} files", "Success");
+           }
+           else if (duplicateError.Value == null)
+           {
+             client.Toast("No files imported", "Warning");
+           }
            queryService.RevalidateByTag("revenue_entries");
            queryService.RevalidateByTag("assets");
            queryService.RevalidateByTag("dashboard_total_revenue");
@@ -219,6 +279,12 @@ public class ImportConfirmationSheet(List<CurrentFile> files, Action onSuccess, 
            queryService.RevalidateByTag("uploads_list");
            queryService.RevalidateByTag("templates_list");
            _onSuccess();
-         }).Variant(ButtonVariant.Primary).Width(Size.Full()).WithConfetti(AnimationTrigger.Click));
+         }).Variant(ButtonVariant.Primary).Width(Size.Full()).WithConfetti(AnimationTrigger.Click))
+         .Add(duplicateError.Value != null ? new Dialog(
+             _ => duplicateError.Set((string?)null),
+             new DialogHeader("Duplicate Detected"),
+             new DialogBody(Text.Label(duplicateError.Value).Color(Colors.Red)),
+             new DialogFooter(new Button("OK", () => duplicateError.Set((string?)null)).Variant(ButtonVariant.Primary))
+         ) : null);
   }
 }
