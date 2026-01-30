@@ -197,15 +197,12 @@ public class RevenueTableView : ViewBase
         : new HeaderLayout(headerCard, visualContent);
 
     var floatingPanel = new FloatingPanel(
-        new Card(
-            Layout.Horizontal().Gap(0).Padding(5)
-                .Add(new Button(viewMode.Value == "Table" ? "Visual View" : "Table View", () =>
-                {
-                  viewMode.Set(viewMode.Value == "Table" ? "Visual" : "Table");
-                }).Variant(ButtonVariant.Ghost).Icon(viewMode.Value == "Table" ? Icons.ChartPie : Icons.Table))
-        ),
+        new Button(viewMode.Value == "Table" ? "Visual View" : "Table View", () =>
+        {
+          viewMode.Set(viewMode.Value == "Table" ? "Visual" : "Table");
+        }).Variant(ButtonVariant.Ghost).Icon(viewMode.Value == "Table" ? Icons.ChartPie : Icons.Table),
         Align.BottomCenter
-    ).Offset(new Thickness(0, 0, 0, 30));
+    ).Offset(new Thickness(0, 0, 0, 10));
 
     return new Fragment(
         mainView,

@@ -51,7 +51,7 @@ public class DashboardApp : ViewBase
     // View Modes (0 = Table, 1 = Visual)
     var assetsViewMode = UseState(0);
     var revenueViewMode = UseState(0);
-    var showViewPanel = UseState(false);
+
 
     // Kanban State
     var overviewCards = UseState(new List<CardState>
@@ -179,8 +179,8 @@ public class DashboardApp : ViewBase
       body.Add(selectedTab.Value switch
       {
         0 => RenderOverview(showImportSheet, overviewCards, assets, totalRevenue, revenueEntries, selectedDialog, widgetType, widgetTarget, addWidgetCardId, showActionPanel, focalCardId),
-        1 => RenderAssets(assets, globalSearch, selectedDialog, assetsQuery, service, selectedCategory, categories, revenueEntries, assetsViewMode, showViewPanel),
-        2 => RenderRevenue(revenueEntries, globalSearch, selectedDialog, revenueQuery, revenueViewMode, showViewPanel),
+        1 => RenderAssets(assets, globalSearch, selectedDialog, assetsQuery, service, selectedCategory, categories, revenueEntries, assetsViewMode),
+        2 => RenderRevenue(revenueEntries, globalSearch, selectedDialog, revenueQuery, revenueViewMode),
         3 => RenderUploads(revenueEntries, globalSearch, selectedDialog, revenueQuery, service),
         4 => RenderTemplates(templatesData, globalSearch, selectedDialog, tmplQuery, service, client),
         _ => RenderOverview(showImportSheet, overviewCards, assets, totalRevenue, revenueEntries, selectedDialog, widgetType, widgetTarget, addWidgetCardId, showActionPanel, focalCardId)
@@ -210,13 +210,7 @@ public class DashboardApp : ViewBase
                 .Icon(Icons.Plus)
                 .Primary()
                 .BorderRadius(BorderRadius.Full))
-            .Add(new Button("Edit", () =>
-            {
-              // For now, toggle some edit mode or just log
-            })
-                .Icon(Icons.Pen)
-                .Secondary()
-                .BorderRadius(BorderRadius.Full))
+
             .Add(new Button("Delete", () =>
             {
               if (focalCardId != null)
@@ -239,12 +233,12 @@ public class DashboardApp : ViewBase
                 .Variant(ButtonVariant.Ghost)
                 .BorderRadius(BorderRadius.Full))
     , Align.BottomCenter)
-        .Offset(new Thickness(0, 0, 0, 20)) : new FloatingPanel(
+        .Offset(new Thickness(0, 0, 0, 10)) : new FloatingPanel(
             new Button("Show Panel", () => showActionPanel.Set(true))
                 .Icon(Icons.Settings)
                 .Secondary()
                 .BorderRadius(BorderRadius.Full)
-        , Align.BottomCenter).Offset(new Thickness(0, 0, 0, 20))) : null;
+        , Align.BottomCenter).Offset(new Thickness(0, 0, 0, 10))) : null;
 
     return new Fragment(mainView, modal, actionPanel);
   }
@@ -438,7 +432,7 @@ public class DashboardApp : ViewBase
     .BorderColor(Colors.Primary);
   }
 
-  private object RenderRevenue(List<RevenueEntryDto> entries, IState<string> search, IState<object?> dialog, dynamic query, IState<int> revenueViewMode, IState<bool> showViewPanel)
+  private object RenderRevenue(List<RevenueEntryDto> entries, IState<string> search, IState<object?> dialog, dynamic query, IState<int> revenueViewMode)
   {
     var content = revenueViewMode.Value == 1
       ? Layout.Vertical().Gap(20)
@@ -462,31 +456,17 @@ public class DashboardApp : ViewBase
             r.Source ?? "Unknown", r.Integration ?? "Manual", r.Amount.ToString("C", CultureInfo.GetCultureInfo("sv-SE"))
         )).Take(100).ToArray().ToTable().Width(Size.Full()).Add(x => x.Id).Add(x => x.Date).Add(x => x.Name).Add(x => x.Type).Add(x => x.Source).Add(x => x.Amount));
 
-    var viewPanel = showViewPanel.Value ? new FloatingPanel(
-        Layout.Horizontal().Gap(2)
-            .Add(new Button("Visual", () => revenueViewMode.Set(1))
-                .Icon(Icons.ChartPie)
-                .Variant(revenueViewMode.Value == 1 ? ButtonVariant.Primary : ButtonVariant.Secondary)
-                .BorderRadius(BorderRadius.Full))
-            .Add(new Button("Table", () => revenueViewMode.Set(0))
-                .Icon(Icons.List)
-                .Variant(revenueViewMode.Value == 0 ? ButtonVariant.Primary : ButtonVariant.Secondary)
-                .BorderRadius(BorderRadius.Full))
-            .Add(new Button("", () => showViewPanel.Set(false))
-                .Icon(Icons.X)
-                .Variant(ButtonVariant.Ghost)
-                .BorderRadius(BorderRadius.Full))
-    , Align.BottomCenter).Offset(new Thickness(0, 0, 0, 20)) : new FloatingPanel(
-        new Button("View", () => showViewPanel.Set(true))
-            .Icon(Icons.Eye)
+    var viewPanel = new FloatingPanel(
+        new Button(revenueViewMode.Value == 0 ? "Visual View" : "Table View", () => revenueViewMode.Set(revenueViewMode.Value == 0 ? 1 : 0))
+            .Icon(revenueViewMode.Value == 0 ? Icons.ChartPie : Icons.List)
             .Secondary()
             .BorderRadius(BorderRadius.Full)
-    , Align.BottomCenter).Offset(new Thickness(0, 0, 0, 20));
+    , Align.BottomCenter).Offset(new Thickness(0, 0, 0, 10));
 
     return new Fragment(content, viewPanel);
   }
 
-  private object RenderAssets(List<Asset> assets, IState<string> search, IState<object?> dialog, dynamic query, ArtistInsightService service, IState<string> selectedCategory, List<string> categories, List<RevenueEntryDto> revenueEntries, IState<int> assetsViewMode, IState<bool> showViewPanel)
+  private object RenderAssets(List<Asset> assets, IState<string> search, IState<object?> dialog, dynamic query, ArtistInsightService service, IState<string> selectedCategory, List<string> categories, List<RevenueEntryDto> revenueEntries, IState<int> assetsViewMode)
   {
     var filtered = assets.Where(a => string.IsNullOrWhiteSpace(search.Value) || a.Name.Contains(search.Value, StringComparison.OrdinalIgnoreCase)).ToList();
 
@@ -536,26 +516,12 @@ public class DashboardApp : ViewBase
             )).Take(100).ToArray().ToTable().Width(Size.Full()).Add(x => x.Id).Add(x => x.Name).Add(x => x.Category).Add(x => x.Type).Add(x => x.Amount).Add(x => x.Actions).Header(x => x.Id, "ID").Header(x => x.Actions, ""))
         );
 
-    var viewPanel = showViewPanel.Value ? new FloatingPanel(
-        Layout.Horizontal().Gap(2)
-            .Add(new Button("Visual", () => assetsViewMode.Set(1))
-                .Icon(Icons.ChartPie)
-                .Variant(assetsViewMode.Value == 1 ? ButtonVariant.Primary : ButtonVariant.Secondary)
-                .BorderRadius(BorderRadius.Full))
-            .Add(new Button("Table", () => assetsViewMode.Set(0))
-                .Icon(Icons.List)
-                .Variant(assetsViewMode.Value == 0 ? ButtonVariant.Primary : ButtonVariant.Secondary)
-                .BorderRadius(BorderRadius.Full))
-            .Add(new Button("", () => showViewPanel.Set(false))
-                .Icon(Icons.X)
-                .Variant(ButtonVariant.Ghost)
-                .BorderRadius(BorderRadius.Full))
-    , Align.BottomCenter).Offset(new Thickness(0, 0, 0, 20)) : new FloatingPanel(
-        new Button("View", () => showViewPanel.Set(true))
-            .Icon(Icons.Eye)
+    var viewPanel = new FloatingPanel(
+        new Button(assetsViewMode.Value == 0 ? "Visual View" : "Table View", () => assetsViewMode.Set(assetsViewMode.Value == 0 ? 1 : 0))
+            .Icon(assetsViewMode.Value == 0 ? Icons.ChartPie : Icons.List)
             .Secondary()
             .BorderRadius(BorderRadius.Full)
-    , Align.BottomCenter).Offset(new Thickness(0, 0, 0, 20));
+    , Align.BottomCenter).Offset(new Thickness(0, 0, 0, 10));
 
     return new Fragment(content, viewPanel);
   }
