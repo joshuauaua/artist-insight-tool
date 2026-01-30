@@ -179,8 +179,8 @@ public class DashboardApp : ViewBase
       body.Add(selectedTab.Value switch
       {
         0 => RenderOverview(showImportSheet, overviewCards, assets, totalRevenue, revenueEntries, selectedDialog, widgetType, widgetTarget, addWidgetCardId, showActionPanel, focalCardId),
-        1 => RenderAssets(assets, globalSearch, selectedDialog, assetsQuery, service, selectedCategory, categories, revenueEntries, assetsViewMode),
-        2 => RenderRevenue(revenueEntries, globalSearch, selectedDialog, revenueQuery, revenueViewMode),
+        1 => RenderAssets(assets, globalSearch, selectedDialog, assetsQuery, service),
+        2 => RenderRevenue(revenueEntries, globalSearch, selectedDialog, revenueQuery, revenueViewMode, assets, selectedCategory, categories),
         3 => RenderUploads(revenueEntries, globalSearch, selectedDialog, revenueQuery, service),
         4 => RenderTemplates(templatesData, globalSearch, selectedDialog, tmplQuery, service, client),
         _ => RenderOverview(showImportSheet, overviewCards, assets, totalRevenue, revenueEntries, selectedDialog, widgetType, widgetTarget, addWidgetCardId, showActionPanel, focalCardId)
@@ -310,6 +310,7 @@ public class DashboardApp : ViewBase
             5 => new TargetedRevenueMetricView(c.Target ?? 0),
             6 => new AssetPieChartView(c.CategoryFilter ?? "All"),
             7 => new TopSellingAssetsView(),
+            8 => new StoreSalesView(),
             _ => (object)Layout.Center().Add(Text.Label("Unknown Card Type"))
           };
 
@@ -433,8 +434,19 @@ public class DashboardApp : ViewBase
     .BorderColor(Colors.Primary);
   }
 
-  private object RenderRevenue(List<RevenueEntryDto> entries, IState<string> search, IState<object?> dialog, dynamic query, IState<int> revenueViewMode)
+  private object RenderRevenue(List<RevenueEntryDto> entries, IState<string> search, IState<object?> dialog, dynamic query, IState<int> revenueViewMode, List<Asset> assets, IState<string> selectedCategory, List<string> categories)
   {
+    // Line Chart Logic (Moved from RenderAssets)
+    var chartData = entries
+        .GroupBy(e => new { e.RevenueDate.Year, e.RevenueDate.Month })
+        .Select(g => new
+        {
+          Month = new DateTime(g.Key.Year, g.Key.Month, 1).ToString("MMM yyyy"),
+          Revenue = (double)g.Sum(e => e.Amount)
+        })
+        .OrderBy(x => DateTime.ParseExact(x.Month, "MMM yyyy", CultureInfo.InvariantCulture))
+        .ToArray();
+
     var content = revenueViewMode.Value == 1
       ? Layout.Vertical().Gap(20)
         .Add(new Card(
@@ -449,6 +461,25 @@ public class DashboardApp : ViewBase
                     )
                 )
         ).Width(Size.Full()))
+        // Moved Widgets
+        .Add(Layout.Horizontal().Gap(20).Width(Size.Full())
+            .Add(Layout.Vertical().Width(Size.Fraction(0.5f))
+                .Add(RenderAnalyticsCard(assets, selectedCategory, categories))
+            )
+            .Add(Layout.Vertical().Width(Size.Fraction(0.5f))
+                .Add(new Card(
+                     Layout.Vertical().Gap(10)
+                        .Add(Text.H4("Revenue History"))
+                        .Add(Layout.Vertical().Height(Size.Units(200))
+                            .Add(chartData.ToLineChart(style: LineChartStyles.Dashboard)
+                                .Dimension("Month", e => e.Month)
+                                .Measure("Revenue", e => e.Sum(f => f.Revenue))
+                                .Toolbox()
+                            )
+                        )
+                ).Width(Size.Full()).BorderStyle(BorderStyle.Dashed).BorderColor(Colors.Primary))
+            )
+        )
       : Layout.Vertical().Gap(20)
         .Add((entries.Any() ? entries : new List<RevenueEntryDto> { new RevenueEntryDto(0, DateTime.Now, 0, "Example Entry", "Example Source", "Note: This is an example to show table layout.", "Artist Name", "Template Name", "{}", DateTime.Now, 2024, "Q1") })
         .Where(e => string.IsNullOrWhiteSpace(search.Value) || (e.Description ?? "").Contains(search.Value, StringComparison.OrdinalIgnoreCase)).Select(r => new RevenueRow(
@@ -468,43 +499,11 @@ public class DashboardApp : ViewBase
     return new Fragment(content, viewPanel);
   }
 
-  private object RenderAssets(List<Asset> assets, IState<string> search, IState<object?> dialog, dynamic query, ArtistInsightService service, IState<string> selectedCategory, List<string> categories, List<RevenueEntryDto> revenueEntries, IState<int> assetsViewMode)
+  private object RenderAssets(List<Asset> assets, IState<string> search, IState<object?> dialog, dynamic query, ArtistInsightService service)
   {
     var filtered = assets.Where(a => string.IsNullOrWhiteSpace(search.Value) || a.Name.Contains(search.Value, StringComparison.OrdinalIgnoreCase)).ToList();
 
-    // Line Chart Logic
-    var chartData = revenueEntries
-        .GroupBy(e => new { e.RevenueDate.Year, e.RevenueDate.Month })
-        .Select(g => new
-        {
-          Month = new DateTime(g.Key.Year, g.Key.Month, 1).ToString("MMM yyyy"),
-          Revenue = (double)g.Sum(e => e.Amount)
-        })
-        .OrderBy(x => DateTime.ParseExact(x.Month, "MMM yyyy", CultureInfo.InvariantCulture))
-        .ToArray();
-
-    var content = assetsViewMode.Value == 1
-      ? Layout.Vertical().Gap(20)
-        // 2. Side-by-side widgets below
-        .Add(Layout.Horizontal().Gap(20).Width(Size.Full())
-            .Add(Layout.Vertical().Width(Size.Fraction(0.5f))
-                .Add(RenderAnalyticsCard(assets, selectedCategory, categories))
-            )
-            .Add(Layout.Vertical().Width(Size.Fraction(0.5f))
-                .Add(new Card(
-                     Layout.Vertical().Gap(10)
-                        .Add(Text.H4("Revenue History"))
-                        .Add(Layout.Vertical().Height(Size.Units(200)) // Adjusted height for side-by-side
-                            .Add(chartData.ToLineChart(style: LineChartStyles.Dashboard)
-                                .Dimension("Month", e => e.Month)
-                                .Measure("Revenue", e => e.Sum(f => f.Revenue))
-                                .Toolbox()
-                            )
-                        )
-                ).Width(Size.Full()).BorderStyle(BorderStyle.Dashed).BorderColor(Colors.Primary))
-            )
-        )
-      : Layout.Vertical().Gap(20)
+    return Layout.Vertical().Gap(20)
         // 1. Search and Table at the top
         .Add(Layout.Vertical().Gap(10)
             .Add(Layout.Horizontal().Align(Align.Center)
@@ -517,15 +516,6 @@ public class DashboardApp : ViewBase
                 new Button("", () => dialog.Set(new Dialog(_ => { dialog.Set((object?)null); return ValueTask.CompletedTask; }, new DialogHeader("Delete Asset"), new DialogBody(Text.Label($"Delete {a.Name}?")), new DialogFooter(new Button("Cancel", () => dialog.Set((object?)null)), new Button("Delete", async () => { await service.DeleteAssetAsync(a.Id); dialog.Set((object?)null); query.Mutator.Revalidate(); }).Variant(ButtonVariant.Destructive))))).Icon(Icons.Trash).Variant(ButtonVariant.Ghost)
             )).Take(100).ToArray().ToTable().Width(Size.Full()).Add(x => x.Id).Add(x => x.Name).Add(x => x.Category).Add(x => x.Type).Add(x => x.Amount).Add(x => x.Actions).Header(x => x.Id, "ID").Header(x => x.Actions, ""))
         );
-
-    var viewPanel = new FloatingPanel(
-        new Button(assetsViewMode.Value == 0 ? "Visual View" : "Table View", () => assetsViewMode.Set(assetsViewMode.Value == 0 ? 1 : 0))
-            .Icon(assetsViewMode.Value == 0 ? Icons.ChartPie : Icons.List)
-            .Secondary()
-            .BorderRadius(BorderRadius.Full)
-    , Align.BottomCenter).Offset(new Thickness(0, 0, 0, 10));
-
-    return new Fragment(content, viewPanel);
   }
 
   private object RenderUploads(List<RevenueEntryDto> entries, IState<string> search, IState<object?> dialog, dynamic query, ArtistInsightService service)
@@ -592,7 +582,8 @@ public class DashboardApp : ViewBase
         new("Total Revenue", 2),
         new("Total Data Imports", 3),
         new("Metric View: Targeted Revenue", 5),
-        new("Pie Chart: Top Selling Assets", 7)
+        new("Pie Chart: Top Selling Assets", 7),
+        new("Bar Chart: Sales by Store", 8)
     };
 
     return new Dialog(
@@ -606,7 +597,7 @@ public class DashboardApp : ViewBase
             new Button("Cancel", () => { addWidgetCardId.Set((string?)null); widgetType.Set((int?)null); }).Variant(ButtonVariant.Ghost),
             new Button("Continue", () =>
             {
-              if (widgetType.Value == 1 || widgetType.Value == 2 || widgetType.Value == 3 || widgetType.Value == 4 || widgetType.Value == 7)
+              if (widgetType.Value == 1 || widgetType.Value == 2 || widgetType.Value == 3 || widgetType.Value == 4 || widgetType.Value == 7 || widgetType.Value == 8)
               {
                 var title = widgetType.Value switch
                 {
@@ -615,6 +606,7 @@ public class DashboardApp : ViewBase
                   2 => "Total Revenue",
                   3 => "Total Data Imports",
                   7 => "Top Selling Assets",
+                  8 => "Sales by Store",
                   _ => "New Card"
                 };
                 var list = cardStates.Value.ToList();

@@ -262,7 +262,11 @@ public class ArtistInsightService
 
   public async Task<List<PieChartSegmentDto>> GetRevenueBySourceAsync(DateTime from, DateTime to)
   {
-    try { return await _httpClient.GetFromJsonAsync<List<PieChartSegmentDto>>($"{BaseUrl}/Dashboard/charts/revenue-by-source{DateParams(from, to)}") ?? []; }
+    try
+    {
+      var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+      return await _httpClient.GetFromJsonAsync<List<PieChartSegmentDto>>($"{BaseUrl}/Dashboard/charts/revenue-by-source{DateParams(from, to)}", options) ?? [];
+    }
     catch { return []; }
   }
 

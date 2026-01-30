@@ -64,4 +64,29 @@ public class DashboardController : ControllerBase
       return StatusCode(500, ex.Message);
     }
   }
+
+  [HttpGet("charts/revenue-by-source")]
+  public async Task<ActionResult<IEnumerable<PieChartSegmentDto>>> GetRevenueBySource([FromQuery] DateTime from, [FromQuery] DateTime to)
+  {
+    try
+    {
+      var data = await _context.RevenueEntries
+          .Include(r => r.Source)
+          .Where(r => r.RevenueDate >= from && r.RevenueDate <= to)
+          .GroupBy(r => r.Source.DescriptionText)
+          .Select(g => new
+          {
+            Label = g.Key,
+            Value = g.Sum(x => x.Amount)
+          })
+          .OrderByDescending(x => x.Value)
+          .ToListAsync();
+
+      return data.Select(x => new PieChartSegmentDto(x.Label ?? "Unknown", (double)x.Value)).ToList();
+    }
+    catch (Exception ex)
+    {
+      return StatusCode(500, ex.Message);
+    }
+  }
 }
