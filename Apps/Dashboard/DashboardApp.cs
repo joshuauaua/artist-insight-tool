@@ -48,6 +48,11 @@ public class DashboardApp : ViewBase
     var configWidgetCardId = UseState<string?>(() => null);
     var configPieChartCardId = UseState<string?>(() => null);
 
+    // View Modes (0 = Table, 1 = Visual)
+    var assetsViewMode = UseState(0);
+    var revenueViewMode = UseState(0);
+    var showViewPanel = UseState(false);
+
     // Kanban State
     var overviewCards = UseState(new List<CardState>
     {
@@ -175,8 +180,8 @@ public class DashboardApp : ViewBase
       body.Add(selectedTab.Value switch
       {
         0 => RenderOverview(showImportSheet, overviewCards, assets, totalRevenue, revenueEntries, selectedDialog, widgetType, widgetTarget, addWidgetCardId, showActionPanel, focalCardId),
-        1 => RenderAssets(assets, globalSearch, selectedDialog, assetsQuery, service, selectedCategory, categories, revenueEntries),
-        2 => RenderRevenue(revenueEntries, globalSearch, selectedDialog, revenueQuery),
+        1 => RenderAssets(assets, globalSearch, selectedDialog, assetsQuery, service, selectedCategory, categories, revenueEntries, assetsViewMode, showViewPanel),
+        2 => RenderRevenue(revenueEntries, globalSearch, selectedDialog, revenueQuery, revenueViewMode, showViewPanel),
         3 => RenderUploads(revenueEntries, globalSearch, selectedDialog, revenueQuery, service),
         4 => RenderTemplates(templatesData, globalSearch, selectedDialog, tmplQuery, service, client),
         _ => RenderOverview(showImportSheet, overviewCards, assets, totalRevenue, revenueEntries, selectedDialog, widgetType, widgetTarget, addWidgetCardId, showActionPanel, focalCardId)
@@ -201,8 +206,7 @@ public class DashboardApp : ViewBase
         Layout.Horizontal().Gap(2)
             .Add(new Button("New", () =>
             {
-              var placeholder = overviewCards.Value.FirstOrDefault(x => x.Type == 4);
-              if (placeholder != null) addWidgetCardId.Set(placeholder.Id);
+              addWidgetCardId.Set("NEW_CARD");
             })
                 .Icon(Icons.Plus)
                 .Primary()
@@ -436,65 +440,54 @@ public class DashboardApp : ViewBase
   }
 
 
-  private object RenderRevenue(List<RevenueEntryDto> entries, IState<string> search, IState<object?> dialog, dynamic query)
-  {
-    var filtered = entries.Where(e => string.IsNullOrWhiteSpace(search.Value) || (e.Description ?? "").Contains(search.Value, StringComparison.OrdinalIgnoreCase)).ToList();
+  var content = revenueViewMode.Value == 1
+    ? Layout.Vertical().Gap(20)
+      .Add(new Card(
+           Layout.Horizontal().Align(Align.Center).Gap(15)
+              .Add(new Icon(Icons.DollarSign).Size(24))
+              .Add(Layout.Vertical().Gap(5)
+                  .Add(Text.Label("Total Revenue").Small())
+                  .Add(Text.H3(totalAmount.ToString("C", CultureInfo.GetCultureInfo("sv-SE"))))
+                  .Add(Layout.Horizontal().Gap(5).Align(Align.Center)
+                      .Add(Text.Label($"{percentage:F0}% of Goal").Color(Colors.Green))
+                      .Add(Text.Label($"Target: {target.ToString("C0", CultureInfo.GetCultureInfo("sv-SE"))}").Small())
+                  )
+              )
+      ).Width(Size.Full()))
+    : Layout.Vertical().Gap(20)
+      .Add(filtered.Select(r => new RevenueRow(
+          new Button($"E{r.Id:D3}", () => dialog.Set(new RevenueViewSheet(r.Id, () => dialog.Set((object?)null), () => dialog.Set(new RevenueEditSheet(r.Id, () => dialog.Set((object?)null)))))).Variant(ButtonVariant.Ghost),
+          r.RevenueDate.ToShortDateString(),
+          r.Description ?? "-",
+          r.Source ?? "Unknown", r.Integration ?? "Manual", r.Amount.ToString("C", CultureInfo.GetCultureInfo("sv-SE"))
+      )).Take(100).ToArray().ToTable().Width(Size.Full()).Add(x => x.Id).Add(x => x.Date).Add(x => x.Name).Add(x => x.Type).Add(x => x.Source).Add(x => x.Amount));
 
-    // Calculate metrics
-    var totalAmount = entries.Sum(e => e.Amount); // Metric "Revenue"
-    var target = 1000m;
-    var progress = target > 0 ? (double)(totalAmount / target) : 0;
-    var percentage = progress * 100;
+  var viewPanel = showViewPanel.Value ? new FloatingPanel(
+      Layout.Horizontal().Gap(2)
+          .Add(new Button("Visual", () => revenueViewMode.Set(1))
+              .Icon(Icons.ChartPie)
+              .Variant(revenueViewMode.Value == 1 ? ButtonVariant.Primary : ButtonVariant.Secondary)
+              .BorderRadius(BorderRadius.Full))
+          .Add(new Button("Table", () => revenueViewMode.Set(0))
+              .Icon(Icons.List)
+              .Variant(revenueViewMode.Value == 0 ? ButtonVariant.Primary : ButtonVariant.Secondary)
+              .BorderRadius(BorderRadius.Full))
+          .Add(new Button("", () => showViewPanel.Set(false))
+              .Icon(Icons.X)
+              .Variant(ButtonVariant.Ghost)
+              .BorderRadius(BorderRadius.Full))
+  , Align.BottomCenter).Offset(new Thickness(0, 0, 0, 20)) : new FloatingPanel(
+      new Button("View", () => showViewPanel.Set(true))
+          .Icon(Icons.Eye)
+          .Secondary()
+          .BorderRadius(BorderRadius.Full)
+  , Align.BottomCenter).Offset(new Thickness(0, 0, 0, 20));
 
-    return Layout.Vertical().Gap(20)
-        .Add(new Card(
-             Layout.Horizontal().Align(Align.Center).Gap(15)
-                .Add(new Icon(Icons.DollarSign).Size(24))
-                .Add(Layout.Vertical().Gap(5)
-                    .Add(Text.Label("Total Revenue").Small())
-                    .Add(Text.H3(totalAmount.ToString("C", CultureInfo.GetCultureInfo("sv-SE"))))
-                    .Add(Layout.Horizontal().Gap(5).Align(Align.Center)
-                        .Add(Text.Label($"{percentage:F0}% of Goal").Color(Colors.Green))
-                        .Add(Text.Label($"Target: {target.ToString("C0", CultureInfo.GetCultureInfo("sv-SE"))}").Small())
-                    )
-                )
-        ).Width(Size.Full()))
-        .Add(filtered.Select(r => new RevenueRow(
-            new Button($"E{r.Id:D3}", () => dialog.Set(new RevenueViewSheet(r.Id, () => dialog.Set((object?)null), () => dialog.Set(new RevenueEditSheet(r.Id, () => dialog.Set((object?)null)))))).Variant(ButtonVariant.Ghost),
-            r.RevenueDate.ToShortDateString(),
-            r.Description ?? "-",
-            r.Source ?? "Unknown", r.Integration ?? "Manual", r.Amount.ToString("C", CultureInfo.GetCultureInfo("sv-SE"))
-        )).Take(100).ToArray().ToTable().Width(Size.Full()).Add(x => x.Id).Add(x => x.Date).Add(x => x.Name).Add(x => x.Type).Add(x => x.Source).Add(x => x.Amount));
+    return new Fragment(content, viewPanel);
   }
 
-  private object RenderAssets(List<Asset> assets, IState<string> search, IState<object?> dialog, dynamic query, ArtistInsightService service, IState<string> selectedCategory, List<string> categories, List<RevenueEntryDto> revenueEntries)
-  {
-    var filtered = assets.Where(a => string.IsNullOrWhiteSpace(search.Value) || a.Name.Contains(search.Value, StringComparison.OrdinalIgnoreCase)).ToList();
-
-    // Line Chart Logic
-    var chartData = revenueEntries
-        .GroupBy(e => new { e.RevenueDate.Year, e.RevenueDate.Month })
-        .Select(g => new
-        {
-          Month = new DateTime(g.Key.Year, g.Key.Month, 1).ToString("MMM yyyy"),
-          Revenue = (double)g.Sum(e => e.Amount)
-        })
-        .OrderBy(x => DateTime.ParseExact(x.Month, "MMM yyyy", CultureInfo.InvariantCulture))
-        .ToArray();
-
-    return Layout.Vertical().Gap(20)
-        // 1. Search and Table at the top
-        .Add(Layout.Vertical().Gap(10)
-            .Add(Layout.Horizontal().Align(Align.Center)
-                .Add(search.ToTextInput().Placeholder("Search assets...").Width(300))
-                .Add(new Spacer())
-            )
-            .Add(filtered.Select(a => new AssetRow(
-                new Button($"A{a.Id:D3}", () => dialog.Set(new AssetViewSheet(a.Id, () => { dialog.Set((object?)null); query.Mutator.Revalidate(); }))).Variant(ButtonVariant.Ghost),
-                a.Name, a.Category, a.Type, a.AmountGenerated.ToString("C", CultureInfo.GetCultureInfo("sv-SE")),
-                new Button("", () => dialog.Set(new Dialog(_ => { dialog.Set((object?)null); return ValueTask.CompletedTask; }, new DialogHeader("Delete Asset"), new DialogBody(Text.Label($"Delete {a.Name}?")), new DialogFooter(new Button("Cancel", () => dialog.Set((object?)null)), new Button("Delete", async () => { await service.DeleteAssetAsync(a.Id); dialog.Set((object?)null); query.Mutator.Revalidate(); }).Variant(ButtonVariant.Destructive))))).Icon(Icons.Trash).Variant(ButtonVariant.Ghost)
-            )).Take(100).ToArray().ToTable().Width(Size.Full()).Add(x => x.Id).Add(x => x.Name).Add(x => x.Category).Add(x => x.Type).Add(x => x.Amount).Add(x => x.Actions).Header(x => x.Id, "ID").Header(x => x.Actions, ""))
-        )
+    var content = assetsViewMode.Value == 1
+      ? Layout.Vertical().Gap(20)
         // 2. Side-by-side widgets below
         .Add(Layout.Horizontal().Gap(20).Width(Size.Full())
             .Add(Layout.Vertical().Width(Size.Fraction(0.5f))
@@ -513,114 +506,186 @@ public class DashboardApp : ViewBase
                         )
                 ).Width(Size.Full()).BorderStyle(BorderStyle.Dashed).BorderColor(Colors.Primary))
             )
+        )
+      : Layout.Vertical().Gap(20)
+        // 1. Search and Table at the top
+        .Add(Layout.Vertical().Gap(10)
+            .Add(Layout.Horizontal().Align(Align.Center)
+                .Add(search.ToTextInput().Placeholder("Search assets...").Width(300))
+                .Add(new Spacer())
+            )
+            .Add(filtered.Select(a => new AssetRow(
+                new Button($"A{a.Id:D3}", () => dialog.Set(new AssetViewSheet(a.Id, () => { dialog.Set((object?)null); query.Mutator.Revalidate(); }))).Variant(ButtonVariant.Ghost),
+                a.Name, a.Category, a.Type, a.AmountGenerated.ToString("C", CultureInfo.GetCultureInfo("sv-SE")),
+                new Button("", () => dialog.Set(new Dialog(_ => { dialog.Set((object?)null); return ValueTask.CompletedTask; }, new DialogHeader("Delete Asset"), new DialogBody(Text.Label($"Delete {a.Name}?")), new DialogFooter(new Button("Cancel", () => dialog.Set((object?)null)), new Button("Delete", async () => { await service.DeleteAssetAsync(a.Id); dialog.Set((object?)null); query.Mutator.Revalidate(); }).Variant(ButtonVariant.Destructive))))).Icon(Icons.Trash).Variant(ButtonVariant.Ghost)
+            )).Take(100).ToArray().ToTable().Width(Size.Full()).Add(x => x.Id).Add(x => x.Name).Add(x => x.Category).Add(x => x.Type).Add(x => x.Amount).Add(x => x.Actions).Header(x => x.Id, "ID").Header(x => x.Actions, ""))
         );
-  }
 
-  private object RenderUploads(List<RevenueEntryDto> entries, IState<string> search, IState<object?> dialog, dynamic query, ArtistInsightService service)
+  var viewPanel = showViewPanel.Value ? new FloatingPanel(
+      Layout.Horizontal().Gap(2)
+          .Add(new Button("Visual", () => assetsViewMode.Set(1))
+              .Icon(Icons.ChartPie)
+              .Variant(assetsViewMode.Value == 1 ? ButtonVariant.Primary : ButtonVariant.Secondary)
+              .BorderRadius(BorderRadius.Full))
+          .Add(new Button("Table", () => assetsViewMode.Set(0))
+              .Icon(Icons.List)
+              .Variant(assetsViewMode.Value == 0 ? ButtonVariant.Primary : ButtonVariant.Secondary)
+              .BorderRadius(BorderRadius.Full))
+          .Add(new Button("", () => showViewPanel.Set(false))
+              .Icon(Icons.X)
+              .Variant(ButtonVariant.Ghost)
+              .BorderRadius(BorderRadius.Full))
+  , Align.BottomCenter).Offset(new Thickness(0, 0, 0, 20)) : new FloatingPanel(
+      new Button("View", () => showViewPanel.Set(true))
+          .Icon(Icons.Eye)
+          .Secondary()
+          .BorderRadius(BorderRadius.Full)
+  , Align.BottomCenter).Offset(new Thickness(0, 0, 0, 20));
+
+    return new Fragment(content, viewPanel);
+}
+
+private object RenderUploads(List<RevenueEntryDto> entries, IState<string> search, IState<object?> dialog, dynamic query, ArtistInsightService service)
+{
+  var items = new List<UploadTableItem>();
+  foreach (var e in entries.Where(x => !string.IsNullOrEmpty(x.JsonData)))
   {
-    var items = new List<UploadTableItem>();
-    foreach (var e in entries.Where(x => !string.IsNullOrEmpty(x.JsonData)))
+    try
     {
-      try
-      {
-        using var doc = JsonDocument.Parse(e.JsonData!);
-        var fn = doc.RootElement[0].TryGetProperty("FileName", out var p) ? p.GetString() : null;
-        var period = (e.Year.HasValue && !string.IsNullOrEmpty(e.Quarter)) ? $"{e.Year} {e.Quarter}" : "-";
-        var uploadDate = (e.UploadDate ?? e.RevenueDate).ToShortDateString();
-        items.Add(new UploadTableItem(e.Id, $"DT{e.Id:D3}", fn ?? e.Description ?? "Table", e.ImportTemplateName ?? "-", uploadDate, period));
-      }
-      catch { }
+      using var doc = JsonDocument.Parse(e.JsonData!);
+      var fn = doc.RootElement[0].TryGetProperty("FileName", out var p) ? p.GetString() : null;
+      var period = (e.Year.HasValue && !string.IsNullOrEmpty(e.Quarter)) ? $"{e.Year} {e.Quarter}" : "-";
+      var uploadDate = (e.UploadDate ?? e.RevenueDate).ToShortDateString();
+      items.Add(new UploadTableItem(e.Id, $"DT{e.Id:D3}", fn ?? e.Description ?? "Table", e.ImportTemplateName ?? "-", uploadDate, period));
     }
-    var filtered = items.Where(t => string.IsNullOrWhiteSpace(search.Value) || t.Name.Contains(search.Value, StringComparison.OrdinalIgnoreCase)).ToList();
-    return Layout.Vertical().Gap(20)
-        .Add(filtered.Select(t => new UploadRow(
-            new Button(t.Id, () => dialog.Set(new UploadViewSheet(t.RealId, () => dialog.Set((object?)null)))).Variant(ButtonVariant.Ghost),
-            t.Name,
-            t.Template,
-            t.Period,
-            t.UploadDate,
-            new Button("", () => dialog.Set(new Dialog(_ => { dialog.Set((object?)null); return ValueTask.CompletedTask; }, new DialogHeader("Delete Data"), new DialogBody(Text.Label($"Delete {t.Name}?")), new DialogFooter(new Button("Cancel", () => dialog.Set((object?)null)), new Button("Delete", async () => { await service.DeleteRevenueEntryAsync(t.RealId); dialog.Set((object?)null); query.Mutator.Revalidate(); }).Variant(ButtonVariant.Destructive))))).Icon(Icons.Trash).Variant(ButtonVariant.Ghost)
-        )).Take(100).ToArray().ToTable().Width(Size.Full()).Add(x => x.Id).Add(x => x.Name).Add(x => x.Template).Add(x => x.Period).Add(x => x.UploadDate).Add(x => x.Actions).Header(x => x.Id, "ID").Header(x => x.Template, "Template").Header(x => x.Period, "Period").Header(x => x.UploadDate, "Upload Date").Header(x => x.Actions, ""));
+    catch { }
   }
+  var filtered = items.Where(t => string.IsNullOrWhiteSpace(search.Value) || t.Name.Contains(search.Value, StringComparison.OrdinalIgnoreCase)).ToList();
+  return Layout.Vertical().Gap(20)
+      .Add(filtered.Select(t => new UploadRow(
+          new Button(t.Id, () => dialog.Set(new UploadViewSheet(t.RealId, () => dialog.Set((object?)null)))).Variant(ButtonVariant.Ghost),
+          t.Name,
+          t.Template,
+          t.Period,
+          t.UploadDate,
+          new Button("", () => dialog.Set(new Dialog(_ => { dialog.Set((object?)null); return ValueTask.CompletedTask; }, new DialogHeader("Delete Data"), new DialogBody(Text.Label($"Delete {t.Name}?")), new DialogFooter(new Button("Cancel", () => dialog.Set((object?)null)), new Button("Delete", async () => { await service.DeleteRevenueEntryAsync(t.RealId); dialog.Set((object?)null); query.Mutator.Revalidate(); }).Variant(ButtonVariant.Destructive))))).Icon(Icons.Trash).Variant(ButtonVariant.Ghost)
+      )).Take(100).ToArray().ToTable().Width(Size.Full()).Add(x => x.Id).Add(x => x.Name).Add(x => x.Template).Add(x => x.Period).Add(x => x.UploadDate).Add(x => x.Actions).Header(x => x.Id, "ID").Header(x => x.Template, "Template").Header(x => x.Period, "Period").Header(x => x.UploadDate, "Upload Date").Header(x => x.Actions, ""));
+}
 
-  private object RenderTemplates(List<TemplateTableItem> templates, IState<string> search, IState<object?> dialog, dynamic query, ArtistInsightService service, IClientProvider client)
-  {
-    var filtered = templates.Where(t => string.IsNullOrWhiteSpace(search.Value) || t.Name.Contains(search.Value, StringComparison.OrdinalIgnoreCase)).ToList();
-    return Layout.Vertical().Gap(20)
-        .Add(filtered.Select(t => new TemplateRow(
-            new Button($"T{t.RealId:D3}", () => dialog.Set(new TemplateDataViewSheet(t.RealId, () => dialog.Set((object?)null)))).Variant(ButtonVariant.Ghost),
-            t.Name, t.Source, t.Category, t.Files,
-            Layout.Horizontal().Gap(5)
-                .Add(new Button("", () => dialog.Set(new TemplateEditSheet(() => { dialog.Set((object?)null); query.Mutator.Revalidate(); }, t.RealId, client))).Icon(Icons.Pencil).Variant(ButtonVariant.Ghost))
-                .Add(new Button("", () => dialog.Set(new Dialog(_ => { dialog.Set((object?)null); return ValueTask.CompletedTask; }, new DialogHeader("Delete Template"), new DialogBody(Text.Label($"Delete {t.Name}?")), new DialogFooter(new Button("Cancel", () => dialog.Set((object?)null)), new Button("Delete", async () => { await service.DeleteTemplateAsync(t.RealId); dialog.Set((object?)null); query.Mutator.Revalidate(); }).Variant(ButtonVariant.Destructive))))).Icon(Icons.Trash).Variant(ButtonVariant.Ghost))
-        )).Take(100).ToArray().ToTable().Width(Size.Full())
-            .Add(x => x.Id).Add(x => x.Name).Add(x => x.Source).Add(x => x.Category).Add(x => x.Linked).Add(x => x.Actions)
-            .Header(x => x.Id, "ID").Header(x => x.Source, "Source").Header(x => x.Linked, "Files").Header(x => x.Actions, ""));
-  }
+private object RenderTemplates(List<TemplateTableItem> templates, IState<string> search, IState<object?> dialog, dynamic query, ArtistInsightService service, IClientProvider client)
+{
+  var filtered = templates.Where(t => string.IsNullOrWhiteSpace(search.Value) || t.Name.Contains(search.Value, StringComparison.OrdinalIgnoreCase)).ToList();
+  return Layout.Vertical().Gap(20)
+      .Add(filtered.Select(t => new TemplateRow(
+          new Button($"T{t.RealId:D3}", () => dialog.Set(new TemplateDataViewSheet(t.RealId, () => dialog.Set((object?)null)))).Variant(ButtonVariant.Ghost),
+          t.Name, t.Source, t.Category, t.Files,
+          Layout.Horizontal().Gap(5)
+              .Add(new Button("", () => dialog.Set(new TemplateEditSheet(() => { dialog.Set((object?)null); query.Mutator.Revalidate(); }, t.RealId, client))).Icon(Icons.Pencil).Variant(ButtonVariant.Ghost))
+              .Add(new Button("", () => dialog.Set(new Dialog(_ => { dialog.Set((object?)null); return ValueTask.CompletedTask; }, new DialogHeader("Delete Template"), new DialogBody(Text.Label($"Delete {t.Name}?")), new DialogFooter(new Button("Cancel", () => dialog.Set((object?)null)), new Button("Delete", async () => { await service.DeleteTemplateAsync(t.RealId); dialog.Set((object?)null); query.Mutator.Revalidate(); }).Variant(ButtonVariant.Destructive))))).Icon(Icons.Trash).Variant(ButtonVariant.Ghost))
+      )).Take(100).ToArray().ToTable().Width(Size.Full())
+          .Add(x => x.Id).Add(x => x.Name).Add(x => x.Source).Add(x => x.Category).Add(x => x.Linked).Add(x => x.Actions)
+          .Header(x => x.Id, "ID").Header(x => x.Source, "Source").Header(x => x.Linked, "Files").Header(x => x.Actions, ""));
+}
 
 
-  //Dialog/Modal for adding a new insight card
-  private object RenderAddWidgetDialog(IState<object?> selectedDialog, IState<List<CardState>> cardStates, string cardId, IState<int?> widgetType, IState<string> widgetTarget, IState<string?> addWidgetCardId, IState<string?> configWidgetCardId, IState<string?> configPieChartCardId)
-  {
-    var options = new List<Option<int?>>
+//Dialog/Modal for adding a new insight card
+private object RenderAddWidgetDialog(IState<object?> selectedDialog, IState<List<CardState>> cardStates, string cardId, IState<int?> widgetType, IState<string> widgetTarget, IState<string?> addWidgetCardId, IState<string?> configWidgetCardId, IState<string?> configPieChartCardId)
+{
+  var options = new List<Option<int?>>
     {
         new("Total Assets", 1),
         new("Total Revenue", 2),
         new("Total Data Imports", 3),
+        new("Blank Card", 4),
         new("Metric View: Targeted Revenue", 5),
         new("Pie Chart: Asset Breakdown", 6)
     };
 
-    return new Dialog(
-        _ => { addWidgetCardId.Set((string?)null); widgetType.Set((int?)null); return ValueTask.CompletedTask; },
-        new DialogHeader("Add an Insight Card"),
-        new DialogBody(Layout.Vertical().Gap(15)
-            .Add(Text.P("Select an insight to add to your dashboard."))
-            .Add(Layout.Vertical().Gap(5)
-                .Add(Text.Label("Select an Insight Card to display"))
-                .Add(widgetType.ToSelectInput(options).Placeholder("Choose...")))
-        ),
-        new DialogFooter(
-            new Button("Cancel", () => { addWidgetCardId.Set((string?)null); widgetType.Set((int?)null); }).Variant(ButtonVariant.Ghost),
-            new Button("Continue", () =>
+  return new Dialog(
+      _ => { addWidgetCardId.Set((string?)null); widgetType.Set((int?)null); return ValueTask.CompletedTask; },
+      new DialogHeader("Add an Insight Card"),
+      new DialogBody(Layout.Vertical().Gap(15)
+          .Add(Text.P("Select an insight to add to your dashboard."))
+          .Add(Layout.Vertical().Gap(5)
+              .Add(Text.Label("Select an Insight Card to display"))
+              .Add(widgetType.ToSelectInput(options).Placeholder("Choose...")))
+      ),
+      new DialogFooter(
+          new Button("Cancel", () => { addWidgetCardId.Set((string?)null); widgetType.Set((int?)null); }).Variant(ButtonVariant.Ghost),
+          new Button("Continue", () =>
+          {
+            if (widgetType.Value == 1 || widgetType.Value == 2 || widgetType.Value == 3 || widgetType.Value == 4)
             {
-              if (widgetType.Value == 1 || widgetType.Value == 2 || widgetType.Value == 3)
+              var title = widgetType.Value switch
               {
-                var title = widgetType.Value switch
+                1 => "Total Assets",
+                2 => "Total Revenue",
+                3 => "Total Data Imports",
+                4 => " ",
+                _ => "New Card"
+              };
+              var list = cardStates.Value.ToList();
+
+              if (cardId == "NEW_CARD")
+              {
+                // Create new card
+                var newId = Guid.NewGuid().ToString();
+                // Determine position (e.g. Middle column, top)
+                var cols = list.Select(c => c.Column).Distinct().OrderBy(c => c).ToList();
+                var targetCol = cols.Count > 0 ? cols[cols.Count / 2] : "0";
+
+                var newCard = new CardState(newId, title, targetCol, -1, widgetType.Value.Value);
+                // Shift others down
+                for (int i = 0; i < list.Count; i++)
                 {
-                  1 => "Total Assets",
-                  2 => "Total Revenue",
-                  3 => "Total Data Imports",
-                  _ => "New Card"
-                };
-                var list = cardStates.Value.ToList();
+                  if (list[i].Column == targetCol)
+                  {
+                    list[i] = list[i] with { Order = list[i].Order + 1 };
+                  }
+                }
+                // Actually, easier to just insert at 0 and re-normalize later or just let Order handle it.
+                // Since we are replacing the list, let's just Insert.
+
+                // Better strategy: Add to end of column 1 (usually main) or Middle.
+                // Let's go with: Add to middle column, Order = 0 (shift current top down is complex without refetching logic).
+                // Simple apppend: Order = max + 1
+                var maxOrder = list.Where(c => c.Column == targetCol).Select(c => c.Order).DefaultIfEmpty(-1).Max();
+                newCard = newCard with { Order = maxOrder + 1 };
+
+                list.Add(newCard);
+                cardStates.Set(list);
+              }
+              else
+              {
                 var idx = list.FindIndex(x => x.Id == cardId);
                 if (idx != -1)
                 {
                   list[idx] = list[idx] with { Type = widgetType.Value.Value, Title = title };
                   cardStates.Set(list);
                 }
-                addWidgetCardId.Set((string?)null);
-                widgetType.Set((int?)null);
               }
-              else if (widgetType.Value == 5)
-              {
-                addWidgetCardId.Set((string?)null);
-                configWidgetCardId.Set(cardId);
-              }
-              else if (widgetType.Value == 6)
-              {
-                addWidgetCardId.Set((string?)null);
-                configPieChartCardId.Set(cardId);
-              }
-            }).Variant(ButtonVariant.Primary).Disabled(widgetType.Value == null)
-        )
-    );
-  }
 
-  private object RenderConfigurePieChartDialog(IState<object?> selectedDialog, IState<List<CardState>> cardStates, string cardId, IState<int?> widgetType, IState<string> widgetTarget, IState<string?> addWidgetCardId, IState<string?> configPieChartCardId)
-  {
-    var categories = new List<Option<string>>
+              addWidgetCardId.Set((string?)null);
+              widgetType.Set((int?)null);
+            }
+            else if (widgetType.Value == 5)
+            {
+              addWidgetCardId.Set((string?)null);
+              configWidgetCardId.Set(cardId);
+            }
+            else if (widgetType.Value == 6)
+            {
+              addWidgetCardId.Set((string?)null);
+              configPieChartCardId.Set(cardId);
+            }
+          }).Variant(ButtonVariant.Primary).Disabled(widgetType.Value == null)
+      )
+  );
+}
+
+private object RenderConfigurePieChartDialog(IState<object?> selectedDialog, IState<List<CardState>> cardStates, string cardId, IState<int?> widgetType, IState<string> widgetTarget, IState<string?> addWidgetCardId, IState<string?> configPieChartCardId)
+{
+  var categories = new List<Option<string>>
     {
         new("All", "All"),
         new("Merchandise", "Merchandise"),
@@ -628,74 +693,74 @@ public class DashboardApp : ViewBase
         new("Concerts", "Concerts")
     };
 
-    return new Dialog(
-        _ => { configPieChartCardId.Set((string?)null); widgetType.Set((int?)null); widgetTarget.Set(""); return ValueTask.CompletedTask; },
-        new DialogHeader("Configure Asset Breakdown Chart"),
-        new DialogBody(Layout.Vertical().Gap(15)
-            .Add(Text.P("Select a category to filter the chart."))
-            .Add(Layout.Vertical().Gap(5)
-                .Add(Text.Label("Category Filter"))
-                .Add(widgetTarget.ToSelectInput(categories).Placeholder("Select Category")))
-        ),
-        new DialogFooter(
-            new Button("Back", () => { configPieChartCardId.Set((string?)null); addWidgetCardId.Set(cardId); }).Variant(ButtonVariant.Ghost),
-            new Button("Submit", () =>
+  return new Dialog(
+      _ => { configPieChartCardId.Set((string?)null); widgetType.Set((int?)null); widgetTarget.Set(""); return ValueTask.CompletedTask; },
+      new DialogHeader("Configure Asset Breakdown Chart"),
+      new DialogBody(Layout.Vertical().Gap(15)
+          .Add(Text.P("Select a category to filter the chart."))
+          .Add(Layout.Vertical().Gap(5)
+              .Add(Text.Label("Category Filter"))
+              .Add(widgetTarget.ToSelectInput(categories).Placeholder("Select Category")))
+      ),
+      new DialogFooter(
+          new Button("Back", () => { configPieChartCardId.Set((string?)null); addWidgetCardId.Set(cardId); }).Variant(ButtonVariant.Ghost),
+          new Button("Submit", () =>
+          {
+            var currentList = cardStates.Value.ToList();
+            var index = currentList.FindIndex(x => x.Id == cardId);
+            if (index != -1)
             {
-              var currentList = cardStates.Value.ToList();
-              var index = currentList.FindIndex(x => x.Id == cardId);
-              if (index != -1)
+              currentList[index] = currentList[index] with
               {
-                currentList[index] = currentList[index] with
-                {
-                  Type = widgetType.Value ?? 6,
-                  Title = "Asset Breakdown",
-                  CategoryFilter = widgetTarget.Value
-                };
-                cardStates.Set(currentList);
-              }
+                Type = widgetType.Value ?? 6,
+                Title = "Asset Breakdown",
+                CategoryFilter = widgetTarget.Value
+              };
+              cardStates.Set(currentList);
+            }
 
-              configPieChartCardId.Set((string?)null);
-              widgetType.Set((int?)null);
-              widgetTarget.Set("");
-            }).Variant(ButtonVariant.Primary).Disabled(string.IsNullOrEmpty(widgetTarget.Value))
-        )
-    );
-  }
+            configPieChartCardId.Set((string?)null);
+            widgetType.Set((int?)null);
+            widgetTarget.Set("");
+          }).Variant(ButtonVariant.Primary).Disabled(string.IsNullOrEmpty(widgetTarget.Value))
+      )
+  );
+}
 
-  private object RenderConfigureMetricDialog(IState<object?> selectedDialog, IState<List<CardState>> cardStates, string cardId, IState<int?> widgetType, IState<string> widgetTarget, IState<string?> addWidgetCardId, IState<string?> configWidgetCardId)
-  {
-    return new Dialog(
-        _ => { configWidgetCardId.Set((string?)null); widgetType.Set((int?)null); widgetTarget.Set(""); return ValueTask.CompletedTask; },
-        new DialogHeader("Configure Targeted Revenue"),
-        new DialogBody(Layout.Vertical().Gap(15)
-            .Add(Text.P("Set your desired revenue target for this metric."))
-            .Add(Layout.Vertical().Gap(5)
-                .Add(Text.Label("Target Revenue"))
-                .Add(widgetTarget.ToTextInput().Placeholder("e.g. 50000")))
-        ),
-        new DialogFooter(
-            new Button("Back", () => { configWidgetCardId.Set((string?)null); addWidgetCardId.Set(cardId); }).Variant(ButtonVariant.Ghost),
-            new Button("Submit", () =>
+private object RenderConfigureMetricDialog(IState<object?> selectedDialog, IState<List<CardState>> cardStates, string cardId, IState<int?> widgetType, IState<string> widgetTarget, IState<string?> addWidgetCardId, IState<string?> configWidgetCardId)
+{
+  return new Dialog(
+      _ => { configWidgetCardId.Set((string?)null); widgetType.Set((int?)null); widgetTarget.Set(""); return ValueTask.CompletedTask; },
+      new DialogHeader("Configure Targeted Revenue"),
+      new DialogBody(Layout.Vertical().Gap(15)
+          .Add(Text.P("Set your desired revenue target for this metric."))
+          .Add(Layout.Vertical().Gap(5)
+              .Add(Text.Label("Target Revenue"))
+              .Add(widgetTarget.ToTextInput().Placeholder("e.g. 50000")))
+      ),
+      new DialogFooter(
+          new Button("Back", () => { configWidgetCardId.Set((string?)null); addWidgetCardId.Set(cardId); }).Variant(ButtonVariant.Ghost),
+          new Button("Submit", () =>
+          {
+            var currentList = cardStates.Value.ToList();
+            var index = currentList.FindIndex(x => x.Id == cardId);
+            if (index != -1)
             {
-              var currentList = cardStates.Value.ToList();
-              var index = currentList.FindIndex(x => x.Id == cardId);
-              if (index != -1)
+              decimal.TryParse(widgetTarget.Value, out var target);
+              currentList[index] = currentList[index] with
               {
-                decimal.TryParse(widgetTarget.Value, out var target);
-                currentList[index] = currentList[index] with
-                {
-                  Type = widgetType.Value ?? 5,
-                  Title = "Targeted Revenue",
-                  Target = target > 0 ? target : null
-                };
-                cardStates.Set(currentList);
-              }
+                Type = widgetType.Value ?? 5,
+                Title = "Targeted Revenue",
+                Target = target > 0 ? target : null
+              };
+              cardStates.Set(currentList);
+            }
 
-              configWidgetCardId.Set((string?)null);
-              widgetType.Set((int?)null);
-              widgetTarget.Set("");
-            }).Variant(ButtonVariant.Primary).Disabled(string.IsNullOrEmpty(widgetTarget.Value))
-        )
-    );
-  }
+            configWidgetCardId.Set((string?)null);
+            widgetType.Set((int?)null);
+            widgetTarget.Set("");
+          }).Variant(ButtonVariant.Primary).Disabled(string.IsNullOrEmpty(widgetTarget.Value))
+      )
+  );
+}
 }
