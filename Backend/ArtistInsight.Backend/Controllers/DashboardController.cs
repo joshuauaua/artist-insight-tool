@@ -317,5 +317,24 @@ public class DashboardController : ControllerBase
       return StatusCode(500, ex.Message);
     }
   }
+
+  [HttpDelete("reset")]
+  public async Task<ActionResult> ResetData()
+  {
+    try
+    {
+      await _context.AssetRevenues.ExecuteDeleteAsync();
+      await _context.Assets.ExecuteDeleteAsync();
+      await _context.RevenueEntries.ExecuteDeleteAsync();
+      await _context.Artists.ExecuteDeleteAsync();
+      await _context.RevenueSources.ExecuteDeleteAsync();
+
+      return Ok("Project data reset successfully. Templates preserved.");
+    }
+    catch (Exception ex)
+    {
+      return StatusCode(500, ex.Message);
+    }
+  }
 }
 

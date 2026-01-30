@@ -30,6 +30,23 @@ public class AssetsTableApp : ViewBase
 
     var assets = assetsQuery.Value ?? [];
 
+    // Inject Example Asset if empty
+    if (assets.Length == 0)
+    {
+      assets = new[]
+      {
+            new Asset
+            {
+                Id = -1,
+                Name = "Example Asset",
+                Category = "Royalties",
+                Type = "Single",
+                Collection = "Example Collection",
+                AmountGenerated = 1234.56m // Mock amount
+            }
+        };
+    }
+
     // Dynamic Header Logic
     var templates = templatesQuery.Value ?? [];
     var assetTemplate = templates.FirstOrDefault(t => t.Name?.IndexOf("Assets", StringComparison.OrdinalIgnoreCase) >= 0);
@@ -87,13 +104,13 @@ public class AssetsTableApp : ViewBase
 
     var table = filteredAssets.Select(a => new
     {
-      IdButton = new Button($"A{a.Id:D3}", () => selectedAssetId.Set(a.Id)).Variant(ButtonVariant.Ghost),
+      IdButton = new Button(a.Id == -1 ? "Ex" : $"A{a.Id:D3}", () => selectedAssetId.Set(a.Id)).Variant(ButtonVariant.Ghost).Disabled(a.Id == -1),
       a.Name,
       a.Category,
       a.Type,
       a.Collection,
       Amount = a.AmountGenerated.ToString("C", CultureInfo.GetCultureInfo("sv-SE")),
-      Actions = new Button("", () => confirmDeleteId.Set(a.Id)).Icon(Icons.Trash).Variant(ButtonVariant.Ghost)
+      Actions = new Button("", () => confirmDeleteId.Set(a.Id)).Icon(Icons.Trash).Variant(ButtonVariant.Ghost).Disabled(a.Id == -1)
     }).ToArray()
     .ToTable()
     .Width(Size.Full())
@@ -169,7 +186,7 @@ public class AssetsTableApp : ViewBase
                 new Button("Cancel", () => { confirmDeleteId.Set((int?)null); }),
                 new Button("Delete", async () =>
                 {
-                  if (confirmDeleteId.Value == null) return;
+                  if (confirmDeleteId.Value == null || confirmDeleteId.Value == -1) return;
                   var success = await service.DeleteAssetAsync(confirmDeleteId.Value.Value);
                   if (success)
                   {

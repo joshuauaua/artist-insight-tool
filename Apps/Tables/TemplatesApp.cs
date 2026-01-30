@@ -24,15 +24,39 @@ public class TemplatesApp : ViewBase
     // Load Data with UseQuery
     var templatesQuery = UseQuery("templates_list", async (ct) => await service.GetTemplatesAsync());
 
-    var items = templatesQuery.Value?.Select(t => new TemplateItem(
-              t.Id,
-              $"T{t.Id:D3}",
-              t.Name,
-              t.SourceName ?? "-",
-              t.Category ?? "Other",
-              t.RevenueEntries?.Count ?? 0,
-              t.CreatedAt
-          )).OrderBy(t => t.RealId).ToList() ?? [];
+    var items = templatesQuery.Value?.Select(t =>
+    {
+      int fileCount = 0;
+      if (t.RevenueEntries != null)
+      {
+        foreach (var entry in t.RevenueEntries)
+        {
+          if (!string.IsNullOrEmpty(entry.JsonData))
+          {
+            try
+            {
+              var data = JsonSerializer.Deserialize<List<object>>(entry.JsonData);
+              fileCount += data?.Count ?? 0;
+            }
+            catch { fileCount++; } // Fallback to 1 if not JSON
+          }
+          else if (!string.IsNullOrEmpty(entry.FileName))
+          {
+            fileCount++;
+          }
+        }
+      }
+
+      return new TemplateItem(
+          t.Id,
+          $"T{t.Id:D3}",
+          t.Name,
+          t.SourceName ?? "-",
+          t.Category ?? "Other",
+          fileCount,
+          t.CreatedAt
+      );
+    }).OrderBy(t => t.RealId).ToList() ?? [];
 
     if (templatesQuery.Loading && items.Count == 0) return Layout.Center().Add(Text.Label("Loading templates...").Muted());
     var refetch = templatesQuery.Mutator.Revalidate;

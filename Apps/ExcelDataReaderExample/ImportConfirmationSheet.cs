@@ -125,20 +125,20 @@ public class ImportConfirmationSheet(List<CurrentFile> files, Action onSuccess, 
                    try { currentData = JsonSerializer.Deserialize<List<Dictionary<string, object?>>>(entry.JsonData) ?? []; } catch { }
                  }
 
-                 // Check if any existing data block has the same TemplateName
+                 // Check if this specific file was already imported into this entry
                  bool isDuplicate = currentData.Any(d =>
                  {
-                   if (d.TryGetValue("TemplateName", out var tName) && tName != null)
+                   if (d.TryGetValue("FileName", out var fName) && fName != null)
                    {
-                     string? sName = tName is JsonElement je ? je.ToString() : tName.ToString();
-                     return sName == tmpl.Name;
+                     string? sName = fName is JsonElement je ? je.ToString() : fName.ToString();
+                     return sName == file.OriginalName;
                    }
                    return false;
                  });
 
                  if (isDuplicate)
                  {
-                   duplicateError.Set($"Duplicate detected: Data for '{tmpl.Name}' already exists for {uploadYear.Value} {uploadQuarter.Value} - {source.DescriptionText}. Skipping import.");
+                   duplicateError.Set($"File '{file.OriginalName}' already exists in this entry. Skipping.");
                    continue;
                  }
 
@@ -147,6 +147,7 @@ public class ImportConfirmationSheet(List<CurrentFile> files, Action onSuccess, 
                  entry.JsonData = JsonSerializer.Serialize(currentData);
                  entry.Amount += totalAmount; // Add to existing total
                  entry.Description += $", {file.OriginalName}"; // Append description
+                 entry.ImportTemplateId = tmpl.Id; // Ensure link is set/maintained
 
                  await service.UpdateRevenueEntryAsync(entry);
                  filesImported++;
@@ -214,7 +215,6 @@ public class ImportConfirmationSheet(List<CurrentFile> files, Action onSuccess, 
                    if (batchAssets.Count > 0)
                    {
                      var names = batchAssets.Keys.ToList();
-                     // Use AsNoTracking for local lookups to avoid conflict if API modified them? No, DbContext is local.
                      var existingAssets = await db.Assets.Where(a => names.Contains(a.Name)).ToListAsync();
                      var existingNames = existingAssets.Select(a => a.Name).ToHashSet();
                      var newAssets = names.Where(n => !existingNames.Contains(n))
@@ -250,16 +250,16 @@ public class ImportConfirmationSheet(List<CurrentFile> files, Action onSuccess, 
                  }
                  catch { }
                }
+
+               // Save changes at end of EACH file to ensure subsequent files see new Assets/Sources
+               await db.SaveChangesAsync();
              }
              catch (Exception ex)
              {
-               client.Toast($"Error: {ex.Message}", "Error");
-               continue;
+               client.Toast($"Error processing {file.OriginalName}: {ex.Message}", "Error");
              }
            }
 
-
-           await db.SaveChangesAsync();
            if (filesImported > 0)
            {
              client.Toast($"Imported {filesImported} files", "Success");
