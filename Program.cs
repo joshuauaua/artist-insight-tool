@@ -13,5 +13,4 @@ server.Services.AddSingleton<ArtistInsightService>();
 server.AddAppsFromAssembly();
 server.AddConnectionsFromAssembly();
 var chromeSettings = new ChromeSettings().DefaultApp<DashboardApp>();
-server.UseChrome(chromeSettings);
 await server.RunAsync();

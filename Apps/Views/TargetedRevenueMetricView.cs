@@ -24,7 +24,7 @@ public class TargetedRevenueMetricView(decimal targetRevenue) : ViewBase
 
       return new MetricRecord(
           MetricFormatted: currentRevenueValue.ToString("C0", CultureInfo.GetCultureInfo("sv-SE")),
-          TrendComparedToPreviousPeriod: dto?.Trend,
+          TrendComparedToPreviousPeriod: (double)progress * 100,
           GoalAchieved: progress,
           GoalFormatted: targetRevenue.ToString("C0", CultureInfo.GetCultureInfo("sv-SE"))
       );
