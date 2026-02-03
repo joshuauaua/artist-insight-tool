@@ -56,6 +56,7 @@ public class RevenueController : ControllerBase
             r.Artist.Name,
             r.ImportTemplate != null ? r.ImportTemplate.Name : null,
             r.JsonData,
+            r.ImportTemplate != null ? r.ImportTemplate.Category : "Other",
             r.UploadDate ?? r.CreatedAt,
             r.Year,
             r.Quarter

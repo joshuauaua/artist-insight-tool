@@ -491,8 +491,9 @@ public class DashboardApp : ViewBase
                 ).Width(Size.Full()))
             )
         )
+        .Add(new NetVsGrossByCategoryView())
       : Layout.Vertical().Gap(20)
-        .Add((entries.Any() ? entries : new List<RevenueEntryDto> { new RevenueEntryDto(0, DateTime.Now, 0, "Example Entry", "Example Source", "Note: This is an example to show table layout.", "Artist Name", "Template Name", "{}", DateTime.Now, 2024, "Q1") })
+        .Add((entries.Any() ? entries : new List<RevenueEntryDto> { new RevenueEntryDto(0, DateTime.Now, 0, "Example Entry", "Example Source", "Note: This is an example to show table layout.", "Artist Name", "Template Name", "{}", "Other", DateTime.Now, 2024, "Q1") })
         .Where(e => string.IsNullOrWhiteSpace(search.Value) || (e.Description ?? "").Contains(search.Value, StringComparison.OrdinalIgnoreCase)).Select(r => new RevenueRow(
             new Button($"E{r.Id:D3}", () => dialog.Set(new RevenueViewSheet(r.Id, () => dialog.Set((object?)null), () => dialog.Set(new RevenueEditSheet(r.Id, () => dialog.Set((object?)null)))))).Variant(ButtonVariant.Ghost),
             r.RevenueDate.ToShortDateString(),
@@ -532,7 +533,7 @@ public class DashboardApp : ViewBase
   private object RenderUploads(List<RevenueEntryDto> entries, IState<string> search, IState<object?> dialog, dynamic query, ArtistInsightService service)
   {
     var items = new List<UploadTableItem>();
-    var sourceEntries = entries.Any() ? entries : new List<RevenueEntryDto> { new RevenueEntryDto(0, DateTime.Now, 0, "Example Upload", "Example Source", "Manual", "Artist Name", "Example Template", "{}", DateTime.Now, 2024, "Q1") };
+    var sourceEntries = entries.Any() ? entries : new List<RevenueEntryDto> { new RevenueEntryDto(0, DateTime.Now, 0, "Example Upload", "Example Source", "Manual", "Artist Name", "Example Template", "{}", "Other", DateTime.Now, 2024, "Q1") };
 
     foreach (var e in sourceEntries.Where(x => !string.IsNullOrEmpty(x.JsonData)))
     {
