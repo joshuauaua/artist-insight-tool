@@ -15,6 +15,7 @@ public class DashboardHeader(IState<int> selectedTab, Action onImportClick) : Vi
             .Add(RenderTabButton("Revenue", 2))
             .Add(RenderTabButton("Uploads", 3))
             .Add(RenderTabButton("Templates", 4))
+            .Add(RenderTabButton("Builder", 5))
         )
         .Add(new Spacer())
         .Add(new Button("Import Data", onImportClick)

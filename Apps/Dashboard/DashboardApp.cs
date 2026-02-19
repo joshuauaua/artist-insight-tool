@@ -184,6 +184,7 @@ public class DashboardApp : ViewBase
         2 => RenderRevenue(revenueEntries, globalSearch, selectedDialog, revenueQuery, revenueViewMode, assets, selectedCategory, categories),
         3 => RenderUploads(revenueEntries, globalSearch, selectedDialog, revenueQuery, service),
         4 => RenderTemplates(templatesData, globalSearch, selectedDialog, tmplQuery, service, client),
+        5 => new BuilderView(),
         _ => RenderOverview(showImportSheet, overviewCards, assets, totalRevenue, revenueEntries, selectedDialog, widgetType, widgetTarget, addWidgetCardId, showActionPanel, focalCardId)
       });
     }
